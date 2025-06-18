@@ -19,34 +19,20 @@ EOF
     echo "[+] Created module.desc for $module"
 done
 
-# Create placeholders for main.py if they don't exist
-for module in zfspooldetect zfsrootselect; do
-    if [ ! -f "calamares/modules/$module/main.py" ]; then
-        cat > calamares/modules/$module/main.py << EOF
-#!/usr/bin/env python3
+# Copy main.py implementations for all modules
+for module in zfspooldetect zfsrootselect zfsbootloader proxmoxconfig zforgefinalize; do
+    src_file="builder/modules/$module/main.py"
+    dest_file="calamares/modules/$module/main.py"
 
-"""
-$module Calamares Module
-"""
-
-import libcalamares
-
-def pretty_name():
-    return "$module"
-
-def run():
-    """Main entry point"""
-    libcalamares.utils.debug("Running $module")
-    return None  # Success
-EOF
-        chmod +x "calamares/modules/$module/main.py"
-        echo "[+] Created placeholder main.py for $module"
+    if [ -f "$src_file" ]; then
+        cp "$src_file" "$dest_file"
+        chmod +x "$dest_file"
+        echo "[+] Copied main.py for $module and made it executable"
+    else
+        echo "[!] ERROR: Source file $src_file not found. Skipping $module."
     fi
 done
 
-# Copy the implemented modules
-# (You'll need to add the implementation for these files)
-
 echo "[+] Calamares modules setup complete!"
-echo "    Next steps: Implement or copy the main.py files for each module"
+echo "    Actual main.py implementations have been copied for all modules."
 echo ""
