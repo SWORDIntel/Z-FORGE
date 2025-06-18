@@ -448,7 +448,8 @@ modules=(
     "DracutConfig"
     "ProxmoxIntegration"
     "LiveEnvironment"
-    "CalamaresIntegration"
+    # CalamaresIntegration is handled separately below
+    # "CalamaresIntegration"
     "ISOGeneration"
 )
 
@@ -470,6 +471,16 @@ after_debootstrap() {
 
 # Loop through the defined Python modules and execute them.
 for module in "${modules[@]}"; do
+    if [ "$module" == "ISOGeneration" ]; then
+        # Calamares setup and integration must happen before ISOGeneration
+        echo "[*] Setting up Calamares modules..." | tee -a "$LOG_FILE"
+        if ! ./setup-calamares-modules.sh; then
+            echo "[!] Failed to set up Calamares modules. Aborting." | tee -a "$LOG_FILE"
+            exit 1
+        fi
+        run_module "CalamaresIntegration"
+    fi
+
     run_module "$module" # Execute the current Python module.
     
     # Check for special hooks that need to run after certain Python modules.
