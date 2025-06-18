@@ -1,65 +1,110 @@
 #!/bin/bash
 # Z-FORGE V3 - ISO build script
+# This script automates the process of building a Z-FORGE V3 ISO.
+# It sets up the build environment, installs necessary packages,
+# configures the system using a series of Python modules, and
+# finally generates a bootable ISO image.
 
+# Exit immediately if a command exits with a non-zero status.
 set -e
 
+# Display a header for the build process.
 echo "════════════════════════════════════════════════════════════════"
 echo "                Z-FORGE V3 ISO BUILD PROCESS"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-# Check root
+# Section: Root Check
+# This section ensures that the script is run with root privileges.
+# Root privileges are required for tasks like package installation and chroot operations.
 if [ "$EUID" -ne 0 ]; then 
     echo "[!] This script must be run as root"
     exit 1
 fi
 
-# Configuration
+# Section: Configuration
+# This section defines key variables used throughout the script.
+# WORKSPACE: The directory where build artifacts will be stored.
+# ISO_OUTPUT: The path where the final ISO image will be saved.
+# LOG_FILE: The file where build logs will be written.
 WORKSPACE="/tmp/zforge_workspace"
 ISO_OUTPUT="$PWD/zforge-proxmox-v3.iso"
 LOG_FILE="$PWD/zforge-build.log"
 
-# Create workspace
+# Section: Workspace Setup
+# This section creates the workspace directory if it doesn't already exist.
 echo "[*] Creating workspace at $WORKSPACE..."
 mkdir -p "$WORKSPACE"
 
-# Initialize log
+# Section: Logging Initialization
+# This section initializes the log file with a timestamp.
+# All major script actions will be logged to this file and also printed to the console.
 echo "[*] Build started at $(date)" | tee "$LOG_FILE"
 
-# Save script directory
+# Save the directory where the script is located.
+# This is used to resolve paths to other scripts and configuration files.
 SCRIPT_DIR="$PWD"
 
-# Add script directory to Python path
+# Add the script directory to the Python path.
+# This allows Python modules in the 'builder' subdirectory to be imported.
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
-# Function to ensure dracut is installed
+# Function: ensure_dracut_installed
+# This function ensures that dracut is installed and configured within the chroot environment.
+# Dracut is used to create an initramfs, which is essential for booting the system.
+# It removes initramfs-tools (an alternative) if present, installs dracut and related packages,
+# and sets up basic ZFS configuration for dracut.
+# It also generates a hostid if one doesn't exist, which is important for ZFS.
+# Arguments:
+#   None
+# Returns:
+#   None
 ensure_dracut_installed() {
     echo "[*] Ensuring dracut is properly installed..." | tee -a "$LOG_FILE"
     
-    # Execute in chroot
+    # Execute commands within the chroot environment.
     chroot "$WORKSPACE/chroot" /bin/bash -c "
-        # Remove initramfs-tools if present
+        # Remove initramfs-tools to avoid conflicts with dracut.
+        # The '|| true' ensures the script doesn't fail if initramfs-tools is not installed.
         apt-get remove -y initramfs-tools || true
         
-        # Install dracut
+        # Install dracut and its core, network, and squashfs components.
         apt-get install -y dracut dracut-core dracut-network dracut-squash
         
-        # Configure dracut for ZFS
+        # Configure dracut to include ZFS support.
+        # This creates a configuration file for dracut to load ZFS modules.
         mkdir -p /etc/dracut.conf.d
         echo 'add_dracutmodules+=\" zfs \"' > /etc/dracut.conf.d/zfs.conf
         echo 'filesystems+=\" zfs \"' >> /etc/dracut.conf.d/zfs.conf
         
-        # Create hostid
+        # Create a unique hostid if it doesn't exist.
+        # ZFS uses the hostid to identify the system.
         if [ ! -f /etc/hostid ]; then
             zgenhostid \$(hexdump -n 4 -e '\"0x%08x\"' /dev/urandom)
         fi
     "
 }
 
-# Function to create dracut config module if needed
+# Function: ensure_dracut_module_exists
+# This function dynamically creates a Python module named 'dracut_config.py' if it doesn't already exist.
+# This module is responsible for more detailed dracut configuration during the Python-based build phase.
+# The content of the Python module is written here using a heredoc.
+# This approach allows for self-contained script logic without requiring separate Python files for this specific utility.
+# The Python module 'DracutConfig' handles:
+# - Removing initramfs-tools.
+# - Installing dracut packages.
+# - Applying detailed dracut configuration based on 'build_spec.yml'.
+# - Generating the initramfs image.
+# - Retrieving the dracut version.
+# Arguments:
+#   None
+# Returns:
+#   None
 ensure_dracut_module_exists() {
+    # Check if the dracut_config.py module already exists.
     if [ ! -f "$SCRIPT_DIR/builder/modules/dracut_config.py" ]; then
         echo "[*] Creating DracutConfig module..." | tee -a "$LOG_FILE"
+        # Create the Python module using a heredoc.
         cat > "$SCRIPT_DIR/builder/modules/dracut_config.py" << 'EOF'
 #!/usr/bin/env python3
 
@@ -255,103 +300,146 @@ EOF
     fi
 }
 
-# Function to run builder module
+        # Make the generated Python module executable.
+        chmod +x "$SCRIPT_DIR/builder/modules/dracut_config.py"
+    fi
+}
+
+# Function: run_module
+# This function executes a specified Python builder module.
+# It uses a short Python script to instantiate 'ZForgeBuilder' with the 'build_spec.yml'
+# configuration and then calls the 'execute_module' method for the given module name.
+# Output from the Python script (both stdout and stderr) is logged.
+# If the module execution fails (non-zero exit code from Python or 'status' is not 'success'),
+# the script exits.
+# Arguments:
+#   $1: module_name - The name of the Python module to execute (e.g., "WorkspaceSetup").
+# Returns:
+#   None (exits on failure).
 run_module() {
     local module=$1
     echo "[*] Running module: $module" | tee -a "$LOG_FILE"
     
+    # Execute the Python module runner.
+    # This inline Python script imports the necessary builder components and runs the specified module.
     python3 -c "
 import sys
 from builder.core.builder import ZForgeBuilder
+# Initialize the builder with the path to the build specification file.
 builder = ZForgeBuilder('$SCRIPT_DIR/build_spec.yml')
+# Execute the specified module.
 result = builder.execute_module('$module')
+# Check if the module execution was successful.
 if result.get('status') != 'success':
     print(f\"[!] Module $module failed: {result.get('error')}\")
-    sys.exit(1)
-" 2>&1 | tee -a "$LOG_FILE"
+    sys.exit(1)  # Exit Python script with an error code if the module failed.
+" 2>&1 | tee -a "$LOG_FILE" # Redirect stdout and stderr to log file and console.
     
+    # Check the exit status of the Python command.
+    # PIPESTATUS[0] holds the exit status of the first command in a pipe.
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
         echo "[!] Module $module failed!" | tee -a "$LOG_FILE"
-        exit 1
+        exit 1 # Exit the bash script if the Python command failed.
     fi
 }
 
-# Execute build pipeline
+# Section: Build Pipeline Execution
+# This section orchestrates the main build process.
 echo "[*] Starting build pipeline..." | tee -a "$LOG_FILE"
 
-# Ensure dracut module exists
+# Ensure the dynamically created dracut_config.py Python module exists.
+# This is called early to make sure the module is available if needed by other Python modules.
 ensure_dracut_module_exists
 
-# Make sure build_spec.yml exists
+# Section: Default Build Specification
+# This section creates a default 'build_spec.yml' file if one doesn't already exist.
+# The 'build_spec.yml' file contains the configuration for the entire build process,
+# including Debian release, kernel versions, Proxmox settings, ZFS options,
+# bootloader configurations, dracut settings, and the list of modules to run.
+# This ensures that the build can run even without a pre-existing configuration file.
 if [ ! -f "$SCRIPT_DIR/build_spec.yml" ]; then
     echo "[*] Creating default build configuration..." | tee -a "$LOG_FILE"
+    # Create 'build_spec.yml' using a heredoc.
     cat > "$SCRIPT_DIR/build_spec.yml" << 'EOF'
 # Z-Forge Build Configuration
-builder_config:
-  debian_release: bookworm
-  kernel_version: latest
-  output_iso_name: zforge-proxmox-v3.iso
-  enable_debug: true
-  workspace_path: /tmp/zforge_workspace
-  cache_packages: true
 
+# General builder settings
+builder_config:
+  debian_release: bookworm  # Specifies the Debian release to use for the base system.
+  kernel_version: latest    # Specifies the kernel version to install. 'latest' usually means the latest stable.
+  output_iso_name: zforge-proxmox-v3.iso # The filename for the generated ISO.
+  enable_debug: true        # Enables or disables debug logging or features in Python modules.
+  workspace_path: /tmp/zforge_workspace # Overrides the default workspace path if needed.
+  cache_packages: true      # Enables or disables caching of downloaded Debian packages.
+
+# Proxmox VE specific configuration
 proxmox_config:
-  version: latest
-  minimal_install: true
-  include_packages:
+  version: latest           # Specifies the Proxmox VE version to install.
+  minimal_install: true     # If true, installs a minimal set of Proxmox packages.
+  include_packages:         # A list of additional packages to install related to Proxmox.
     - proxmox-ve
     - pve-kernel-6.8
     - zfs-dkms
     - zfsutils-linux
     - pve-zsync
 
+# ZFS (Zettabyte File System) configuration
 zfs_config:
-  version: latest
-  build_from_source: true
-  enable_encryption: true
-  default_compression: lz4
+  version: latest           # Specifies the ZFS version to use or build.
+  build_from_source: true   # If true, ZFS will be compiled from source.
+  enable_encryption: true   # Enables ZFS native encryption support.
+  default_compression: lz4  # Sets the default compression algorithm for ZFS.
 
+# Bootloader configuration
 bootloader_config:
-  primary: zfsbootmenu
-  enable_opencore: true
-  opencore_drivers:
+  primary: zfsbootmenu      # Specifies the primary bootloader (e.g., GRUB, systemd-boot, ZFSBootMenu).
+  enable_opencore: true     # Option to include OpenCore for specific hardware compatibility (e.g., macOS).
+  opencore_drivers:         # List of OpenCore drivers to include if OpenCore is enabled.
     - NvmExpressDxe.efi
     - OpenRuntime.efi
 
+# Dracut (initramfs generator) configuration
 dracut_config:
-  modules:
+  modules:                  # List of dracut modules to include in the initramfs.
     - zfs
     - systemd
     - network
-  compress: zstd
-  hostonly: true
-  kernel_cmdline: "root=zfs:AUTO"
-  extra_drivers:
+  compress: zstd            # Compression method for the initramfs image (e.g., gzip, lz4, zstd).
+  hostonly: true            # If true, dracut creates a smaller initramfs tailored to the build host.
+  kernel_cmdline: "root=zfs:AUTO" # Kernel command line parameters related to root filesystem and ZFS.
+  extra_drivers:            # Additional kernel drivers to include in the initramfs.
     - nvme
 
+# List of Python builder modules to execute in order.
+# Each module performs a specific part of the build process.
+# 'enabled: true' means the module will be run.
 modules:
-  - name: WorkspaceSetup
+  - name: WorkspaceSetup      # Sets up the initial workspace directories.
     enabled: true
-  - name: Debootstrap
+  - name: Debootstrap         # Creates a minimal Debian system in the chroot.
     enabled: true
-  - name: KernelAcquisition
+  - name: KernelAcquisition   # Downloads and installs the specified Linux kernel.
     enabled: true
-  - name: ZFSBuild
+  - name: ZFSBuild            # Builds and installs ZFS if 'build_from_source' is true.
     enabled: true
-  - name: DracutConfig
+  - name: DracutConfig        # Configures and runs dracut to generate the initramfs. This uses the Python module.
     enabled: true
-  - name: ProxmoxIntegration
+  - name: ProxmoxIntegration  # Installs and configures Proxmox VE.
     enabled: true
-  - name: LiveEnvironment
+  - name: LiveEnvironment     # Configures the live environment settings (e.g., user accounts, services).
     enabled: true
-  - name: CalamaresIntegration
+  - name: CalamaresIntegration # Integrates the Calamares installer if used.
     enabled: true
-  - name: ISOGeneration
+  - name: ISOGeneration       # Creates the final bootable ISO image.
     enabled: true
 EOF
 fi
 
-# Run each module in sequence
+# Section: Module Execution Loop
+# This section defines the sequence of Python builder modules to be executed.
+# It iterates through an array of module names and calls 'run_module' for each.
+# It also includes a special hook 'after_debootstrap' that runs a bash function
+# immediately after the 'Debootstrap' Python module completes.
 modules=(
     "WorkspaceSetup"
     "Debootstrap"
@@ -364,36 +452,54 @@ modules=(
     "ISOGeneration"
 )
 
-# Add hook to ensure dracut after debootstrap
+# Function: after_debootstrap
+# This function is a special hook executed after the 'Debootstrap' Python module.
+# Its purpose is to perform immediate post-debootstrap tasks within the bash script,
+# specifically ensuring dracut is installed in the chroot using the bash function
+# 'ensure_dracut_installed'. This might be for initial setup before the more
+# comprehensive 'DracutConfig' Python module runs.
+# Arguments:
+#   None
+# Returns:
+#   None
 after_debootstrap() {
     echo "[*] Post-Debootstrap: Ensuring dracut is installed..." | tee -a "$LOG_FILE"
+    # Call the bash function to install/configure dracut at a basic level.
     ensure_dracut_installed
 }
 
+# Loop through the defined Python modules and execute them.
 for module in "${modules[@]}"; do
-    run_module "$module"
+    run_module "$module" # Execute the current Python module.
     
-    # Special hooks after specific modules
+    # Check for special hooks that need to run after certain Python modules.
+    # This allows for bash-level operations to be interleaved with Python module execution.
     if [ "$module" == "Debootstrap" ]; then
+        # If the 'Debootstrap' module has just finished, call the 'after_debootstrap' bash function.
         after_debootstrap
     fi
 done
 
-# Final steps
+# Section: Final Steps and Verification
+# This section performs final checks, generates checksums for the ISO,
+# and provides instructions for testing the ISO.
 if [ -f "$ISO_OUTPUT" ]; then
     echo "[*] Build completed successfully!" | tee -a "$LOG_FILE"
     echo "[*] ISO location: $ISO_OUTPUT" | tee -a "$LOG_FILE"
     echo "[*] ISO size: $(du -h "$ISO_OUTPUT" | cut -f1)" | tee -a "$LOG_FILE"
 
-    # Generate checksums
+    # Generate SHA256 and MD5 checksums for the created ISO file.
+    # This allows users to verify the integrity of the downloaded/copied ISO.
     echo "[*] Generating checksums..." | tee -a "$LOG_FILE"
     sha256sum "$ISO_OUTPUT" > "$ISO_OUTPUT.sha256"
     md5sum "$ISO_OUTPUT" > "$ISO_OUTPUT.md5"
 else
+    # If the ISO file was not created, report a build failure and exit.
     echo "[!] Build failed: ISO file not created" | tee -a "$LOG_FILE"
     exit 1
 fi
 
+# Display completion message and next steps.
 echo "" | tee -a "$LOG_FILE"
 echo "════════════════════════════════════════════════════════════════"
 echo "                    BUILD COMPLETE"

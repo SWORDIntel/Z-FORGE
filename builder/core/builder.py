@@ -12,7 +12,7 @@ import logging
 import importlib
 import traceback
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 
 from .config import BuildConfig
