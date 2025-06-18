@@ -122,6 +122,29 @@ sudo ./build-iso.sh
 
 The resulting ISO will be created in the current directory.
 
+### Important Build Notes
+
+The Z-Forge build process, specifically the `builder/modules/calamares_integration.py` module, relies on custom Calamares modules to handle ZFS-specific installation tasks and other Proxmox configurations. These custom modules (typically consisting of Python scripts like `main.py` and a `module.desc` descriptor file) are expected to be located in a `calamares/modules/` directory at the root of the Z-Forge project repository.
+
+As of the current analysis:
+*   The `calamares/modules/` directory and the source code for several critical custom Calamares modules appear to be **missing** from the repository.
+*   The specific Calamares modules that seem to be missing include:
+    *   `proxmoxconfig`
+    *   `zfsbootloader`
+    *   `zforgefinalize`
+    *   Potentially, the definitive versions of `zfspooldetect` and `zfsrootselect` (if the placeholder/example versions in `builder/modules/` are not the ones intended for direct Calamares use, or if they are incomplete).
+*   There is a helper script, `setup-calamares-modules.sh`, present in the repository which seems designed to create skeleton structures for these missing modules. However, this script is **not currently invoked** by the main `build-iso.sh` script.
+
+**Impact:**
+Without these custom Calamares modules, the installer built by Z-Forge will likely be unable to perform ZFS-specific operations (like setting up ZFS pools, installing the bootloader on ZFS, or applying Proxmox-specific configurations via the installer). Calamares will be configured to use these modules, but since their source code is not copied into the live ISO environment, it will fail to load them, leading to a non-functional or incomplete installation process for ZFS-on-root setups.
+
+**Resolution:**
+To build a fully functional Z-Forge installer, it is crucial to:
+1.  Provide the complete source code for the missing custom Calamares modules in the `calamares/modules/` directory at the project root.
+2.  Ensure that the `setup-calamares-modules.sh` script is either executed as part of the build process (e.g., called from `build-iso.sh`) to correctly place or prepare these modules, or that its functionality (copying/configuring these modules for Calamares) is integrated into the main build scripts.
+
+Resolving these missing components is essential for a successful build that produces an ISO capable of performing the intended ZFS-on-root installations.
+
 ## Troubleshooting
 
 ### Common Issues
