@@ -1,0 +1,29 @@
+# ZFSBootMenu configuration template
+
+Global:
+  ManageImages: true
+  BootMountPoint: /boot
+  DracutConfDir: /etc/zfsbootmenu/dracut.conf.d
+  InitCPIOConfig: /etc/zfsbootmenu/mkinitcpio.conf
+
+Components:
+  ImageDir: /boot/zfsbootmenu
+  Versions: 3
+  Enabled: true
+  syslinux:
+    Config: /boot/syslinux/syslinux.cfg
+    Enabled: false
+
+EFI:
+  ImageDir: /boot/efi/EFI/zfsbootmenu
+  Versions: false
+  Enabled: true
+
+Kernel:
+  CommandLine: "ro quiet loglevel=4"
+  Prefix: vmlinuz
+
+ZFS:
+  PoolName: rpool
+  DefaultSet: rpool/ROOT/proxmox
+  ShowSnapshots: true

@@ -208,6 +208,8 @@ deb http://deb.debian.org/debian {debian_release}-backports main contrib non-fre
 ::1     localhost ip6-localhost ip6-loopback
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
+192.168.0.1 
+9.9.9.9
 """
         hosts_path: Path = self.chroot_path / "etc/hosts"
         with open(hosts_path, 'w') as f:

@@ -1,4 +1,4 @@
-#!/bin/bash
+    #!/bin/bash
 # Z-Forge structure cleanup script
 
 echo "Z-Forge Structure Cleanup"

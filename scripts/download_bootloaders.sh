@@ -1,199 +1,66 @@
-#!/bin/bash
-# scripts/download_bootloaders.sh
-# Downloads and prepares bootloader binaries for Z-Forge
+#!/usr/bin/env bash
+# scripts/download_bootloaders.sh  – resilient fetcher for Z-Forge
+# Requires: curl, jq, unzip, wget
 
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
-BOOTLOADERS_DIR="/usr/share/zforge/bootloaders"
-TEMP_DIR="/tmp/zforge-bootloaders"
+BOOTLOADERS_DIR="${BOOTLOADERS_DIR:-$HOME/Documents/GitHub/Z-FORGE/bootloaders}"
+TEMP_DIR="$(mktemp -d /tmp/zforge-bootloaders.XXXXXX)"
 
-echo "====== Z-Forge Bootloader Acquisition ======"
+die()  { echo "[!] $*" >&2; exit 1; }
+log()  { printf '[%(%F %T)T] %s\n' -1 "$*"; }
+cleanup() { rm -rf "$TEMP_DIR"; }
+trap cleanup EXIT
 
-# Create directories
+command -v jq     >/dev/null || die "jq not found – try: sudo apt install jq"
+command -v unzip  >/dev/null || die "unzip not found – try: sudo apt install unzip"
+
 mkdir -p "$BOOTLOADERS_DIR"/{zfsbootmenu,opencore}
-mkdir -p "$TEMP_DIR"
 
-echo "[*] Downloading ZFSBootMenu..."
-# Get latest ZFSBootMenu
-wget -q --show-progress -O "$TEMP_DIR/zbm.zip" \
-  "https://github.com/zbm-dev/zfsbootmenu/releases/latest/download/zfsbootmenu-release.zip"
+########################################################################
+# Function: fetch_latest_asset
+# Args: <github_owner/repo> <regex_to_match_asset_name> <output_path>
+########################################################################
+fetch_latest_asset() {
+  local repo="$1" pattern="$2" out="$3"
+  local url
+  url=$(curl -s "https://api.github.com/repos/${repo}/releases/latest" |
+        jq -r --arg re "$pattern" '
+          .assets[] | select(.name|test($re)) | .browser_download_url' |
+        head -n1) || die "GitHub API error for $repo"
 
-echo "[*] Extracting ZFSBootMenu..."
-unzip -q "$TEMP_DIR/zbm.zip" -d "$TEMP_DIR/zbm"
-cp -r "$TEMP_DIR/zbm/EFI" "$BOOTLOADERS_DIR/zfsbootmenu/"
+  [[ -z "$url" ]] && die "No asset matching /$pattern/ found in latest release of $repo"
+  log "→ Downloading $(basename "$url")"
+  wget --progress=bar:force -O "$out" "$url"
+}
 
-echo "[*] Downloading OpenCore..."
-# Get OpenCore
-wget -q --show-progress -O "$TEMP_DIR/opencore.zip" \
-  "https://github.com/acidanthera/OpenCorePkg/releases/download/0.9.7/OpenCore-0.9.7-RELEASE.zip"
+#########################
+# ZFSBootMenu (x86_64)  #
+#########################
+log "=== Fetching ZFSBootMenu EFI ==="
+ZBM_EFI="$TEMP_DIR/zbm.efi"
+fetch_latest_asset "zbm-dev/zfsbootmenu" 'zfsbootmenu-release.*x86_64.*\.EFI$' "$ZBM_EFI"
+cp -v "$ZBM_EFI" "$BOOTLOADERS_DIR/zfsbootmenu/"
 
-echo "[*] Extracting OpenCore..."
-unzip -q "$TEMP_DIR/opencore.zip" -d "$TEMP_DIR/opencore"
-cp -r "$TEMP_DIR/opencore/X64/EFI" "$BOOTLOADERS_DIR/opencore/"
+#########################
+# OpenCore (release)    #
+#########################
+log "=== Fetching OpenCorePkg zip ==="
+OC_ZIP="$TEMP_DIR/opencore.zip"
+fetch_latest_asset "acidanthera/OpenCorePkg" 'OpenCore-.*-RELEASE\.zip$' "$OC_ZIP"
 
-echo "[*] Downloading NVMe driver..."
-# Get NVMe driver
-wget -q --show-progress -O "$BOOTLOADERS_DIR/opencore/EFI/OC/Drivers/NvmExpressDxe.efi" \
-  "https://github.com/acidanthera/OpenCorePkg/raw/master/Staging/NvmExpressDxe/NvmExpressDxe.efi"
+log "→ Extracting OpenCore"
+unzip -q "$OC_ZIP" -d "$TEMP_DIR/opencore"
+# The zip layout is "X64/EFI/*"
+cp -r "$TEMP_DIR/opencore/X64/EFI" "$BOOTLOADERS_DIR/opencore" || \
+  die "Expected X64/EFI path not found in OpenCore archive"
 
-echo "[*] Creating OpenCore config template..."
-# Create OpenCore configuration template
-cat > "$BOOTLOADERS_DIR/opencore/EFI/OC/config.plist" << 'EOT'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>ACPI</key>
-    <dict>
-        <key>Add</key>
-        <array/>
-        <key>Quirks</key>
-        <dict>
-            <key>FadtEnableReset</key>
-            <false/>
-        </dict>
-    </dict>
-    <key>Booter</key>
-    <dict>
-        <key>Quirks</key>
-        <dict>
-            <key>AvoidRuntimeDefrag</key>
-            <true/>
-        </dict>
-    </dict>
-    <key>DeviceProperties</key>
-    <dict>
-        <key>Add</key>
-        <dict/>
-    </dict>
-    <key>Kernel</key>
-    <dict>
-        <key>Add</key>
-        <array/>
-        <key>Quirks</key>
-        <dict/>
-    </dict>
-    <key>Misc</key>
-    <dict>
-        <key>Boot</key>
-        <dict>
-            <key>HibernateMode</key>
-            <string>None</string>
-            <key>PickerMode</key>
-            <string>External</string>
-            <key>ShowPicker</key>
-            <true/>
-            <key>Timeout</key>
-            <integer>5</integer>
-        </dict>
-        <key>Security</key>
-        <dict>
-            <key>AllowNvramReset</key>
-            <true/>
-            <key>AllowSetDefault</key>
-            <true/>
-            <key>ScanPolicy</key>
-            <integer>0</integer>
-            <key>SecureBootModel</key>
-            <string>Disabled</string>
-            <key>Vault</key>
-            <string>Optional</string>
-        </dict>
-        <key>Entries</key>
-        <array>
-            <dict>
-                <key>Arguments</key>
-                <string></string>
-                <key>Auxiliary</key>
-                <false/>
-                <key>Comment</key>
-                <string>ZFSBootMenu</string>
-                <key>Enabled</key>
-                <true/>
-                <key>Name</key>
-                <string>ZFSBootMenu</string>
-                <key>Path</key>
-                <string>PciRoot(0x0)/Pci(0x1,0x1)/Pci(0x0,0x0)/NVMe(0x1,00-00-00-00-00-00-00-00)/HD(1,GPT,00000000-0000-0000-0000-000000000000,0x800,0x100000)/EFI/zfsbootmenu/zfsbootmenu.efi</string>
-            </dict>
-        </array>
-    </dict>
-    <key>NVRAM</key>
-    <dict>
-        <key>Add</key>
-        <dict/>
-        <key>WriteFlash</key>
-        <true/>
-    </dict>
-    <key>PlatformInfo</key>
-    <dict>
-        <key>Automatic</key>
-        <true/>
-        <key>Generic</key>
-        <dict/>
-        <key>UpdateDataHub</key>
-        <true/>
-        <key>UpdateNVRAM</key>
-        <true/>
-        <key>UpdateSMBIOS</key>
-        <true/>
-    </dict>
-    <key>UEFI</key>
-    <dict>
-        <key>Drivers</key>
-        <array>
-            <string>OpenRuntime.efi</string>
-            <string>NvmExpressDxe.efi</string>
-        </array>
-        <key>Input</key>
-        <dict/>
-        <key>Output</key>
-        <dict/>
-        <key>ProtocolOverrides</key>
-        <dict/>
-        <key>Quirks</key>
-        <dict/>
-    </dict>
-</dict>
-</plist>
-EOT
+#########################
+# Config templates      #
+#########################
 
-# Create ZFSBootMenu configuration template
-cat > "$BOOTLOADERS_DIR/zfsbootmenu/zfsbootmenu.conf" << 'EOT'
-# ZFSBootMenu configuration template
+log "✓ All bootloaders ready"
+log "    ZFSBootMenu EFI : $BOOTLOADERS_DIR/zfsbootmenu/"
+log "    OpenCore EFI    : $BOOTLOADERS_DIR/opencore/"
 
-Global:
-  ManageImages: true
-  BootMountPoint: /boot
-  DracutConfDir: /etc/zfsbootmenu/dracut.conf.d
-  InitCPIOConfig: /etc/zfsbootmenu/mkinitcpio.conf
-
-Components:
-  ImageDir: /boot/zfsbootmenu
-  Versions: 3
-  Enabled: true
-  syslinux:
-    Config: /boot/syslinux/syslinux.cfg
-    Enabled: false
-
-EFI:
-  ImageDir: /boot/efi/EFI/zfsbootmenu
-  Versions: false
-  Enabled: true
-
-Kernel:
-  CommandLine: "ro quiet loglevel=4"
-  Prefix: vmlinuz
-
-ZFS:
-  PoolName: rpool
-  DefaultSet: rpool/ROOT/proxmox
-  ShowSnapshots: true
-EOT
-
-# Cleanup
-rm -rf "$TEMP_DIR"
-
-echo "[+] Bootloaders prepared successfully!"
-echo "    ZFSBootMenu: $BOOTLOADERS_DIR/zfsbootmenu/"
-echo "    OpenCore: $BOOTLOADERS_DIR/opencore/"
-echo ""

@@ -7,11 +7,10 @@ Kernel Acquisition Module for Z-Forge.
 This module is responsible for obtaining the Linux kernel that will be used
 in the Z-Forge ISO. It can fetch the latest stable kernel version from
 kernel.org or a specific version defined in the build configuration.
-The module handles downloading the kernel source (or precompiled binaries if
-that strategy were adopted, though typically source/debs for integration),
-verifying its integrity, installing it into the chroot environment, and
-then generating an appropriate initramfs using dracut. It also supports
-caching downloaded kernels to speed up subsequent builds.
+
+The module handles downloading the kernel source or Debian packages,
+verifying integrity, installing into the chroot environment, and
+generating an appropriate initramfs using dracut with ZFS support.
 """
 
 import requests
@@ -20,6 +19,8 @@ import re
 import tarfile
 import hashlib
 import shutil
+import os
+import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Any, List
 import logging
@@ -30,7 +31,7 @@ try:
     GPG_AVAILABLE = True
 except ImportError:
     GPG_AVAILABLE = False
-    gpg = None # Make sure gpg is defined
+    gpg = None  # Make sure gpg is defined
 
 
 class KernelAcquisition:
@@ -44,102 +45,117 @@ class KernelAcquisition:
         Initialize the KernelAcquisition module.
 
         Args:
-            workspace: The path to the Z-Forge build workspace. Kernel files
-                       will be downloaded to a cache within this workspace,
-                       and installation occurs into `workspace/chroot`.
-            config: The global build configuration dictionary, containing settings
-                    like the desired kernel version and caching preferences.
+            workspace: The path to the Z-Forge build workspace.
+            config: The global build configuration dictionary.
         """
         self.workspace: Path = workspace
         self.config: Dict[str, Any] = config
         self.logger: logging.Logger = logging.getLogger(self.__class__.__name__)
-        # API endpoint to get information about kernel releases.
+        
+        # Configure log level from config
+        log_level = logging.INFO
+        if self.config.get('builder_config', {}).get('enable_debug', False):
+            log_level = logging.DEBUG
+        self.logger.setLevel(log_level)
+        
+        # API endpoint to get information about kernel releases
         self.kernel_api_url: str = "https://www.kernel.org/releases.json"
-        # Base URL for downloading kernel source tarballs.
+        
+        # Base URL for downloading kernel source tarballs
         self.kernel_download_base_url: str = "https://cdn.kernel.org/pub/linux/kernel"
-        # Directory within the workspace to cache downloaded kernel files.
+        
+        # Directory within the workspace to cache downloaded kernel files
         self.cache_dir: Path = self.workspace / "cache" / "kernels"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Path to the chroot environment
         self.chroot_path: Path = self.workspace / "chroot"
+        
+        # Whether to cache kernel packages
+        self.should_cache = self.config.get('builder_config', {}).get('cache_packages', True)
+        
+        # Check if we should build from source or use Debian packages
+        self.build_from_source = self.config.get('kernel_config', {}).get('build_from_source', False)
         
     def execute(self, resume_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Fetch, verify, install the Linux kernel, and generate its initramfs.
-
-        This is the main entry point for the module. It determines the target
-        kernel version (latest stable or specific), checks if it's cached,
-        downloads and verifies if not, installs it into the chroot, and finally
-        triggers dracut to generate the initramfs.
+        Execute the kernel acquisition process.
 
         Args:
-            resume_data: Optional dictionary for resuming. (Not heavily used here
-                         beyond potentially skipping if a kernel is marked as installed).
+            resume_data: Optional dictionary for resuming a previous build.
 
         Returns:
             A dictionary containing the status of the kernel acquisition.
-            On success: {'status': 'success', 'kernel_version': str,
-                         'vmlinuz_path': str, 'initrd_path': str}
-            On failure: {'status': 'error', 'error': str, 'module': str}
         """
-        
         self.logger.info("Starting Linux kernel acquisition process...")
         
         try:
-            # Determine the target kernel version from configuration.
+            # Determine if we're working with ZFS native encryption
+            zfs_encryption_enabled = self.config.get('zfs_config', {}).get('enable_encryption', False)
+            if zfs_encryption_enabled:
+                self.logger.info("ZFS native encryption is enabled - ensuring kernel has required support")
+            
+            # Determine the target kernel version from configuration
             kernel_version_config: str = self.config.get('builder_config', {}).get('kernel_version', 'latest')
             target_kernel_version: str
+            
             if kernel_version_config == 'latest':
                 target_kernel_version = self._get_latest_stable_kernel_version()
             else:
                 target_kernel_version = kernel_version_config
-                # Basic validation for version string format (e.g., X.Y.Z)
+                # Basic validation for version string format
                 if not re.match(r"^\d+\.\d+(\.\d+)?(-\S+)?$", target_kernel_version):
                     raise ValueError(f"Invalid kernel version format: {target_kernel_version}. Expected X.Y or X.Y.Z.")
 
             self.logger.info(f"Target kernel version: {target_kernel_version}")
             
-            # Check if this specific kernel version's .deb packages are already installed (simplistic check)
-            # A more robust check would involve querying dpkg status in chroot.
-            # For now, we assume if _generate_dracut_initramfs finds the kernel, it's "installed".
-            # This module focuses on acquisition and initial install/initramfs.
-            # Let's assume for now that if resume_data indicates prior success for this module, we can skip.
+            # Check if this kernel has already been installed
             if resume_data and resume_data.get('status') == 'success' and resume_data.get('kernel_version') == target_kernel_version:
-                 self.logger.info(f"Kernel {target_kernel_version} processing previously marked as successful. Skipping full acquisition.")
-                 # Attempt to find paths even if skipping full run, needed for return value.
-                 vmlinuz_chroot_path, initrd_chroot_path = self._find_installed_kernel_paths(target_kernel_version)
-                 if vmlinuz_chroot_path and initrd_chroot_path:
+                self.logger.info(f"Kernel {target_kernel_version} processing previously completed. Checking installation...")
+                
+                vmlinuz_chroot_path, initrd_chroot_path = self._find_installed_kernel_paths(target_kernel_version)
+                if vmlinuz_chroot_path and initrd_chroot_path:
+                    self.logger.info(f"Found previously installed kernel {target_kernel_version}. Skipping reinstallation.")
                     return {
                         'status': 'success',
                         'kernel_version': target_kernel_version,
                         'vmlinuz_path': str(vmlinuz_chroot_path),
                         'initrd_path': str(initrd_chroot_path)
                     }
-                 else:
-                    self.logger.warning(f"Could not find installed kernel {target_kernel_version} during resume. Proceeding with full acquisition.")
+                else:
+                    self.logger.warning(f"Could not find previously installed kernel {target_kernel_version}. Will proceed with installation.")
 
-
-            # For simplicity, this example will focus on installing pre-built Debian kernel packages.
-            # Building kernel from source is a more complex process.
-            # We'll try to install kernel and headers matching target_kernel_version or latest available.
+            # Ensure necessary packages for kernel installation
+            self._prepare_chroot_environment(zfs_encryption_enabled)
             
-            # Install kernel packages into the chroot
-            installed_kernel_package_version = self._install_kernel_packages(target_kernel_version)
-            self.logger.info(f"Successfully installed kernel packages for version: {installed_kernel_package_version}")
+            # Install kernel packages
+            if self.build_from_source:
+                # Source-based installation
+                installed_kernel_version = self._install_kernel_from_source(target_kernel_version)
+            else:
+                # Debian package based installation
+                installed_kernel_version = self._install_kernel_packages(target_kernel_version)
             
-            # Generate dracut initramfs for the installed kernel.
-            # The version used by dracut will be the one just installed.
-            vmlinuz_path_in_chroot, initrd_path_in_chroot = self._generate_dracut_initramfs(installed_kernel_package_version)
+            self.logger.info(f"Successfully installed kernel version: {installed_kernel_version}")
             
-            self.logger.info(f"Kernel acquisition and initramfs generation for {installed_kernel_package_version} completed.")
+            # Install ZFS kernel modules for the new kernel
+            self._install_zfs_module(installed_kernel_version)
+            
+            # Generate dracut initramfs with ZFS support
+            vmlinuz_path_in_chroot, initrd_path_in_chroot = self._generate_dracut_initramfs(
+                installed_kernel_version, zfs_encryption_enabled
+            )
+            
+            self.logger.info(f"Kernel acquisition and initramfs generation completed for {installed_kernel_version}")
             return {
                 'status': 'success',
-                'kernel_version': installed_kernel_package_version, # Actual installed version
-                'vmlinuz_path': str(vmlinuz_path_in_chroot), # Path inside chroot
-                'initrd_path': str(initrd_path_in_chroot)    # Path inside chroot
+                'kernel_version': installed_kernel_version,
+                'vmlinuz_path': str(vmlinuz_path_in_chroot),
+                'initrd_path': str(initrd_path_in_chroot)
             }
             
         except Exception as e:
-            self.logger.error(f"Kernel acquisition process failed: {e}", exc_info=True)
+            self.logger.error(f"Kernel acquisition failed: {str(e)}", exc_info=True)
             return {
                 'status': 'error',
                 'error': str(e),
@@ -147,241 +163,474 @@ class KernelAcquisition:
             }
     
     def _run_chroot_command(self, command: List[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess:
-        """Helper to run commands inside the chroot."""
+        """
+        Helper to run commands inside the chroot environment.
+        
+        Args:
+            command: The command to run within the chroot.
+            check: Whether to raise an exception on non-zero exit codes.
+            kwargs: Additional arguments to pass to subprocess.run.
+            
+        Returns:
+            The completed process object.
+        """
+        # Ensure the chroot directory exists before attempting to run commands
+        if not self.chroot_path.exists():
+            raise FileNotFoundError(f"Chroot directory {self.chroot_path} does not exist. Has debootstrap been run?")
+        
+        # Prepare the full command
         full_cmd = ["chroot", str(self.chroot_path)] + command
         self.logger.info(f"Executing in chroot: {' '.join(command)}")
-        # Allow passing other subprocess.run arguments like 'env'
+        
+        # Run the command with specified options
         result = subprocess.run(full_cmd, check=check, capture_output=True, text=True, **kwargs)
+        
+        # Log output appropriately
         if result.stdout:
             self.logger.debug(f"Chroot command stdout: {result.stdout.strip()}")
         if result.stderr:
-             # Stderr is not always an error, can be progress or warnings
-            self.logger.debug(f"Chroot command stderr: {result.stderr.strip()}")
+            log_level = logging.WARNING if result.returncode != 0 else logging.DEBUG
+            self.logger.log(log_level, f"Chroot command stderr: {result.stderr.strip()}")
+            
         return result
 
     def _get_latest_stable_kernel_version(self) -> str:
         """
         Fetch the latest stable kernel version from kernel.org API.
-
+        
         Returns:
-            The version string of the latest stable kernel (e.g., "6.5.8").
-
+            The version string of the latest stable kernel.
+            
         Raises:
-            requests.RequestException: If fetching from kernel.org API fails.
-            KeyError: If the API response format is unexpected.
+            Various exceptions if fetching or parsing fails.
         """
-        self.logger.info(f"Fetching latest stable kernel version from {self.kernel_api_url}...")
-        response = requests.get(self.kernel_api_url, timeout=10)
-        response.raise_for_status() # Raise an exception for HTTP errors
-        data = response.json()
-        # "stable" entry should contain the latest stable release.
-        latest_stable_version = data['latest_stable']['version']
-        self.logger.info(f"Latest stable kernel version found: {latest_stable_version}")
-        return latest_stable_version
-
+        max_retries = 3
+        for retry in range(max_retries):
+            try:
+                self.logger.info(f"Fetching latest stable kernel version from {self.kernel_api_url}...")
+                
+                response = requests.get(self.kernel_api_url, timeout=15)
+                response.raise_for_status()  # Raise an exception for HTTP errors
+                
+                data = response.json()
+                latest_stable_version = data['latest_stable']['version']
+                
+                self.logger.info(f"Latest stable kernel version found: {latest_stable_version}")
+                return latest_stable_version
+                
+            except requests.RequestException as e:
+                if retry < max_retries - 1:
+                    wait_time = 2 ** retry  # Exponential backoff: 1, 2, 4 seconds
+                    self.logger.warning(f"Request to kernel.org API failed. Retrying in {wait_time}s. Error: {e}")
+                    time.sleep(wait_time)
+                else:
+                    self.logger.error(f"Failed to fetch kernel version after {max_retries} attempts.")
+                    raise
+            except (KeyError, ValueError) as e:
+                self.logger.error("Failed to parse kernel.org API response")
+                raise
+                
+    def _prepare_chroot_environment(self, zfs_encryption_enabled: bool = False) -> None:
+        """
+        Prepare the chroot environment for kernel installation.
+        
+        Args:
+            zfs_encryption_enabled: Whether ZFS encryption support is needed.
+        """
+        self.logger.info("Preparing chroot environment for kernel installation...")
+        
+        # Update package lists
+        self._run_chroot_command(["apt-get", "update"])
+        
+        # Install necessary packages
+        required_packages = [
+            "dracut",
+            "dracut-core",
+            "linux-base",
+            "initramfs-tools",
+            "zfsutils-linux",
+            "zfs-dkms",
+            "dkms"
+        ]
+        
+        # Add encryption-related packages if needed
+        if zfs_encryption_enabled:
+            required_packages.extend([
+                "cryptsetup",
+                "keyutils",
+                "libpam-zfs"
+            ])
+        
+        # For source builds, we need additional packages
+        if self.build_from_source:
+            required_packages.extend([
+                "build-essential",
+                "libncurses-dev",
+                "bison",
+                "flex",
+                "libssl-dev",
+                "libelf-dev",
+                "bc"
+            ])
+        
+        # Install all required packages
+        self._run_chroot_command([
+            "apt-get", "install", "-y", "--no-install-recommends"
+        ] + required_packages)
+        
+        # Ensure /boot is properly mounted if it's a separate partition
+        # This is normally handled by the earlier debootstrap module
+        
+        # Create directories needed for kernel modules
+        os.makedirs(self.chroot_path / "lib" / "modules", exist_ok=True)
+        
     def _install_kernel_packages(self, requested_version: str) -> str:
         """
-        Install Linux kernel and header packages into the chroot environment
-        using APT. It tries to install a specific version if a full version
-        string (like X.Y.Z-ABI-flavor) is given, or the latest available
-        for a major version (like X.Y).
-
+        Install Debian kernel packages into the chroot environment.
+        
         Args:
-            requested_version: The desired kernel version string. Can be full
-                               (e.g., "6.1.0-13-amd64") or partial (e.g., "6.1").
-                               If 'latest', it will try to install the latest available
-                               Debian packaged kernel.
-        
+            requested_version: The desired kernel version.
+            
         Returns:
-            The actual version string of the kernel package installed.
-        
-        Raises:
-            subprocess.CalledProcessError: If APT commands fail.
-            ValueError: If the kernel package cannot be found or installed.
+            The actual installed kernel version.
         """
-        self.logger.info(f"Attempting to install kernel packages for version '{requested_version}' into chroot...")
-        self._run_chroot_command(["apt-get", "update"])
-
-        # Construct package names. Debian kernel packages are often like:
-        # linux-image-X.Y.Z-ABI-flavor or linux-image-amd64 (metapackage)
-        # linux-headers-X.Y.Z-ABI-flavor or linux-headers-amd64 (metapackage)
+        self.logger.info(f"Installing kernel packages for version '{requested_version}'...")
         
-        # If a full version like "6.1.0-13-amd64" is given:
+        # Determine which packages to install
+        # Parse the version to determine appropriate package names
+        kernel_pkg_suffix = ""
+        
+        # If we have a specific Debian package version
         if re.match(r"^\d+\.\d+\.\d+-\d+(-[a-zA-Z0-9]+)+$", requested_version):
             kernel_image_pkg = f"linux-image-{requested_version}"
             kernel_headers_pkg = f"linux-headers-{requested_version}"
-        # If a version like "6.1" or "6.1.20" is given, try to find related packages.
-        # This is more complex as APT needs specific versions or metapackages.
-        # A common approach is to use a metapackage or search for available versions.
-        # For simplicity, we'll try a generic approach first, then a more specific one.
+        # For major versions like 6.1, use metapackage or find best match
         elif requested_version == 'latest' or re.match(r"^\d+\.\d+(\.\d+)?$", requested_version):
-            # Try installing the generic metapackage for amd64 first.
-            # This usually points to the default kernel for the Debian release.
-            kernel_image_pkg = "linux-image-amd64"
-            kernel_headers_pkg = "linux-headers-amd64"
-            self.logger.info(f"Installing generic metapackages: {kernel_image_pkg}, {kernel_headers_pkg}")
-        else: # Fallback for other formats, try direct name
+            # Check for specific proxmox kernel first
+            proxmox_major_version = self.config.get('proxmox_config', {}).get('version', 'latest')
+            if proxmox_major_version == 'latest':
+                # Use Proxmox 8.x kernel by default
+                kernel_image_pkg = "proxmox-kernel-6.8"
+                kernel_headers_pkg = "proxmox-kernel-headers-6.8"
+            else:
+                # Try to match based on Proxmox version
+                # For now, hardcode some known good matchings
+                if proxmox_major_version.startswith("8"):
+                    kernel_image_pkg = "proxmox-kernel-6.8"
+                    kernel_headers_pkg = "proxmox-kernel-headers-6.8"
+                else:
+                    kernel_image_pkg = "linux-image-amd64"
+                    kernel_headers_pkg = "linux-headers-amd64"
+        else:
+            # Fallback to direct name
             kernel_image_pkg = f"linux-image-{requested_version}"
             kernel_headers_pkg = f"linux-headers-{requested_version}"
-
+        
+        # Install kernel packages
         try:
-            self.logger.info(f"Attempting to install: {kernel_image_pkg} and {kernel_headers_pkg}")
-            self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends", kernel_image_pkg, kernel_headers_pkg])
+            # First attempt with specific packages
+            self.logger.info(f"Installing kernel packages: {kernel_image_pkg}, {kernel_headers_pkg}")
+            
+            # Add Proxmox repositories if needed
+            if "proxmox" in kernel_image_pkg:
+                self._configure_proxmox_repo()
+            
+            # Install the kernel packages
+            self._run_chroot_command([
+                "apt-get", "install", "-y", "--no-install-recommends",
+                kernel_image_pkg, kernel_headers_pkg
+            ])
         except subprocess.CalledProcessError as e:
-            self.logger.warning(f"Failed to install specific version {kernel_image_pkg}. Error: {e.stderr}")
-            # If specific version fails, and it was 'latest' or partial, try generic metapackage if not already tried
-            if (requested_version == 'latest' or re.match(r"^\d+\.\d+(\.\d+)?$", requested_version)) and \
-               (kernel_image_pkg != "linux-image-amd64"):
-                self.logger.info("Trying to install generic 'linux-image-amd64' and 'linux-headers-amd64' as fallback.")
-                kernel_image_pkg = "linux-image-amd64"
-                kernel_headers_pkg = "linux-headers-amd64"
-                self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends", kernel_image_pkg, kernel_headers_pkg])
-            else:
-                raise ValueError(f"Could not install kernel packages for version {requested_version}. Error: {e.stderr}")
-
-        # After installation, determine the exact kernel version installed.
-        # This can be found by looking at /lib/modules/ in the chroot.
-        # Debian kernel package installs to /boot/vmlinuz-VERSION and /lib/modules/VERSION
-
-        # Find the installed kernel version string from /lib/modules
-        # There might be multiple versions if others were previously installed. We need the newest or specific one.
-        # This command lists directories in /lib/modules, which correspond to kernel versions.
-        # We assume the last one alphabetically is the newest/target if multiple match.
-        # A more robust way is to parse dpkg output or check symlinks like /vmlinuz.
-
-        ls_cmd_result = self._run_chroot_command(["ls", "-1", "/lib/modules"])
-        installed_versions = [v for v in ls_cmd_result.stdout.strip().split('\n') if v] # Filter empty lines
-
+            # If first attempt failed, try fallback to generic packages
+            if "proxmox" in kernel_image_pkg or kernel_image_pkg == "linux-image-amd64":
+                # Already tried with metapackage, so this is a real error
+                raise ValueError(f"Failed to install kernel packages: {e.stderr}")
+            
+            self.logger.warning(f"Failed to install specific kernel version. Trying generic metapackage.")
+            kernel_image_pkg = "linux-image-amd64"
+            kernel_headers_pkg = "linux-headers-amd64"
+            
+            self._run_chroot_command([
+                "apt-get", "install", "-y", "--no-install-recommends",
+                kernel_image_pkg, kernel_headers_pkg
+            ])
+        
+        # Find the actual installed kernel version
+        ls_result = self._run_chroot_command(["ls", "-1", "/lib/modules"])
+        installed_versions = ls_result.stdout.strip().split('\n')
+        
         if not installed_versions:
-            raise ValueError("No kernel versions found in /lib/modules after installation attempt.")
-
-        # Try to find a version that matches the requested_version pattern or is the highest.
-        # If 'linux-image-amd64' was installed, it's a meta-package, and we need to find the actual version.
-        target_installed_version = ""
-        if kernel_image_pkg == "linux-image-amd64": # Metapackage was installed
-            # The actual version is likely the highest version number present.
-            # This sorting works for typical Debian versions like X.Y.Z-ABI-flavor
-            installed_versions.sort(reverse=True)
-            if installed_versions:
-                target_installed_version = installed_versions[0]
-            else: # Should not happen if apt-get install succeeded
-                 raise ValueError("Metapackage linux-image-amd64 installed but no kernel found in /lib/modules.")
-        else: # A specific version was targeted
-            # Try to find the one that matches the specific request (e.g., contains requested_version string)
-            # or simply the highest one if direct match is hard.
-            best_match = ""
-            for v_str in sorted(installed_versions, reverse=True): # Sort to get latest if multiple partial matches
-                if requested_version in v_str: # Simplistic match
-                    best_match = v_str
-                    break
-            if best_match:
-                target_installed_version = best_match
-            elif installed_versions: # Fallback to highest if no good string match
-                target_installed_version = installed_versions[0]
+            raise ValueError("No kernel versions found in /lib/modules after installation")
+        
+        # Sort versions to find the highest or best match
+        # For Debian-style version strings (e.g., 6.1.0-13-amd64), this naive sort is not accurate
+        # but should work for selecting the most recently added version
+        installed_versions.sort(key=self._sort_kernel_versions, reverse=True)
+        
+        # Try to find a version that matches the requested pattern
+        target_version = ""
+        
+        # If a specific full version was requested
+        if re.match(r"^\d+\.\d+\.\d+-\d+(-[a-zA-Z0-9]+)+$", requested_version):
+            # Look for exact match
+            if requested_version in installed_versions:
+                target_version = requested_version
+            # Otherwise assume the highest version
             else:
-                raise ValueError(f"Could not determine installed kernel version for {requested_version}.")
-
-        self.logger.info(f"Identified installed kernel version as: {target_installed_version}")
-        return target_installed_version
+                target_version = installed_versions[0]
+        # If a major/minor version was requested
+        elif re.match(r"^\d+\.\d+(\.\d+)?$", requested_version):
+            # Find the first version that starts with the requested version
+            for version in installed_versions:
+                if version.startswith(requested_version) or f"-{requested_version}-" in version:
+                    target_version = version
+                    break
+            # If no match, use the highest
+            if not target_version:
+                target_version = installed_versions[0]
+        # Otherwise, just use the highest
+        else:
+            target_version = installed_versions[0]
+        
+        self.logger.info(f"Identified installed kernel version: {target_version}")
+        return target_version
+    
+    def _sort_kernel_versions(self, version: str) -> tuple:
+        """
+        Helper function for sorting kernel versions.
+        
+        Args:
+            version: A kernel version string like 6.1.0-13-amd64
+            
+        Returns:
+            A tuple that can be used for sorting versions
+        """
+        # Split into components
+        if re.match(r"^\d+\.\d+\.\d+-\d+(-[a-zA-Z0-9]+)+$", version):
+            # Format: X.Y.Z-ABI-flavor
+            major, rest = version.split('.', 1)
+            minor, rest = rest.split('.', 1)
+            patch, rest = rest.split('-', 1)
+            abi, flavor = rest.split('-', 1)
+            
+            # Return as sortable tuple
+            return (int(major), int(minor), int(patch), int(abi), flavor)
+        else:
+            # If doesn't match expected format, use string sorting
+            return (version,)
+    
+    def _configure_proxmox_repo(self) -> None:
+        """
+        Configure Proxmox repositories in the chroot environment.
+        """
+        self.logger.info("Configuring Proxmox repositories...")
+        
+        # Add repository key
+        self._run_chroot_command([
+            "bash", "-c", 
+            "wget -qO- 'https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg' | apt-key add -"
+        ], check=False)  # apt-key is deprecated but still works
+        
+        # Add repository to sources.list.d
+        sources_list = """# Proxmox kernel repositories
+deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription
+"""
+        # Write the sources list file
+        sources_path = self.chroot_path / "etc" / "apt" / "sources.list.d" / "proxmox.list"
+        with open(sources_path, "w") as f:
+            f.write(sources_list)
+        
+        # Update package lists
+        self._run_chroot_command(["apt-get", "update"])
+    
+    def _install_kernel_from_source(self, requested_version: str) -> str:
+        """
+        Build and install the Linux kernel from source.
+        
+        Args:
+            requested_version: The desired kernel version.
+            
+        Returns:
+            The actual installed kernel version.
+        """
+        self.logger.info(f"Building and installing kernel {requested_version} from source...")
+        
+        # Determine download URL for kernel source
+        kernel_major = requested_version.split('.')[0]
+        kernel_url = f"{self.kernel_download_base_url}/v{kernel_major}.x/linux-{requested_version}.tar.xz"
+        
+        # Create working directory in chroot
+        build_dir = "/usr/src/linux-build"
+        self._run_chroot_command(["mkdir", "-p", build_dir])
+        
+        # Download kernel source
+        tar_path = f"/tmp/linux-{requested_version}.tar.xz"
+        self._run_chroot_command([
+            "wget", "-O", tar_path, kernel_url
+        ])
+        
+        # Extract kernel source
+        self._run_chroot_command([
+            "tar", "-xf", tar_path, "-C", "/usr/src"
+        ])
+        
+        # Configure kernel build
+        src_dir = f"/usr/src/linux-{requested_version}"
+        self._run_chroot_command([
+            "cp", "/boot/config-$(uname -r)", f"{src_dir}/.config"
+        ], check=False)  # May fail if config doesn't exist
+        
+        # Make sure ZFS config options are enabled
+        zfs_config_options = """
+CONFIG_ZFS=m
+CONFIG_CRYPTO_CCM=y
+CONFIG_CRYPTO_GCM=y
+CONFIG_CRYPTO_CHACHA20POLY1305=y
+CONFIG_ZLIB_DEFLATE=y
+"""
+        config_file = self.chroot_path / "usr" / "src" / f"linux-{requested_version}" / ".config"
+        if config_file.exists():
+            with open(config_file, "a") as f:
+                f.write(zfs_config_options)
+        
+        # Build and install kernel
+        self._run_chroot_command([
+            "bash", "-c", f"cd {src_dir} && make olddefconfig && make -j$(nproc) && make modules_install && make install"
+        ])
+        
+        # Find the installed kernel version
+        ls_result = self._run_chroot_command(["ls", "-1", "/lib/modules"])
+        installed_versions = ls_result.stdout.strip().split('\n')
+        
+        if not installed_versions:
+            raise ValueError("No kernel versions found in /lib/modules after installation")
+        
+        # Sort by version and take the newest
+        installed_versions.sort(key=self._sort_kernel_versions, reverse=True)
+        target_version = installed_versions[0]
+        
+        self.logger.info(f"Built and installed kernel version: {target_version}")
+        return target_version
+    
+    def _install_zfs_module(self, kernel_version: str) -> None:
+        """
+        Install ZFS kernel module for the specified kernel version.
+        
+        Args:
+            kernel_version: The kernel version to install ZFS for.
+        """
+        self.logger.info(f"Installing ZFS module for kernel {kernel_version}...")
+        
+        # Ensure ZFS packages are installed
+        self._run_chroot_command([
+            "apt-get", "install", "-y", "zfs-dkms", "zfsutils-linux"
+        ])
+        
+        # Build ZFS module for the kernel
+        try:
+            self._run_chroot_command([
+                "dkms", "autoinstall", "-k", kernel_version
+            ])
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"DKMS autoinstall failed: {e.stderr}")
+            
+            # Try more direct approach
+            self._run_chroot_command([
+                "dkms", "install", "zfs/2.2.0", "-k", kernel_version
+            ], check=False)  # Don't fail if this doesn't work
+            
+        # Verify ZFS module was installed
+        self.logger.info("Verifying ZFS module installation...")
+        modules_path = self.chroot_path / "lib" / "modules" / kernel_version / "updates" / "dkms" / "zfs"
+        
+        if not modules_path.exists():
+            self.logger.warning(f"ZFS module directory {modules_path} not found, but continuing anyway")
 
     def _find_installed_kernel_paths(self, kernel_version_str: str) -> Tuple[Optional[Path], Optional[Path]]:
         """
-        Finds the paths to vmlinuz and initrd.img for a given kernel version string
-        within the chroot environment.
-
+        Find paths to vmlinuz and initrd.img for the given kernel version.
+        
         Args:
-            kernel_version_str: The kernel version string (e.g., "6.1.0-13-amd64").
-
+            kernel_version_str: The kernel version string.
+            
         Returns:
-            A tuple (vmlinuz_path, initrd_path), where paths are relative to chroot root.
-            Returns (None, None) if not found.
+            Paths to vmlinuz and initrd.img, or None if not found.
         """
         vmlinuz_path = Path("/boot") / f"vmlinuz-{kernel_version_str}"
         initrd_path = Path("/boot") / f"initrd.img-{kernel_version_str}"
 
         # Check if they exist within the chroot
-        if not (self.chroot_path / vmlinuz_path.relative_to("/")).exists():
-            self.logger.warning(f"vmlinuz not found at {self.chroot_path / vmlinuz_path.relative_to('/')}")
+        chroot_vmlinuz_path = self.chroot_path / vmlinuz_path.relative_to("/")
+        chroot_initrd_path = self.chroot_path / initrd_path.relative_to("/")
+        
+        if not chroot_vmlinuz_path.exists():
+            self.logger.warning(f"vmlinuz not found at {chroot_vmlinuz_path}")
             vmlinuz_path = None
 
-        if not (self.chroot_path / initrd_path.relative_to("/")).exists():
-            # Dracut might not have run yet if we are resuming a very early stage
-            self.logger.warning(f"initrd.img not found at {self.chroot_path / initrd_path.relative_to('/')}. May need dracut run.")
-            # initrd_path = None # Keep it as a target path for dracut
+        if not chroot_initrd_path.exists():
+            self.logger.warning(f"initrd.img not found at {chroot_initrd_path}")
+            initrd_path = None
 
         return vmlinuz_path, initrd_path
-
-
-    def _generate_dracut_initramfs(self, kernel_version: str) -> Tuple[Path, Path]:
+    
+    def _generate_dracut_initramfs(self, kernel_version: str, include_encryption: bool = False) -> Tuple[Path, Path]:
         """
-        Generate the initramfs for the specified kernel version using dracut
-        within the chroot environment.
-
+        Generate initramfs for the specified kernel using dracut with ZFS support.
+        
         Args:
-            kernel_version: The kernel version string (e.g., "6.1.0-13-amd64")
-                            for which to generate the initramfs.
-
+            kernel_version: The kernel version to generate initramfs for.
+            include_encryption: Whether to include encryption support.
+            
         Returns:
-            A tuple containing the chroot-relative paths to the generated
-            vmlinuz and initrd image (e.g., Path("/boot/vmlinuz-..."), Path("/boot/initrd.img-...")).
-            The vmlinuz path is mostly for confirmation as dracut primarily creates initrd.
-
-        Raises:
-            subprocess.CalledProcessError: If dracut command fails.
-            FileNotFoundError: If the kernel (vmlinuz) for the version is not found.
+            Paths to vmlinuz and initrd.img.
         """
-        self.logger.info(f"Generating dracut initramfs for kernel {kernel_version} in chroot...")
+        self.logger.info(f"Generating dracut initramfs for kernel {kernel_version} with ZFS support...")
 
-        # Define paths for kernel image and output initramfs within the chroot.
-        # These paths are as seen from *inside* the chroot.
-        vmlinuz_chroot_path = Path("/boot") / f"vmlinuz-{kernel_version}"
-        initrd_chroot_path = Path("/boot") / f"initrd.img-{kernel_version}"
+        # Define paths as seen from inside the chroot
+        vmlinuz_path = Path("/boot") / f"vmlinuz-{kernel_version}"
+        initrd_path = Path("/boot") / f"initrd.img-{kernel_version}"
 
-        # Verify that the kernel (vmlinuz image) actually exists in the chroot.
-        if not (self.chroot_path / vmlinuz_chroot_path.relative_to("/")).exists():
-            raise FileNotFoundError(f"Kernel image {vmlinuz_chroot_path} not found in chroot at "
-                                    f"{self.chroot_path / vmlinuz_chroot_path.relative_to('/')}. Cannot generate initramfs.")
+        # Verify that vmlinuz exists
+        chroot_vmlinuz_path = self.chroot_path / vmlinuz_path.relative_to("/")
+        if not chroot_vmlinuz_path.exists():
+            raise FileNotFoundError(f"Kernel image {vmlinuz_path} not found in chroot")
 
-        # Construct and run the dracut command within the chroot.
-        # --force: Overwrite existing initramfs.
-        # The last argument is the kernel version for which to build the initramfs.
-        dracut_cmd: List[str] = [
+        # Create custom dracut.conf.d file for ZFS
+        dracut_conf = """# ZFS dracut configuration
+add_dracutmodules+=" zfs "
+omit_dracutmodules+=" btrfs "
+"""
+        
+        # Add encryption support if needed
+        if include_encryption:
+            dracut_conf += """
+# ZFS encryption support
+add_dracutmodules+=" crypt "
+install_items+=" /usr/bin/zfs /usr/bin/zpool /lib/udev/zvol_id /lib/udev/vdev_id /etc/zfs/zroot.key "
+"""
+        
+        # Write dracut configuration
+        conf_path = self.chroot_path / "etc" / "dracut.conf.d" / "zfs.conf"
+        conf_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(conf_path, "w") as f:
+            f.write(dracut_conf)
+
+        # Build dracut command
+        dracut_cmd = [
             "dracut",
-            "--force", # Overwrite if exists
-            # Add any Z-Forge specific dracut arguments from config if necessary
-            # e.g., --add-drivers "module1 module2"
-            # "--verbose", # For more detailed output if needed for debugging
-            str(initrd_chroot_path), # Output file path for initramfs
-            kernel_version           # Kernel version to build for
+            "--force",  # Overwrite if exists
+            "--verbose",  # More detailed output
+            "--kver", kernel_version,  # Explicit kernel version
+            str(initrd_path)  # Output file path
         ]
+        
+        # Run dracut command
         self._run_chroot_command(dracut_cmd)
 
-        self.logger.info(f"Dracut initramfs generated successfully for kernel {kernel_version} at {initrd_chroot_path}.")
+        # Verify the initramfs was created
+        chroot_initrd_path = self.chroot_path / initrd_path.relative_to("/")
+        if not chroot_initrd_path.exists():
+            raise FileNotFoundError(f"Failed to generate initramfs at {initrd_path}")
 
-        # Return the chroot-relative paths to the kernel and initramfs.
-        return vmlinuz_chroot_path, initrd_chroot_path
-
-# Placeholder for methods like _check_cache, _download_kernel, _verify_kernel, _install_kernel (from source), _cache_kernel
-# These would be needed for a source-based kernel build or manual .deb download/install.
-# Since the current implementation uses apt-get to install pre-built Debian kernel packages,
-# these are not fully implemented here.
-# Example signatures:
-    # def _check_cache(self, kernel_version: str) -> Optional[Path]: ...
-    # def _download_kernel_source(self, kernel_version: str) -> Path: ...
-    # def _verify_kernel_signature(self, tarball_path: Path, version: str) -> None: ...
-    # def _extract_kernel_source(self, tarball_path: Path, extract_to: Path) -> Path: ...
-    # def _compile_and_install_kernel_from_source(self, source_path_in_chroot: Path, kernel_version: str) -> str: ...
-    # def _cache_kernel_artifacts(self, kernel_version: str, artifacts: List[Path]) -> None: ...
-
-# The original snippet had a _generate_dracut_initramfs without kernel_version argument
-# and tried to find it. The new one requires kernel_version for clarity.
-# The snippet was:
-#    def _generate_dracut_initramfs(self):
-#        """Generate dracut initramfs for installed kernel"""
-#        self.logger.info("Generating dracut initramfs...")
-#        chroot_path = self.workspace / "chroot"
-#        # Find installed kernel version
-#        kernel_version_cmd = "ls -1 /lib/modules"
-#        result = subprocess.run(
-#            ["chroot", str(chroot
-# This logic is now part of _install_kernel_packages to find the *actual* installed version.
+        self.logger.info(f"Successfully generated dracut initramfs with ZFS support at {initrd_path}")
+        return vmlinuz_path, initrd_path

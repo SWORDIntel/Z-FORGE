@@ -380,8 +380,8 @@ install_items+=" /usr/sbin/zfs /usr/sbin/zpool "
             "zfs-import-cache.service", # Imports pools listed in zpool.cache early in boot
             "zfs-mount.service",        # Mounts ZFS datasets
             "zfs-zed.service",          # ZFS Event Daemon (monitors pool health, handles events)
-            # "zfs-share.service"       # If NFS/SMB sharing of ZFS datasets is needed
-            # "zfs-import.target"       # Target that pulls in zfs-import-cache
+            "zfs-share.service"       # If NFS/SMB sharing of ZFS datasets is needed
+            "zfs-import.target"       # Target that pulls in zfs-import-cache
         ]
 
         # Enable these services using systemctl (which works on symlinks even in chroot)
@@ -433,11 +433,4 @@ if __name__ == '__main__':
     # zfs_builder = ZFSBuild(workspace=mock_workspace, config=mock_config)
     # result = zfs_builder.execute()
     # print(f"ZFS Build execution result: {result}")
-    print("Conceptual test structure. Full execution requires a prepared chroot and build environment.")
-
-# Remove the _setup_dracut_zfs from the original provided code, as it's now _setup_dracut_for_zfs
-# The provided snippet had a duplicate-like function. I've integrated its logic into _setup_dracut_for_zfs.
-# Original broken snippet was:
-#    def _setup_dracut_zfs(self, chroot_path: Path):
-#        """Configure dracut for ZFS support"""
-#        ... (content was similar to the new _setup_dracut_for_zfs)
+    print("Conceptual test structure. Full execution requires a prepared chroot and build environment."))

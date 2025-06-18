@@ -114,7 +114,7 @@ class BuildConfig:
         return {
             # General settings for the ZForgeBuilder itself
             'builder_config': {
-                'debian_release': 'bookworm',  # Base Debian version for the ISO
+                'debian_release': 'sid',  # Base Debian version for the ISO
                 'kernel_version': 'latest',    # Kernel version to install (can be specific or 'latest')
                 'output_iso_name': 'zforge-proxmox-v3.iso', # Name of the final ISO file
                 'enable_debug': True,          # Flag for enabling debug features in modules
@@ -138,7 +138,7 @@ class BuildConfig:
                 'version': 'latest',          # OpenZFS version
                 'build_from_source': True,    # Whether to build ZFS from source or use packages
                 'enable_encryption': True,    # Enable ZFS native encryption support
-                'default_compression': 'lz4'  # Default ZFS compression algorithm
+                'default_compression': 'zstd-6'  # Default ZFS compression algorithm
             },
             # Configuration for the bootloader (e.g., GRUB, systemd-boot, ZFSBootMenu)
             'bootloader_config': {

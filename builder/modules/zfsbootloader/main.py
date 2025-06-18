@@ -4,6 +4,7 @@
 """
 ZFS Bootloader Module
 Installs and configures ZFSBootMenu and optionally OpenCore
+Special support for PowerEdge R420 with PCIe NVMe
 """
 
 import subprocess
@@ -43,6 +44,15 @@ def run():
         is_uefi = os.path.exists("/sys/firmware/efi")
         libcalamares.utils.debug(f"UEFI mode: {is_uefi}")
         
+        # Detect Dell PowerEdge R420
+        is_dell_r420 = detect_dell_r420()
+        if is_dell_r420:
+            libcalamares.utils.debug("Dell PowerEdge R420 detected")
+            # Force two-stage boot for R420 with NVMe
+            if detect_nvme_drives():
+                boot_mode = "two-stage"
+                libcalamares.utils.debug("NVMe drive detected, forcing two-stage boot mode for R420")
+        
         # Create mount points for bootloader installation
         target_mount = "/tmp/zforge_target"
         os.makedirs(target_mount, exist_ok=True)
@@ -52,16 +62,16 @@ def run():
         
         if boot_mode == "two-stage" and secondary_device:
             # Install OpenCore on secondary device
-            install_opencore(secondary_device, is_uefi)
+            install_opencore(secondary_device, is_uefi, is_dell_r420)
             
             # Configure ZFSBootMenu for two-stage boot
-            install_zfsbootmenu(pool_name, dataset, target_mount, is_uefi, two_stage=True)
+            install_zfsbootmenu(pool_name, dataset, target_mount, is_uefi, is_dell_r420, two_stage=True)
         else:
             # Standard boot configuration
-            install_zfsbootmenu(pool_name, dataset, target_mount, is_uefi, two_stage=False)
+            install_zfsbootmenu(pool_name, dataset, target_mount, is_uefi, is_dell_r420, two_stage=False)
         
         # Create recovery scripts
-        create_recovery_scripts(target_mount, pool_name, dataset)
+        create_recovery_scripts(target_mount, pool_name, dataset, is_dell_r420)
         
         # Export pool when done
         export_pool(pool_name)
@@ -74,6 +84,57 @@ def run():
         return (f"Bootloader installation failed",
                 f"Failed to install bootloader: {str(e)}\n"
                 f"The system may not be bootable.")
+
+def detect_dell_r420():
+    """Detect if we're running on a Dell PowerEdge R420"""
+    
+    is_r420 = False
+    
+    # Check DMI information
+    try:
+        # Check product name from DMI
+        if os.path.exists("/sys/class/dmi/id/product_name"):
+            with open("/sys/class/dmi/id/product_name", "r") as f:
+                product_name = f.read().strip()
+                if "PowerEdge R420" in product_name:
+                    is_r420 = True
+        
+        # Check system vendor from DMI
+        if os.path.exists("/sys/class/dmi/id/sys_vendor"):
+            with open("/sys/class/dmi/id/sys_vendor", "r") as f:
+                vendor = f.read().strip()
+                if "Dell" in vendor and not is_r420:
+                    # Check with dmidecode
+                    try:
+                        result = subprocess.run(["dmidecode", "-t", "system"], capture_output=True, text=True)
+                        if "R420" in result.stdout:
+                            is_r420 = True
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    
+    # Check using IPMI if available
+    if not is_r420:
+        try:
+            result = subprocess.run(["ipmi-fru"], capture_output=True, text=True)
+            if "R420" in result.stdout:
+                is_r420 = True
+        except Exception:
+            pass
+    
+    return is_r420
+
+def detect_nvme_drives():
+    """Detect if NVMe drives are present in the system"""
+    
+    # Check for NVMe devices
+    try:
+        result = subprocess.run(["lsblk", "-d", "-o", "NAME,TYPE"], capture_output=True, text=True)
+        return "nvme" in result.stdout
+    except Exception:
+        # Alternative check
+        return os.path.exists("/dev/nvme0")
 
 def import_pool(pool_name):
     """Import ZFS pool for bootloader operations"""
@@ -201,7 +262,7 @@ def download_opencore():
     
     return "/usr/share/zforge/bootloaders/opencore"
 
-def install_zfsbootmenu(pool_name, dataset, target_mount, is_uefi, two_stage=False):
+def install_zfsbootmenu(pool_name, dataset, target_mount, is_uefi, is_dell_r420=False, two_stage=False):
     """Install ZFSBootMenu bootloader"""
     
     libcalamares.utils.debug(f"Installing ZFSBootMenu (two_stage: {two_stage})")
@@ -254,13 +315,22 @@ EFI:
   Enabled: {'true' if is_uefi else 'false'}
   
 Kernel:
-  CommandLine: "ro quiet loglevel=4"
+  CommandLine: "ro quiet {'console=tty0 console=ttyS0,115200n8' if is_dell_r420 else 'loglevel=4'}"
   Prefix: vmlinuz
 
 ZFS:
   PoolName: {pool_name}
-  DefaultSet: {dataset}
+  DefaultSet: {pool_name}/{dataset}
   ShowSnapshots: true
+"""
+        
+        # Add Dell R420-specific configuration if detected
+        if is_dell_r420:
+            zbm_config += """
+# Dell PowerEdge R420 specific settings
+Hardware:
+  SerialConsole: true
+  SerialSpeed: 115200
 """
         
         # Write configuration
@@ -277,6 +347,15 @@ add_dracutmodules+=" zfs "
 omit_dracutmodules+=" btrfs resume usrmount "
 compress="zstd"
 """)
+
+        # Add Dell R420-specific modules and drivers if detected
+        if is_dell_r420:
+            with open(os.path.join(target_mount, "etc/zfsbootmenu/dracut.conf.d/dell-r420.conf"), "w") as f:
+                f.write("""
+# Dell R420 hardware support
+add_drivers+=" megaraid_sas nvme "
+install_optional_items+=" /etc/nvme /etc/megaraid-config "
+""")
         
         # Install ZFSBootMenu in chroot
         setup_script = f"""#!/bin/bash
@@ -284,7 +363,7 @@ set -e
 # Install ZFSBootMenu
 if command -v apt-get &>/dev/null; then
     apt-get update
-    apt-get install -y zfsbootmenu
+    apt-get install -y zfsbootmenu {'dracut dracut-network dracut-core' if is_dell_r420 else ''}
 fi
 
 # Generate ZFSBootMenu
@@ -296,6 +375,21 @@ fi
 if [ -d /boot/efi ]; then
     if command -v grub-install &>/dev/null; then
         grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=zforge
+        grub-mkconfig -o /boot/grub/grub.cfg
+    fi
+fi
+
+# Setup serial console for Dell PowerEdge R420
+if [ -f /etc/default/grub ]; then
+    # Add serial console support
+    sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200n8"/' /etc/default/grub
+    sed -i 's/#GRUB_TERMINAL=console/GRUB_TERMINAL="console serial"/' /etc/default/grub
+    echo 'GRUB_SERIAL_COMMAND="serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1"' >> /etc/default/grub
+    
+    # Update grub if available
+    if command -v update-grub &>/dev/null; then
+        update-grub
+    elif command -v grub-mkconfig &>/dev/null; then
         grub-mkconfig -o /boot/grub/grub.cfg
     fi
 fi
@@ -312,10 +406,10 @@ fi
         # Unmount target
         subprocess.run(["umount", target_mount], check=True)
 
-def install_opencore(device, is_uefi):
+def install_opencore(device, is_uefi, is_dell_r420=False):
     """Install OpenCore on secondary device for two-stage boot"""
     
-    if not is_uefi:
+    if not is_uefi and not is_dell_r420:
         libcalamares.utils.debug("OpenCore requires UEFI, skipping in BIOS mode")
         return
     
@@ -357,7 +451,37 @@ def install_opencore(device, is_uefi):
         subprocess.run(["cp", "-r", f"{oc_path}/EFI/BOOT", os.path.join(esp_dir, "EFI/")], check=True)
         
         # Create OpenCore configuration
-        configure_opencore(esp_dir)
+        if is_dell_r420:
+            configure_opencore_for_r420(device, esp_dir)
+        else:
+            configure_opencore(esp_dir)
+        
+        # Add bootloader entry if UEFI
+        if is_uefi:
+            try:
+                # Get disk without partition number
+                if device[-1].isdigit():
+                    disk = device.rstrip('0123456789')
+                    if disk[-1] == 'p':
+                        disk = disk[:-1]
+                else:
+                    disk = device
+                
+                # Get partition number
+                part_num = esp.replace(disk, '').replace('p', '')
+                if not part_num:
+                    part_num = '1'
+                
+                # Add EFI boot entry
+                subprocess.run([
+                    "efibootmgr", "-c",
+                    "-d", disk,
+                    "-p", part_num,
+                    "-L", "OpenCore",
+                    "-l", "\\EFI\\BOOT\\BOOTX64.EFI"
+                ], check=True)
+            except Exception as e:
+                libcalamares.utils.debug(f"Failed to add EFI boot entry: {e}")
         
     finally:
         # Unmount ESP
@@ -488,17 +612,237 @@ def configure_opencore(esp_dir):
     with open(os.path.join(esp_dir, "EFI/OC/config.plist"), "w") as f:
         f.write(config_plist)
 
-def create_recovery_scripts(target_mount, pool_name, dataset):
+def configure_opencore_for_r420(device, esp_dir):
+    """Configure OpenCore specifically for PowerEdge R420"""
+    
+    libcalamares.utils.debug("Configuring OpenCore for PowerEdge R420")
+    
+    # R420 specific OpenCore config
+    r420_config = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>ACPI</key>
+    <dict>
+        <key>Add</key>
+        <array/>
+        <key>Quirks</key>
+        <dict>
+            <key>FadtEnableReset</key>
+            <true/>
+        </dict>
+    </dict>
+    <key>Booter</key>
+    <dict>
+        <key>Quirks</key>
+        <dict>
+            <key>AvoidRuntimeDefrag</key>
+            <true/>
+            <key>DevirtualiseMmio</key>
+            <true/>
+            <key>DisableSingleUser</key>
+            <false/>
+            <key>DisableVariableWrite</key>
+            <false/>
+            <key>ProtectUefiServices</key>
+            <true/>
+            <key>RebuildAppleMemoryMap</key>
+            <false/>
+            <key>SetupVirtualMap</key>
+            <true/>
+            <key>SyncRuntimePermissions</key>
+            <true/>
+        </dict>
+    </dict>
+    <key>DeviceProperties</key>
+    <dict>
+        <key>Add</key>
+        <dict/>
+    </dict>
+    <key>Kernel</key>
+    <dict>
+        <key>Add</key>
+        <array/>
+        <key>Quirks</key>
+        <dict>
+            <key>CustomSMBIOSGuid</key>
+            <true/>
+            <key>DisableIoMapper</key>
+            <true/>
+        </dict>
+    </dict>
+    <key>Misc</key>
+    <dict>
+        <key>Boot</key>
+        <dict>
+            <key>HibernateMode</key>
+            <string>None</string>
+            <key>PickerMode</key>
+            <string>External</string>
+            <key>ShowPicker</key>
+            <true/>
+            <key>Timeout</key>
+            <integer>5</integer>
+            <key>ConsoleAttributes</key>
+            <integer>0</integer>
+        </dict>
+        <key>Security</key>
+        <dict>
+            <key>AllowNvramReset</key>
+            <true/>
+            <key>AllowSetDefault</key>
+            <true/>
+            <key>ScanPolicy</key>
+            <integer>0</integer>
+            <key>SecureBootModel</key>
+            <string>Disabled</string>
+            <key>Vault</key>
+            <string>Optional</string>
+        </dict>
+        <key>Entries</key>
+        <array>
+            <dict>
+                <key>Arguments</key>
+                <string>console=tty0 console=ttyS0,115200n8</string>
+                <key>Auxiliary</key>
+                <false/>
+                <key>Comment</key>
+                <string>ZFSBootMenu</string>
+                <key>Enabled</key>
+                <true/>
+                <key>Name</key>
+                <string>ZFSBootMenu</string>
+                <key>Path</key>
+                <string>PciRoot(0x0)/Pci(0x2,0x0)/Pci(0x0,0x0)/NVMe(0x1,00-00-00-00-00-00-00-00)/HD(1,GPT,00000000-0000-0000-0000-000000000000,0x800,0x100000)/EFI/zfsbootmenu/zfsbootmenu.efi</string>
+            </dict>
+        </array>
+    </dict>
+    <key>NVRAM</key>
+    <dict>
+        <key>Add</key>
+        <dict/>
+        <key>WriteFlash</key>
+        <true/>
+    </dict>
+    <key>PlatformInfo</key>
+    <dict>
+        <key>Automatic</key>
+        <true/>
+        <key>Generic</key>
+        <dict/>
+        <key>UpdateDataHub</key>
+        <true/>
+        <key>UpdateNVRAM</key>
+        <true/>
+        <key>UpdateSMBIOS</key>
+        <true/>
+    </dict>
+    <key>UEFI</key>
+    <dict>
+        <key>Drivers</key>
+        <array>
+            <string>OpenRuntime.efi</string>
+            <string>NvmExpressDxe.efi</string>
+        </array>
+        <key>Input</key>
+        <dict/>
+        <key>Output</key>
+        <dict>
+            <key>ConsoleMode</key>
+            <string>80x25</string>
+            <key>TextRenderer</key>
+            <string>BuiltinGraphics</string>
+        </dict>
+        <key>ProtocolOverrides</key>
+        <dict>
+            <key>NvmExpressPassThru</key>
+            <true/>
+        </dict>
+        <key>Quirks</key>
+        <dict>
+            <key>ExitBootServicesDelay</key>
+            <integer>5</integer>
+            <key>IgnoreInvalidFlexRatio</key>
+            <true/>
+            <key>ReleaseUsbOwnership</key>
+            <true/>
+            <key>RequestBootVarRouting</key>
+            <true/>
+            <key>TscSyncTimeout</key>
+            <integer>35000</integer>
+            <key>UnblockFsConnect</key>
+            <true/>
+        </dict>
+    </dict>
+</dict>
+</plist>"""
+    
+    # Write R420 specific config.plist
+    with open(os.path.join(esp_dir, "EFI/OC/config.plist"), "w") as f:
+        f.write(r420_config)
+    
+    # Create a legacy fallback boot directory for BIOS boot
+    legacy_dir = os.path.join(esp_dir, "boot")
+    os.makedirs(legacy_dir, exist_ok=True)
+    
+    # Copy BOOTX64.EFI as fallback
+    subprocess.run(["cp", os.path.join(esp_dir, "EFI/BOOT/BOOTX64.EFI"), 
+                   os.path.join(legacy_dir, "bootx64.efi")], check=True)
+    
+    # Create IA32 version for older BIOS compatibility
+    subprocess.run(["cp", os.path.join(esp_dir, "EFI/BOOT/BOOTX64.EFI"),
+                   os.path.join(esp_dir, "EFI/BOOT/BOOTIA32.EFI")], check=True)
+    
+    libcalamares.utils.debug("PowerEdge R420 specific OpenCore configuration complete")
+
+def create_recovery_scripts(target_mount, pool_name, dataset, is_dell_r420=False):
     """Create recovery and maintenance scripts"""
     
     # Create recovery script directory
     recovery_dir = os.path.join(target_mount, "root/zforge-recovery")
     os.makedirs(recovery_dir, exist_ok=True)
     
+    # Add Dell R420 specific sections if needed
+    dell_specific = ""
+    if is_dell_r420:
+        dell_specific = """
+# Function to configure Dell PowerEdge R420
+configure_r420() {
+    echo "Configuring Dell PowerEdge R420 specific settings..."
+    
+    # Configure NVME module for Dell servers
+    cat > /etc/modprobe.d/nvme.conf << EOF
+# NVMe parameters for Dell PowerEdge R420
+options nvme_core io_timeout=4294967295
+options nvme_core max_host_mem_size_mb=256
+EOF
+
+    # Configure iDRAC if available
+    if command -v ipmitool &>/dev/null; then
+        echo "Configuring iDRAC..."
+        
+        # Enable Serial Over LAN
+        ipmitool sol set enabled true
+        ipmitool sol set force-encryption false
+        
+        # Set serial port for system
+        ipmitool raw 0x30 0x0 0x0 0x0 0x0 0x5
+        
+        echo "iDRAC configuration complete"
+    fi
+    
+    # Configure Dell-specific services
+    if command -v systemctl &>/dev/null; then
+        systemctl enable ipmi
+        systemctl start ipmi
+    fi
+}
+"""
+    
     # Create recovery script
     recovery_script = f"""#!/bin/bash
 # Z-Forge Recovery Script
-# Generated on $(subprocess.run(['hostname'], capture_output=True, text=True).stdout.strip())
+# Generated for {'Dell PowerEdge R420' if is_dell_r420 else 'Standard System'}
 
 echo "Z-Forge ZFS Recovery Tool"
 echo "========================"
@@ -506,6 +850,8 @@ echo ""
 echo "Pool: {pool_name}"
 echo "Root Dataset: {dataset}"
 echo ""
+
+{dell_specific}
 
 # Function to reimport pool
 reimport_pool() {{
@@ -635,7 +981,8 @@ while true; do
     echo "1. Import pool"
     echo "2. Rebuild initramfs"
     echo "3. Reinstall bootloader"
-    echo "4. Exit"
+    {'echo "4. Configure Dell PowerEdge R420"' if is_dell_r420 else ''}
+    echo "{5 if is_dell_r420 else 4}. Exit"
     
     read -p "Choice: " choice
     
@@ -643,7 +990,8 @@ while true; do
         1) reimport_pool ;;
         2) rebuild_initramfs ;;
         3) reinstall_bootloader ;;
-        4) exit 0 ;;
+        {'4) configure_r420 ;;' if is_dell_r420 else ''}
+        {5 if is_dell_r420 else 4}) exit 0 ;;
         *) echo "Invalid choice" ;;
     esac
 done
@@ -653,3 +1001,89 @@ done
     with open(os.path.join(recovery_dir, "recovery.sh"), "w") as f:
         f.write(recovery_script)
     os.chmod(os.path.join(recovery_dir, "recovery.sh"), 0o755)
+    
+    # Create Dell-specific tools if needed
+    if is_dell_r420:
+        # R420 diagnostic tool
+        r420_diag = """#!/bin/bash
+# Dell PowerEdge R420 Diagnostic Tool
+
+echo "Dell PowerEdge R420 Diagnostic Tool"
+echo "=================================="
+echo ""
+
+# Check hardware
+echo "Checking hardware..."
+echo "CPU Information:"
+lscpu | grep "Model name\\|CPU(s)\\|Thread" | sed 's/^/  /'
+echo ""
+
+echo "Memory Information:"
+free -h | sed 's/^/  /'
+echo ""
+
+echo "Storage Devices:"
+lsblk -o NAME,SIZE,MODEL,SERIAL | sed 's/^/  /'
+echo ""
+
+# Check NVMe devices
+if lspci | grep -i nvme; then
+    echo "NVMe devices found:"
+    nvme list | sed 's/^/  /'
+    echo ""
+    
+    # Test NVMe performance
+    if command -v fio &>/dev/null; then
+        echo "Running quick NVMe benchmark..."
+        NVME_DEV=$(nvme list | grep "^/dev" | head -1 | awk '{print $1}')
+        if [ ! -z "$NVME_DEV" ]; then
+            fio --filename=$NVME_DEV --direct=1 --rw=randread --bs=4k --ioengine=libaio --iodepth=32 --runtime=5 --numjobs=4 --time_based --group_reporting --name=nvme-test | grep -A2 "READ:" | sed 's/^/  /'
+        fi
+        echo ""
+    fi
+fi
+
+# Check Dell specific hardware
+echo "Checking Dell hardware..."
+if command -v omreport &>/dev/null; then
+    echo "System Information:"
+    omreport chassis info | grep "Model\\|Service Tag\\|Chassis" | sed 's/^/  /'
+    echo ""
+    
+    echo "Hardware Status:"
+    omreport system summary | grep "Status" | sed 's/^/  /'
+    echo ""
+else
+    echo "Dell OpenManage tools not installed. Limited diagnostics available."
+    echo ""
+fi
+
+# Check RAID controllers
+if lspci | grep -i raid; then
+    echo "RAID Controllers:"
+    lspci | grep -i raid | sed 's/^/  /'
+    echo ""
+    
+    if command -v megacli &>/dev/null; then
+        echo "RAID Status:"
+        megacli -LDInfo -Lall -aALL | grep "State" | sed 's/^/  /'
+        echo ""
+    fi
+fi
+
+# Check iDRAC configuration
+if command -v ipmitool &>/dev/null; then
+    echo "iDRAC Configuration:"
+    ipmitool lan print | grep "IP Address\\|MAC Address\\|Subnet Mask" | sed 's/^/  /'
+    echo ""
+    
+    echo "Serial Over LAN Status:"
+    ipmitool sol info | sed 's/^/  /'
+    echo ""
+fi
+
+echo "Diagnostic complete."
+"""
+        with open(os.path.join(recovery_dir, "r420-diag.sh"), "w") as f:
+            f.write(r420_diag)
+        os.chmod(os.path.join(recovery_dir, "r420-diag.sh"), 0o755)

@@ -1,6 +1,5 @@
-# Z-Forge Build Configuration
 builder_config:
-  debian_release: bookworm
+  debian_release: sid
   kernel_version: latest
   output_iso_name: zforge-proxmox-v3.iso
   enable_debug: true
@@ -21,7 +20,7 @@ zfs_config:
   version: latest
   build_from_source: true
   enable_encryption: true
-  default_compression: lz4
+  default_compression: zstd-6
 
 bootloader_config:
   primary: zfsbootmenu
