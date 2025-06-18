@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # z-forge/builder/modules/zfs_build.py
 
 """
@@ -48,6 +49,9 @@ class ZFSBuild:
             # Configure DKMS
             self._configure_dkms(chroot_path)
             
+            # Set up ZFS dracut module
+            self._setup_dracut_zfs(chroot_path)
+            
             # Set up ZFS services
             self._setup_services(chroot_path)
             
@@ -69,99 +73,47 @@ class ZFSBuild:
                 'module': self.__class__.__name__
             }
     
-    def _install_build_deps(self, chroot_path: Path):
-        """Install ZFS build dependencies in chroot"""
+    # [... rest of the existing ZFSBuild class ...]
+    
+    def _setup_dracut_zfs(self, chroot_path: Path):
+        """Configure dracut for ZFS support"""
         
-        deps = [
-            'build-essential',
-            'autoconf',
-            'automake',
-            'libtool',
-            'gawk',
-            'alien',
-            'fakeroot',
-            'dkms',
-            'libblkid-dev',
-            'uuid-dev',
-            'libudev-dev',
-            'libssl-dev',
-            'zlib1g-dev',
-            'libaio-dev',
-            'libattr1-dev',
-            'libelf-dev',
-            'python3',
-            'python3-dev',
-            'python3-setuptools',
-            'python3-cffi',
-            'libffi-dev',
-            'git'
-        ]
+        self.logger.info("Setting up dracut ZFS module...")
         
-        install_cmd = f"apt-get update && apt-get install -y {' '.join(deps)}"
-        
+        # Ensure dracut is installed
         subprocess.run([
             "chroot", str(chroot_path),
-            "bash", "-c", install_cmd
+            "apt-get", "install", "-y", "dracut", "dracut-network"
         ], check=True)
         
-    def _get_latest_release(self) -> str:
-        """Get latest stable ZFS release tag"""
+        # Create ZFS dracut config
+        dracut_zfs_conf = """# ZFS dracut configuration
+# Load ZFS modules
+add_dracutmodules+=" zfs "
+
+# Include necessary filesystems
+filesystems+=" zfs "
+
+# Enable ZFS hostid support
+install_optional_items+=" /etc/hostid /etc/zfs/zpool.cache "
+
+# Include ZFS commands
+install_items+=" /usr/bin/zfs /usr/bin/zpool "
+"""
         
-        cmd = [
-            "git", "ls-remote", "--tags", "--refs", self.zfs_repo,
-            "| grep -E 'refs/tags/zfs-[0-9]+\\.[0-9]+\\.[0-9]+$'",
-            "| tail -1",
-            "| sed 's/.*refs\\/tags\\/zfs-//'"
-        ]
+        dracut_conf_path = chroot_path / "etc/dracut.conf.d/zfs.conf"
+        dracut_conf_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(dracut_conf_path, 'w') as f:
+            f.write(dracut_zfs_conf)
         
-        result = subprocess.run(
-            " ".join(cmd),
-            shell=True,
-            capture_output=True,
-            text=True
-        )
-        
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            return "2.2.4"  # Fallback version
-            
-    def _build_zfs(self, chroot_path: Path, version: str):
-        """Build ZFS from source in chroot"""
-        
-        build_script = f"""#!/bin/bash
-        set -e
-        
-        # Clone repository
-        cd /usr/src
-        git clone --depth 1 --branch zfs-{version} {self.zfs_repo}
-        cd zfs
-        
-        # Configure build
-        ./autogen.sh
-        ./configure \\
-            --prefix=/usr \\
-            --with-linux=/usr/src/linux-headers-$(uname -r) \\
-            --enable-systemd \\
-            --enable-pyzfs \\
-            --with-python=3
-            
-        # Build
-        make -j$(nproc)
-        
-        # Install
-        make install
-        
-        # Install DKMS modules
-        make deb-dkms
-        dpkg -i *.deb || apt-get -f install -y
-        """
-        
-        script_path = chroot_path / "tmp/build_zfs.sh"
-        script_path.write_text(build_script)
-        script_path.chmod(0o755)
-        
+        # Create hostid
         subprocess.run([
             "chroot", str(chroot_path),
-            "/tmp/build_zfs.sh"
+            "bash", "-c", "zgenhostid $(hexdump -n 4 -e '\"0x%08x\"' /dev/urandom)"
+        ], check=True)
+        
+        # Regenerate dracut
+        subprocess.run([
+            "chroot", str(chroot_path),
+            "dracut", "-f", "--regenerate-all"
         ], check=True)

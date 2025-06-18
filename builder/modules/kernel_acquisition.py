@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # z-forge/builder/modules/kernel_acquisition.py
 
 """
@@ -55,6 +56,9 @@ class KernelAcquisition:
             # Install into workspace
             result = self._install_kernel(kernel_path, kernel_version)
             
+            # Generate dracut initramfs
+            self._generate_dracut_initramfs()
+            
             # Cache for future builds
             if self.config.get('cache_packages', True):
                 self._cache_kernel(kernel_path, kernel_version)
@@ -69,108 +73,16 @@ class KernelAcquisition:
                 'module': self.__class__.__name__
             }
     
-    def _get_latest_stable(self) -> str:
-        """Fetch latest stable kernel version from kernel.org"""
-        
-        try:
-            response = requests.get(self.kernel_api, timeout=30)
-            response.raise_for_status()
-            
-            releases = response.json()
-            
-            # Find latest stable (not RC)
-            for release in releases['releases']:
-                if release['moniker'] == 'stable' and 'rc' not in release['version']:
-                    return release['version']
-                    
-            raise Exception("No stable kernel found")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to fetch kernel info: {e}")
-            # Fallback to known good version
-            return "6.8.12"
+    # [... rest of the existing KernelAcquisition class ...]
     
-    def _download_kernel(self, version: str) -> Path:
-        """Download kernel package from Debian repositories"""
+    def _generate_dracut_initramfs(self):
+        """Generate dracut initramfs for installed kernel"""
         
-        self.logger.info(f"Downloading kernel {version}...")
-        
-        # For latest kernels, we'll use Debian experimental or backports
-        major_version = version.split('.')[0] + '.' + version.split('.')[1]
-        
-        # Construct package names
-        packages = [
-            f"linux-image-{major_version}-amd64",
-            f"linux-headers-{major_version}-amd64"
-        ]
-        
-        # Download using apt in download-only mode
-        download_dir = self.workspace / "kernel_downloads"
-        download_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Add experimental repo temporarily
-        sources_list = f"""
-        deb http://deb.debian.org/debian experimental main
-        deb http://deb.debian.org/debian bookworm-backports main
-        """
-        
-        sources_file = self.workspace / "kernel.list"
-        sources_file.write_text(sources_list)
-        
-        cmd = [
-            "apt-get", "update",
-            "-o", f"Dir::Etc::sourcelist={sources_file}",
-            "-o", f"Dir::Cache={self.workspace / 'apt_cache'}",
-            "-o", f"Dir::State={self.workspace / 'apt_state'}"
-        ]
-        
-        subprocess.run(cmd, check=True, capture_output=True)
-        
-        # Download packages
-        for package in packages:
-            cmd = [
-                "apt-get", "download",
-                "-o", f"Dir::Cache={download_dir}",
-                package
-            ]
-            subprocess.run(cmd, check=True, cwd=download_dir)
-            
-        return download_dir
-    
-    def _install_kernel(self, kernel_path: Path, version: str) -> Dict:
-        """Install kernel into chroot environment"""
+        self.logger.info("Generating dracut initramfs...")
         
         chroot_path = self.workspace / "chroot"
         
-        # Copy kernel packages
-        kernel_dest = chroot_path / "tmp/kernel_packages"
-        kernel_dest.mkdir(parents=True, exist_ok=True)
-        
-        subprocess.run([
-            "cp", "-r", 
-            str(kernel_path) + "/.", 
-            str(kernel_dest)
-        ], check=True)
-        
-        # Install in chroot
-        install_script = f"""#!/bin/bash
-        set -e
-        cd /tmp/kernel_packages
-        dpkg -i linux-image-*.deb linux-headers-*.deb || apt-get -f install -y
-        update-initramfs -u
-        """
-        
-        script_path = chroot_path / "tmp/install_kernel.sh"
-        script_path.write_text(install_script)
-        script_path.chmod(0o755)
-        
-        subprocess.run([
-            "chroot", str(chroot_path),
-            "/tmp/install_kernel.sh"
-        ], check=True)
-        
-        return {
-            'status': 'success',
-            'kernel_version': version,
-            'kernel_path': str(kernel_dest)
-        }
+        # Find installed kernel version
+        kernel_version_cmd = "ls -1 /lib/modules"
+        result = subprocess.run(
+            ["chroot", str(chroot
