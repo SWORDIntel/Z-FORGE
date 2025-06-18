@@ -1,0 +1,5 @@
+type:       "job"
+name:       "zforgefinalize"
+interface:  "python"
+script:     "main.py"
+requires:   [ "mount" ]

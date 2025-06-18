@@ -1,0 +1,5 @@
+---
+type:       "job"
+name:       "zfsbootloader"
+interface:  "python"
+script:     "main.py"
