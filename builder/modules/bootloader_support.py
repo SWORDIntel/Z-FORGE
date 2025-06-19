@@ -7,8 +7,6 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional
 
-from tqdm import tqdm
-
 class BootloaderSetup:
     """
     Configures bootloader to load an encrypted ZFS root using zfsbootmenu or OpenCore chainloading

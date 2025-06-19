@@ -55,31 +55,35 @@ UDEVRULES
 
 # Apply settings immediately
 echo "${BLUE}Applying settings to current NVMe devices...${NORMAL}"
-for nvme in $(ls /dev/nvme?n1 2>/dev/null); do
-    device_name=$(basename $(dirname $nvme))
-    echo "Tuning $nvme (device: $device_name)..."
+for nvme_path_candidate in /dev/nvme?n1; do
+    # Check if the glob found any files and if it's a block device
+    if [ ! -b "$nvme_path_candidate" ]; then
+        continue
+    fi
+    device_name=$(basename "$(dirname "$nvme_path_candidate")")
+    echo "Tuning $nvme_path_candidate (device: $device_name)..."
     
     # Apply scheduler (doesn't apply to NVMe, but set for consistency)
-    echo "none" > /sys/block/$device_name/queue/scheduler 2>/dev/null || true
+    echo "none" > "/sys/block/$device_name/queue/scheduler" 2>/dev/null || true
     
     # Set read-ahead
-    echo "4096" > /sys/block/$device_name/queue/read_ahead_kb 2>/dev/null || true
+    echo "4096" > "/sys/block/$device_name/queue/read_ahead_kb" 2>/dev/null || true
     
     # Set number of requests
-    echo "4096" > /sys/block/$device_name/queue/nr_requests 2>/dev/null || true
+    echo "4096" > "/sys/block/$device_name/queue/nr_requests" 2>/dev/null || true
     
     # Set IO affinity
-    echo "2" > /sys/block/$device_name/queue/rq_affinity 2>/dev/null || true
+    echo "2" > "/sys/block/$device_name/queue/rq_affinity" 2>/dev/null || true
     
     # Disable write back throttling
-    echo "0" > /sys/block/$device_name/queue/wbt_lat_usec 2>/dev/null || true
+    echo "0" > "/sys/block/$device_name/queue/wbt_lat_usec" 2>/dev/null || true
     
     # Report current settings
     echo "Current settings for $device_name:"
-    cat /sys/block/$device_name/queue/scheduler 2>/dev/null || echo "scheduler: N/A"
-    cat /sys/block/$device_name/queue/read_ahead_kb 2>/dev/null || echo "read_ahead_kb: N/A"
-    cat /sys/block/$device_name/queue/nr_requests 2>/dev/null || echo "nr_requests: N/A"
-    cat /sys/block/$device_name/queue/rq_affinity 2>/dev/null || echo "rq_affinity: N/A"
+    cat "/sys/block/$device_name/queue/scheduler" 2>/dev/null || echo "scheduler: N/A"
+    cat "/sys/block/$device_name/queue/read_ahead_kb" 2>/dev/null || echo "read_ahead_kb: N/A"
+    cat "/sys/block/$device_name/queue/nr_requests" 2>/dev/null || echo "nr_requests: N/A"
+    cat "/sys/block/$device_name/queue/rq_affinity" 2>/dev/null || echo "rq_affinity: N/A"
     echo ""
 done
 
@@ -325,10 +329,10 @@ chmod +x /usr/local/bin/zfs-nvme-tune.sh
 
 # Run quick performance test to validate settings
 echo "${BLUE}Running quick performance validation...${NORMAL}"
-nvme_dev=$(ls /dev/nvme?n1 2>/dev/null | head -1)
-if [ ! -z "$nvme_dev" ]; then
+nvme_dev=$(find /dev -name "nvme?n1" -print -quit 2>/dev/null)
+if [ -n "$nvme_dev" ] && [ -b "$nvme_dev" ]; then
     echo "Testing read performance on $nvme_dev..."
-    hdparm -t $nvme_dev
+    hdparm -t "$nvme_dev"
     
     echo "Testing write performance..."
     dd if=/dev/zero of=/tmp/nvme-test bs=1M count=1024 conv=fdatasync

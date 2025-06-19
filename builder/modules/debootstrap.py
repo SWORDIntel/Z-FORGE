@@ -14,7 +14,6 @@ the final ISO, especially with ZFS root filesystems.
 """
 
 import subprocess
-import os
 from pathlib import Path
 from typing import Dict, Optional, List, Any
 import logging

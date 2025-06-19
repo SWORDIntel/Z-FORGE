@@ -6,17 +6,17 @@ Core Builder Framework
 Orchestrates the Z-Forge build process
 """
 
-import os
 import sys
 import logging
 import importlib
 import traceback
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional
 from datetime import datetime
 
 from .config import BuildConfig
 from .lockfile import BuildLockfile
+
 
 class ZForgeBuilder:
     """
@@ -27,7 +27,10 @@ class ZForgeBuilder:
     def __init__(self, config_path: str = "build_spec.yml"):
         """Initialize builder with configuration"""
         self.config = BuildConfig(config_path)
-        self.workspace = Path(self.config.get('builder_config', {}).get('workspace_path', '/tmp/zforge_workspace'))
+        builder_config = self.config.get('builder_config', {})
+        workspace_path = builder_config.get('workspace_path',
+                                           '/tmp/zforge_workspace')
+        self.workspace = Path(workspace_path)
         self._setup_logging()
         self.modules_path = Path(__file__).parent.parent / "modules"
 
@@ -53,8 +56,12 @@ class ZForgeBuilder:
         self.logger = logging.getLogger('ZForge')
         self.log_path = log_file
 
-    def execute_pipeline(self, modules: Optional[List[str]] = None, resume: bool = False,
-                         lockfile: Optional[BuildLockfile] = None) -> Dict:
+    def execute_pipeline(
+        self,
+        modules: Optional[List[str]] = None,
+        resume: bool = False,
+        lockfile: Optional[BuildLockfile] = None
+    ) -> Dict:
         """
         Execute the complete build pipeline or specific modules
 
@@ -71,10 +78,14 @@ class ZForgeBuilder:
 
         # Get modules to execute
         if not modules:
-            modules = [m['name'] for m in self.config.get('modules', [])
-                      if m.get('enabled', True)]
+            modules_config = self.config.get('modules', [])
+            modules = [
+                m['name'] for m in modules_config if m.get('enabled', True)
+            ]
 
-        self.logger.info(f"Pipeline modules: {', '.join(modules)}")
+        self.logger.info(
+            f"Executing modules: {', '.join(modules)}"
+        )
 
         # Initialize or load lockfile
         if not lockfile:
@@ -105,13 +116,16 @@ class ZForgeBuilder:
 
                     # Check if the module was successful
                     if result.get('status') != 'success':
-                        self.logger.error(f"Module {module_name} failed: {result.get('error')}")
+                        error_details = result.get('error')
+                        self.logger.error(
+                            f"Module {module_name} failed: {error_details}"
+                        )
                         return {
                             'status': 'error',
-                            'error': result.get('error'),
+                            'error': error_details,
                             'module': module_name,
                             'results': results,
-                            'log_path': str(self.log_path)
+                            'log_path': str(self.log_path),
                         }
 
                     # Save progress after each module
@@ -126,7 +140,7 @@ class ZForgeBuilder:
                         'error': error_msg,
                         'module': module_name,
                         'results': results,
-                        'log_path': str(self.log_path)
+                        'log_path': str(self.log_path),
                     }
 
             # All modules completed successfully
@@ -139,7 +153,7 @@ class ZForgeBuilder:
                 'results': results,
                 'iso_path': iso_path,
                 'log_path': str(self.log_path),
-                'lockfile_path': str(lockfile.lockfile_path)
+                'lockfile_path': str(lockfile.lockfile_path),
             }
 
         except Exception as e:
@@ -150,7 +164,7 @@ class ZForgeBuilder:
                 'status': 'error',
                 'error': error_msg,
                 'results': results,
-                'log_path': str(self.log_path)
+                'log_path': str(self.log_path),
             }
 
     def execute_module(self, module_name: str, resume_data: Optional[Dict] = None) -> Dict:
@@ -179,10 +193,15 @@ class ZForgeBuilder:
             # Create instance
             class_name = module_name
             if not hasattr(module, class_name):
-                class_name = ''.join(word.title() for word in module_name.split('_'))
+                class_name = ''.join(
+                    word.title() for word in module_name.split('_')
+                )
 
             if hasattr(module, class_name):
-                module_instance = getattr(module, class_name)(self.workspace, self.config.data)
+                module_instance = getattr(module, class_name)(
+                    self.workspace,
+                    self.config.data
+                )
 
                 # Execute module
                 result = module_instance.execute(resume_data)
@@ -193,9 +212,12 @@ class ZForgeBuilder:
 
                 return result
             else:
+                error_msg = (
+                    f"Class {class_name} not found in module {module_name}"
+                )
                 return {
                     'status': 'error',
-                    'error': f"Class {class_name} not found in module {module_name}"
+                    'error': error_msg
                 }
 
         except ImportError as e:
@@ -213,7 +235,7 @@ class ZForgeBuilder:
         """Save current build progress to enable resuming"""
 
         # Save results to progress file
-        progress_file = self.workspace / "build_progress.json"
+        # progress_file = self.workspace / "build_progress.json" # TODO: Implement saving results
 
         # Save lockfile
         lockfile.save()
