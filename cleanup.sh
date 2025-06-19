@@ -1,4 +1,4 @@
-    #!/bin/bash
+#!/bin/bash
 # Z-Forge structure cleanup script
 
 echo "Z-Forge Structure Cleanup"
@@ -6,7 +6,7 @@ echo "========================="
 
 # Fix core directory
 echo "[*] Fixing core directory..."
-cd builder/core
+cd builder/core || exit
 rm -f init.py  # Remove duplicate file
 # Make sure __init__.py is present and correct
 cat > __init__.py << 'EOF'
@@ -26,7 +26,7 @@ cd ../..
 
 # Fix utils directory
 echo "[*] Fixing utils directory..."
-cd builder/utils
+cd builder/utils || exit
 rm -f init.py  # Remove duplicate file
 # Make sure __init__.py is present and correct
 cat > __init__.py << 'EOF'
@@ -44,7 +44,7 @@ cd ../..
 
 # Fix modules directory
 echo "[*] Fixing modules directory..."
-cd builder/modules
+cd builder/modules || exit
 # Remove corrupt file
 rm -f 'zfsrppt⁄[y' 2>/dev/null || true
 # Fix misnamed module

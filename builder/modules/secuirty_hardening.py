@@ -76,4 +76,3 @@ class SecurityHardening:
 
         self.logger.info("=== SecurityHardening complete ===")
         return result
-

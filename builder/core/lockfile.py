@@ -7,7 +7,6 @@ Tracks package versions, git commits, and build state for reproducible builds
 """
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
