@@ -1,75 +1,103 @@
-# Z-Forge Build Configuration for H730 Mini
+# ----------------------------------------------------------------------
+#  Z-Forge Build Configuration – H730 Mini  •  version 2 (2025-06-19)
+#  Notes:
+#    • Switched base to Debian SID (unstable) for newest toolchain/kernel.
+#    • ZFS pools default to zstd-6 compression (balanced ratio vs. CPU cost).
+#    • Added optional hardening & observability hooks.
+# ----------------------------------------------------------------------
+
 builder_config:
-  debian_release: bookworm
+  debian_release: sid          # ← changed from “bookworm”
   kernel_version: latest
-  output_iso_name: zforge-h730mini-proxmox-v1.iso
+  output_iso_name: zforge-h730mini-proxmox-v2.iso   # bumped minor version
   enable_debug: true
   workspace_path: /tmp/zforge_workspace
   cache_packages: true
+  # --- new knobs ------------------------------------------------------
+  gpg_verify: true             # verify downloaded debs/ISOs
+  reproducible_build: true     # fix timestamps/env for bit-repro builds
+  log_verbosity: 2             # 0=quiet 1=normal 2=debug
 
 proxmox_config:
   version: latest
   minimal_install: true
   include_packages:
+    # Core Proxmox stack
     - proxmox-ve
     - pve-kernel-6.8
     - zfs-dkms
     - zfsutils-linux
     - pve-zsync
-    # H730 Mini specific packages
+    # H730 Mini / hardware mgmt
     - ipmitool
     - openipmi
     - lm-sensors
     - nvme-cli
-    - megacli # For LSI based controllers like H730 Mini
-    - megactl # For LSI based controllers like H730 Mini
-    - megaraid-status # For LSI based controllers like H730 Mini
-    - srvadmin-all
+    - megacli
+    - megactl
+    - megaraid-status
+    - srvadmin-all            # Dell OMSA for sensor / RAID telemetry
+    # Observability & burn-in
     - snmp
     - ethtool
     - fio
     - smartmontools
+    - stress-ng               # (new) synthetic load generator
+    - sosreport               # (new) capture full HW/SW state for tickets
 
 zfs_config:
   version: latest
-  build_from_source: true
+  build_from_source: true      # ensures SID toolchain is used
   enable_encryption: true
-  default_compression: lz4
-  arc_max_size: "16G" # Reasonable default, adjust if needed based on typical system RAM
+  default_compression: zstd-6  # ← changed from lz4 → zstd-6
+  arc_max_size: "16G"
   prefetch_disable: false
   zio_delay_max: 5000
+  # --- new: optional pool-wide settings -------------------------------
+  ashift: 12                   # 4 KiB sector alignment (SSD-friendly)
+  autotrim: on                 # SSD wear-level; OK on H730 BBU cache
 
 bootloader_config:
   primary: zfsbootmenu
   enable_opencore: true
-  enable_two_stage: false
+  enable_two_stage: true
   opencore_drivers:
     - NvmExpressDxe.efi
     - OpenRuntime.efi
-  nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)" # This might need adjustment for specific H730 Mini setups
+  nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)"
   uefi_mode: true
+  # --- secure-boot stub (optional) ------------------------------------
+  shim_secureboot: false       # flip to true if you sign zfsbootmenu
 
 dracut_config:
   modules:
     - zfs
     - systemd
     - network
-  compress: zstd
+  compress: zstd               # algorithm
+  compress_level: 6            # ← explicit level to mirror zstd-6
   hostonly: true
-  kernel_cmdline: "root=zfs:AUTO console=tty0 console=ttyS0,115200n8 mitigations=auto,nosmt"
+  kernel_cmdline: |
+    root=zfs:AUTO
+    console=tty0
+    console=ttyS0,115200n8
+    mitigations=auto,nosmt
+    ipv6.disable=1            # (optional) cut attack surface if unused
   extra_drivers:
     - nvme
-    - megaraid_sas # Ensure this is present for H730 Mini RAID controller
+    - megaraid_sas
     - mpt3sas
     - mptbase
     - mptscsih
-    # Network drivers - adjust if H730 Mini systems have different NICs
     - bnx2x
     - igb
     - ixgbe
     - i40e
+    - rng_core              # (new) HW RNG for faster keygen/entropy
 
-post_install_scripts: []
+post_install_scripts:
+  # empty list → populate with bespoke hardening or agent deploy steps
+  - scripts/99_finalize.sh
 
 modules:
   - name: WorkspaceSetup
@@ -89,4 +117,9 @@ modules:
   - name: CalamaresIntegration
     enabled: true
   - name: ISOGeneration
+    enabled: true
+  # --- new modular hooks ----------------------------------------------
+  - name: SecurityHardening
+    enabled: true
+  - name: Telemetry
     enabled: true
