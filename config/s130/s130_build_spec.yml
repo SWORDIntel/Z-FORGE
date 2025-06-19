@@ -1,72 +1,99 @@
-# Z-Forge Build Configuration for Dell S130 (Software RAID)
+# ----------------------------------------------------------------------
+#  Z-Forge Build Configuration – Dell S130 (SW-RAID)   • 2025-06-19 v2
+#  Key deltas vs. v1
+#    • Debian sid  ➜ newest mdraid/ZFS stacks
+#    • ZFS pool defaults: zstd-6, ashift=12, autotrim=on
+#    • Explicit mdraid early-assembly in Dracut
+#    • ARC capped at 4 GiB (typical 32 GiB entry servers)
+#    • Extra burn-in / diagnostics packages
+# ----------------------------------------------------------------------
+
 builder_config:
-  debian_release: bookworm
+  debian_release: sid
   kernel_version: latest
-  output_iso_name: zforge-s130-proxmox-v1.iso
+  output_iso_name: zforge-s130-proxmox-v2.iso
   enable_debug: true
   workspace_path: /tmp/zforge_workspace
   cache_packages: true
+  gpg_verify: true
+  reproducible_build: true
+  log_verbosity: 2            # 0=quiet 1=normal 2=debug
 
 proxmox_config:
   version: latest
   minimal_install: true
   include_packages:
+    # Core Proxmox
     - proxmox-ve
     - pve-kernel-6.8
     - zfs-dkms
     - zfsutils-linux
     - pve-zsync
-    # S130 (Software RAID) specific packages
+    # S130 SW-RAID & platform tools
+    - mdadm
     - ipmitool
     - openipmi
     - lm-sensors
-    - nvme-cli
-    - mdadm # For managing software RAID
+    - nvme-cli                # keep — some S130 boxes ship with NVMe sleds
     - srvadmin-all
+    # Observability / burn-in
     - snmp
     - ethtool
     - fio
     - smartmontools
+    - stress-ng
+    - sosreport
 
 zfs_config:
   version: latest
   build_from_source: true
   enable_encryption: true
-  default_compression: lz4
-  arc_max_size: "16G" # Default, may need tuning for software RAID performance
+  default_compression: zstd-6
+  arc_max_size: "4G"          # S130 boxes often ≤32 GiB RAM
   prefetch_disable: false
   zio_delay_max: 5000
+  ashift: 12
+  autotrim: on
 
 bootloader_config:
   primary: zfsbootmenu
   enable_opencore: true
-  enable_two_stage: false
+  enable_two_stage: true
   opencore_drivers:
     - NvmExpressDxe.efi
     - OpenRuntime.efi
-  nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)" # Generic path, verify if NVMe is used with S130 setups
+  nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)"   # verify on S130 chassis
   uefi_mode: true
+  shim_secureboot: false
 
 dracut_config:
   modules:
     - zfs
+    - mdraid                 # **must** precede zfs import if root on MD
     - systemd
     - network
-    - mdraid # For software RAID detection (S130)
   compress: zstd
+  compress_level: 6
   hostonly: true
-  kernel_cmdline: "root=zfs:AUTO console=tty0 console=ttyS0,115200n8 mitigations=auto,nosmt"
+  kernel_cmdline: |
+    rd.auto
+    rd.md=0                  # auto-assemble all mdraid sets
+    root=zfs:AUTO
+    console=tty0
+    console=ttyS0,115200n8
+    mitigations=auto,nosmt
+    ipv6.disable=1
   extra_drivers:
-    - nvme # Include if NVMe drives might be present alongside SATA
-    # SATA/AHCI drivers are typically auto-detected with hostonly=true
-    # Removed megaraid_sas, mpt3sas, mptbase, mptscsih as S130 is software RAID
-    # Network drivers - adjust if S130 systems have different NICs
+    - nvme
     - bnx2x
     - igb
     - ixgbe
     - i40e
+    - ahci                  # explicit for SATA SW-RAID
+    - rng_core
 
-post_install_scripts: []
+post_install_scripts:
+  - scripts/99_finalize.sh     # generic finisher (adds mdadm moni-tor)
 
 modules:
   - name: WorkspaceSetup
@@ -86,4 +113,8 @@ modules:
   - name: CalamaresIntegration
     enabled: true
   - name: ISOGeneration
+    enabled: true
+  - name: SecurityHardening
+    enabled: true
+  - name: Telemetry
     enabled: true
