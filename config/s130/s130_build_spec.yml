@@ -1,0 +1,89 @@
+# Z-Forge Build Configuration for Dell S130 (Software RAID)
+builder_config:
+  debian_release: bookworm
+  kernel_version: latest
+  output_iso_name: zforge-s130-proxmox-v1.iso
+  enable_debug: true
+  workspace_path: /tmp/zforge_workspace
+  cache_packages: true
+
+proxmox_config:
+  version: latest
+  minimal_install: true
+  include_packages:
+    - proxmox-ve
+    - pve-kernel-6.8
+    - zfs-dkms
+    - zfsutils-linux
+    - pve-zsync
+    # S130 (Software RAID) specific packages
+    - ipmitool
+    - openipmi
+    - lm-sensors
+    - nvme-cli
+    - mdadm # For managing software RAID
+    - srvadmin-all
+    - snmp
+    - ethtool
+    - fio
+    - smartmontools
+
+zfs_config:
+  version: latest
+  build_from_source: true
+  enable_encryption: true
+  default_compression: lz4
+  arc_max_size: "16G" # Default, may need tuning for software RAID performance
+  prefetch_disable: false
+  zio_delay_max: 5000
+
+bootloader_config:
+  primary: zfsbootmenu
+  enable_opencore: true
+  enable_two_stage: false
+  opencore_drivers:
+    - NvmExpressDxe.efi
+    - OpenRuntime.efi
+  nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)" # Generic path, verify if NVMe is used with S130 setups
+  uefi_mode: true
+
+dracut_config:
+  modules:
+    - zfs
+    - systemd
+    - network
+    - mdraid # For software RAID detection (S130)
+  compress: zstd
+  hostonly: true
+  kernel_cmdline: "root=zfs:AUTO console=tty0 console=ttyS0,115200n8 mitigations=auto,nosmt"
+  extra_drivers:
+    - nvme # Include if NVMe drives might be present alongside SATA
+    # SATA/AHCI drivers are typically auto-detected with hostonly=true
+    # Removed megaraid_sas, mpt3sas, mptbase, mptscsih as S130 is software RAID
+    # Network drivers - adjust if S130 systems have different NICs
+    - bnx2x
+    - igb
+    - ixgbe
+    - i40e
+
+post_install_scripts: []
+
+modules:
+  - name: WorkspaceSetup
+    enabled: true
+  - name: Debootstrap
+    enabled: true
+  - name: KernelAcquisition
+    enabled: true
+  - name: ZFSBuild
+    enabled: true
+  - name: DracutConfig
+    enabled: true
+  - name: ProxmoxIntegration
+    enabled: true
+  - name: LiveEnvironment
+    enabled: true
+  - name: CalamaresIntegration
+    enabled: true
+  - name: ISOGeneration
+    enabled: true

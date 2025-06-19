@@ -1,0 +1,92 @@
+# Z-Forge Build Configuration for H730 Mini
+builder_config:
+  debian_release: bookworm
+  kernel_version: latest
+  output_iso_name: zforge-h730mini-proxmox-v1.iso
+  enable_debug: true
+  workspace_path: /tmp/zforge_workspace
+  cache_packages: true
+
+proxmox_config:
+  version: latest
+  minimal_install: true
+  include_packages:
+    - proxmox-ve
+    - pve-kernel-6.8
+    - zfs-dkms
+    - zfsutils-linux
+    - pve-zsync
+    # H730 Mini specific packages
+    - ipmitool
+    - openipmi
+    - lm-sensors
+    - nvme-cli
+    - megacli # For LSI based controllers like H730 Mini
+    - megactl # For LSI based controllers like H730 Mini
+    - megaraid-status # For LSI based controllers like H730 Mini
+    - srvadmin-all
+    - snmp
+    - ethtool
+    - fio
+    - smartmontools
+
+zfs_config:
+  version: latest
+  build_from_source: true
+  enable_encryption: true
+  default_compression: lz4
+  arc_max_size: "16G" # Reasonable default, adjust if needed based on typical system RAM
+  prefetch_disable: false
+  zio_delay_max: 5000
+
+bootloader_config:
+  primary: zfsbootmenu
+  enable_opencore: true
+  enable_two_stage: false
+  opencore_drivers:
+    - NvmExpressDxe.efi
+    - OpenRuntime.efi
+  nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)" # This might need adjustment for specific H730 Mini setups
+  uefi_mode: true
+
+dracut_config:
+  modules:
+    - zfs
+    - systemd
+    - network
+  compress: zstd
+  hostonly: true
+  kernel_cmdline: "root=zfs:AUTO console=tty0 console=ttyS0,115200n8 mitigations=auto,nosmt"
+  extra_drivers:
+    - nvme
+    - megaraid_sas # Ensure this is present for H730 Mini RAID controller
+    - mpt3sas
+    - mptbase
+    - mptscsih
+    # Network drivers - adjust if H730 Mini systems have different NICs
+    - bnx2x
+    - igb
+    - ixgbe
+    - i40e
+
+post_install_scripts: []
+
+modules:
+  - name: WorkspaceSetup
+    enabled: true
+  - name: Debootstrap
+    enabled: true
+  - name: KernelAcquisition
+    enabled: true
+  - name: ZFSBuild
+    enabled: true
+  - name: DracutConfig
+    enabled: true
+  - name: ProxmoxIntegration
+    enabled: true
+  - name: LiveEnvironment
+    enabled: true
+  - name: CalamaresIntegration
+    enabled: true
+  - name: ISOGeneration
+    enabled: true
