@@ -225,40 +225,80 @@ apt-get clean
                 # Custom Python modules are usually just named in 'sequence'
             ],
             'sequence': [ # Defines the flow of the installer
-                { # First phase: Welcome, Locale, Keyboard, Partitioning choice
-                    'show': ['welcome', 'locale', 'keyboard', 'partition']
+                { # First phase: Welcome, Telemetry Consent, Locale, Keyboard, ZFS/Partitioning choice
+                  # 'loadbuildspec' is a conceptual module needed early to load build_spec.yml settings
+                  # (like security_hardening_profile, telemetry_endpoint_url, iso_version) into globalStorage.
+                  # It would typically run in an 'init' phase or as one of the first 'show' modules if it has UI,
+                  # or as a very early PythonJob if it's purely backend. For simplicity in this sequence,
+                  # we assume its data is available by the time 'telemetryconsent' or later modules need it.
+                  # A more robust setup would have an 'init' sequence for such tasks.
+                    'show': ['welcome', 'telemetryconsent', 'locale', 'keyboard', 'zfsrootselect']
                 },
                 { # Second phase: Execution of tasks
                     'exec': [
-                        'partition',    # Handles disk partitioning.
-                        'mount',        # Mounts partitions.
+                        # 'loadbuildspec', # Conceptual: if it's a job and needs to run before mount for some reason.
+                                         # More likely, its data is loaded by an early Python module (non-job).
+                        'mount',        # Mounts partitions (as defined by zfsrootselect or other partitioning modules).
                         'unpackfs',     # Extracts the SquashFS filesystem.
+                        # Z-Forge specific modules / ZFS specific partitioning logic
+                        # The 'zfsrootselect' module, if it's also a job module that *creates* partitions/pools,
+                        # would need to run very early in 'exec', potentially before 'mount' if it does its own mounting.
+                        # If 'zfsrootselect' (from show phase) only *selects* targets, then a ZFS partitioning
+                        # job module needs to be here. Assuming 'zfsrootselect' (if it's a job) or a similar
+                        # named job like 'zfspartition' would handle actual disk operations.
+                        # For this example, let's assume 'zfsrootselect' from 'show' phase configures 'partition' job.
+                        # And 'partition' job in Calamares is smart enough to handle ZFS based on what 'zfsrootselect' configured.
+                        # Or, 'zfsrootselect' itself is a job module replacing 'partition'.
+                        # Given the name, 'zfsrootselect' sounds like a view module. Let's assume a 'zfspartitionjob'
+                        # would be needed if 'partition' can't handle ZFS.
+                        # For the purpose of this integration, we'll replace 'partition' with 'zfsrootselect'
+                        # and assume it's a job that does the work based on UI selections.
+                        'zfsrootselect', # This now represents the job that applies ZFS partitioning/setup.
+                                         # This might be too early if unpackfs targets these mounts.
+                                         # Calamares sequences can be complex. Often, 'partition' is a job that
+                                         # creates partitions, then 'mount' mounts them, then 'unpackfs' installs.
+                                         # If 'zfsrootselect' is purely a view module, then a 'zfspartition' job
+                                         # would be needed here.
+                                         # Let's assume 'zfsrootselect' is a job that does partitioning.
+
                         'machineid',    # Sets up machine ID.
-                        'fstab',        # Creates /etc/fstab.
-                        'locale',       # Configures system locale. (often a job, not just show)
-                        'keyboard',     # Configures system keyboard. (job part)
+                        'fstab',        # Creates /etc/fstab (must run after ZFS datasets are mounted if they are root).
+                        'locale',       # Configures system locale.
+                        'keyboard',     # Configures system keyboard.
                         'localecfg',    # Persists locale config.
-                        # Z-Forge specific modules would go here:
-                        # 'zfsbench',   # Example: Run ZFS benchmark (if defined as instance)
-                        # 'zfspool',    # Example: Detect existing ZFS pools or configure new one
-                        # 'zfstarget',  # Example: Select ZFS dataset for root
                         'users',        # Creates user accounts.
                         'displaymanager',# Configures display manager (LightDM).
                         'networkcfg',   # Configures network.
+                        'securityhardening', # Apply security hardening measures.
                         'hwclock',      # Sets hardware clock.
-                        # 'zfsboot',    # Example: ZFS bootloader specific configurations
+                        # 'zfsboot',    # Example: ZFS bootloader specific configurations (if needed beyond grubcfg)
                         # 'proxmox',    # Example: Proxmox VE specific configurations
                         'initramfscfg', # Configures initramfs generation.
-                        'initramfs',    # Generates initramfs.
+                        'initramfs',    # Generates initramfs (crucial for ZFS root).
                         'grubcfg',      # Configures GRUB.
-                        'bootloader',   # Installs the bootloader.
-                        'umount'        # Unmounts filesystems before finishing.
+                        'bootloader',   # Installs the bootloader (must support ZFS).
+                        'umount',       # Unmounts filesystems before finishing.
+                        'telemetryjob'  # Send telemetry data as the very last step.
                     ]
                 },
                 { # Final phase
                     'show': ['finished']
                 }
             ],
+            # Conceptual 'loadbuildspec' module:
+            # This module would be a PythonJob that runs very early (perhaps even in a dedicated 'init' sequence).
+            # Its responsibility is to:
+            # 1. Locate the build_spec.yml file on the ISO.
+            # 2. Parse the YAML.
+            # 3. Extract `iso_customization.iso_version`, `security_config.security_hardening_profile`,
+            #    and `telemetry_config.telemetry_endpoint_url`.
+            # 4. Insert these values into libcalamares.globalstorage using keys like:
+            #    - "iso_version"
+            #    - "security_hardening_profile"
+            #    - "telemetry_endpoint_url"
+            # This ensures these configurations are available to other modules (like telemetryjob, securityhardening).
+            # If 'loadbuildspec' is a view module (e.g. part of welcome sequence to show ISO info),
+            # it can still perform these actions. The key is that globalstorage is populated early.
             'branding': 'zforge', # Matches the branding component name
             'prompt-install': True, # Ask for confirmation before starting installation
             'dont-chroot': False,   # Perform operations in chroot (standard)
