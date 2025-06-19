@@ -37,10 +37,16 @@ NVMECONF
 # Turn off unnecessary hardware (if applicable)
 if command -v ethtool > /dev/null; then
     # Find and disable unused NICs to save power
-    for IFACE in $(ls /sys/class/net/ | grep -v lo | grep -v vmbr); do
-        if ! ip addr show $IFACE | grep -q "state UP"; then
-            ethtool -s $IFACE wol d
-            ip link set $IFACE down
+    for IFACE in /sys/class/net/*; do
+        IFACE_NAME=$(basename "$IFACE")
+        # Skip loopback and virtual bridge interfaces
+        if [ "$IFACE_NAME" = "lo" ] || [[ "$IFACE_NAME" == vmbr* ]]; then
+            continue
+        fi
+
+        if ! ip addr show "$IFACE_NAME" | grep -q "state UP"; then
+            ethtool -s "$IFACE_NAME" wol d
+            ip link set "$IFACE_NAME" down
         fi
     done
 fi

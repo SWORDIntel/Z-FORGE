@@ -17,7 +17,7 @@ echo ""
 # Section: Root Check
 # This section ensures that the script is run with root privileges.
 # Root privileges are required for tasks like package installation and chroot operations.
-if [ "$EUID" -ne 0 ]; then 
+if [ "$EUID" -ne 0 ]; then
     echo "[!] This script must be run as root"
     exit 1
 fi
@@ -63,7 +63,7 @@ export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 run_module() {
     local module=$1
     echo "[*] Running module: $module" | tee -a "$LOG_FILE"
-    
+
     # Execute the Python module runner.
     # This inline Python script imports the necessary builder components and runs the specified module.
     python3 -c "
@@ -78,10 +78,10 @@ if result.get('status') != 'success':
     print(f\"[!] Module $module failed: {result.get('error')}\")
     sys.exit(1)  # Exit Python script with an error code if the module failed.
 " 2>&1 | tee -a "$LOG_FILE" # Redirect stdout and stderr to log file and console.
-    
+
     # Check the exit status of the Python command.
     # PIPESTATUS[0] holds the exit status of the first command in a pipe.
-    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         echo "[!] Module $module failed!" | tee -a "$LOG_FILE"
         exit 1 # Exit the bash script if the Python command failed.
     fi
@@ -213,7 +213,7 @@ for module in "${modules[@]}"; do
     fi
 
     run_module "$module" # Execute the current Python module.
-    
+
     # Check for special hooks that need to run after certain Python modules.
     # This allows for bash-level operations to be interleaved with Python module execution.
     # if [ "$module" == "Debootstrap" ]; then

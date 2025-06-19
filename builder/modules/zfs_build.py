@@ -20,6 +20,7 @@ import requests
 from pathlib import Path
 from typing import Dict, Optional, List, Any
 import logging
+import os
 
 class ZFSBuild:
     """
@@ -380,8 +381,8 @@ install_items+=" /usr/sbin/zfs /usr/sbin/zpool "
             "zfs-import-cache.service", # Imports pools listed in zpool.cache early in boot
             "zfs-mount.service",        # Mounts ZFS datasets
             "zfs-zed.service",          # ZFS Event Daemon (monitors pool health, handles events)
-            "zfs-share.service"       # If NFS/SMB sharing of ZFS datasets is needed
-            "zfs-import.target"       # Target that pulls in zfs-import-cache
+            "zfs-share.service",       # If NFS/SMB sharing of ZFS datasets is needed
+            "zfs-import.target",       # Target that pulls in zfs-import-cache
         ]
 
         # Enable these services using systemctl (which works on symlinks even in chroot)
