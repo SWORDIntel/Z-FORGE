@@ -7,7 +7,7 @@
 # ----------------------------------------------------------------------
 
 builder_config:
-  debian_release: sid          # ← Switched from “bookworm” for latest packages
+  debian_release: sid         # ← Switched from “bookworm” for latest packages
   kernel_version: latest
   output_iso_name: zforge-h730mini-proxmox-v2.iso   # Bumped minor version
   enable_debug: true
@@ -47,7 +47,7 @@ proxmox_config:
 
 zfs_config:
   version: latest
-  build_from_source: true      # Ensures the newest ZFS is built against the SID toolchain
+  build_from_source: true     # Ensures the newest ZFS is built against the SID toolchain
   enable_encryption: true
   default_compression: zstd-6  # Changed from lz4 for better space savings on servers
   arc_max_size: "16G"          # Reasonable default, adjust based on system RAM
@@ -86,7 +86,7 @@ dracut_config:
   extra_drivers:
     # Core storage drivers
     - nvme
-    - megaraid_sas             # Essential for PERC H710/H730 series controllers
+    - megaraid_sas           # Essential for PERC H710/H730 series controllers
     - mpt3sas
     - mptbase
     - mptscsih

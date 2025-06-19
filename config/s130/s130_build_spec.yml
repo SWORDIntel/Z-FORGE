@@ -17,7 +17,7 @@ builder_config:
   cache_packages: true
   gpg_verify: true
   reproducible_build: true
-  log_verbosity: 2            # 0=quiet 1=normal 2=debug
+  log_verbosity: 2             # 0=quiet 1=normal 2=debug
 
 proxmox_config:
   version: latest
@@ -34,7 +34,7 @@ proxmox_config:
     - ipmitool
     - openipmi
     - lm-sensors
-    - nvme-cli                # keep — some S130 boxes ship with NVMe sleds
+    - nvme-cli             # keep — some S130 boxes ship with NVMe sleds
     - srvadmin-all
     # Observability / burn-in
     - snmp
@@ -49,7 +49,7 @@ zfs_config:
   build_from_source: true
   enable_encryption: true
   default_compression: zstd-6
-  arc_max_size: "4G"          # S130 boxes often ≤32 GiB RAM
+  arc_max_size: "4G"           # S130 boxes often ≤32 GiB RAM
   prefetch_disable: false
   zio_delay_max: 5000
   ashift: 12
@@ -68,8 +68,8 @@ bootloader_config:
 
 dracut_config:
   modules:
-    - zfs
     - mdraid                 # **must** precede zfs import if root on MD
+    - zfs
     - systemd
     - network
   compress: zstd
@@ -89,11 +89,11 @@ dracut_config:
     - igb
     - ixgbe
     - i40e
-    - ahci                  # explicit for SATA SW-RAID
+    - ahci                   # explicit for SATA SW-RAID
     - rng_core
 
 post_install_scripts:
-  - scripts/99_finalize.sh     # generic finisher (adds mdadm moni-tor)
+  - scripts/99_finalize.sh   # generic finisher (adds mdadm moni-tor)
 
 modules:
   - name: WorkspaceSetup

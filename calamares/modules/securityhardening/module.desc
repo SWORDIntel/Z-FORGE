@@ -1,0 +1,8 @@
+---
+type:       "job"
+name:       "Security Hardening"
+interface:  "python"
+script:     "main.py"
+# Optional: Define requirements if this module depends on others
+# required:
+#   - "some_other_module"

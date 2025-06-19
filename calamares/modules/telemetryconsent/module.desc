@@ -1,0 +1,41 @@
+---
+type:       "view"
+name:       "Telemetry Consent"
+# User-friendly name, can be localized by Calamares using standard .desktop file conventions
+# if this name is used as a key, e.g., name@xx for translations.
+# For Python modules, Calamares often uses the module's directory name or a 'pretty_name' function.
+
+# Python interface to handle logic, QML for the view
+interface:  "python"
+script:     "main.py"
+qml:        "ui_telemetryconsent.qml"
+
+# Sequence information:
+# This module should typically run early in the 'show' sequence,
+# often in a 'welcome' or 'prepare' phase, before significant system changes.
+# Example:
+# show:
+#  - welcome
+#  - telemetryconsent
+#  - locale
+#  - keyboard
+#  - partition
+#  ...
+#
+# It might also be possible to make it skippable or conditional based on other settings.
+# No specific 'required' or 'job_control' settings are needed for a standard view module like this
+# unless it has specific dependencies or flow control needs.
+#
+# For Calamares to find the QML file, it typically expects it to be in the same
+# directory as this module.desc (i.e., calamares/modules/telemetryconsent/).
+# The setup script will need to copy ui_telemetryconsent.qml here.
+#
+# The 'name' field here is mostly an internal identifier for Calamares.
+# The title displayed in the UI sidebar comes from the 'title' property in the QML file,
+# or from what the Python module (if it's a Python-driven view) tells Calamares to display.
+# If main.py has a pretty_name() function, Calamares might use that for display in logs or UI lists.
+# The pretty_name in main.py ("Telemetry Consent") should ideally match or be consistent.
+#
+# Translations for QML text (qsTr) would typically be handled by Qt's lupdate/lrelease tools
+# and .ts/.qm files placed in a 'translations' subdirectory or a path known to Qt's translation system.
+# Calamares also has its own translation mechanisms that might apply to the module 'name' if set up correctly.
