@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import os
 import logging
 import subprocess
@@ -17,7 +18,7 @@ class EncryptionSupport:
 
     Expects self.config to include:
       - method: "zfs-native" or "luks"
-      - luks_device: "/dev/sdaX"      # if method=="luks"
+      - luks_device: "/dev/sdaX"       # if method=="luks"
       - luks_name: "cryptroot"
       - zpool_name: "rpool"
       - zfs_datasets: ["tank", "tank/home", ...]
@@ -100,14 +101,15 @@ class EncryptionSupport:
                 self.logger.info("LUKS container formatted and opened.")
 
             elif step == "open_luks":
-                # Already opened by setup_luks
+                # Already opened by setup_luks, this step might be redundant in the list,
+                # but it serves as a placeholder for a resume point if needed.
                 pass
 
             elif step == "create_pool":
                 pool = self.config["zpool_name"]
-                target = (("/dev/mapper/" + self.config["luks_name"]) 
-                          if method != "zfs-native" 
-                          else self.config["zpool_device"])
+                target = (("/dev/mapper/" + self.config["luks_name"])
+                                if method != "zfs-native"
+                                else self.config["zpool_device"])
                 self._run([
                     "zpool", "create",
                     "-o", "feature@encryption=enabled",
