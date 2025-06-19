@@ -7,7 +7,6 @@ Handles loading, validation, and access to build configuration
 """
 
 import yaml
-import os
 import sys
 import logging
 from pathlib import Path

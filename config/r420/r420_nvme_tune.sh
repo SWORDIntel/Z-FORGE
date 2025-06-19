@@ -47,16 +47,16 @@ for nvme in /dev/nvme?n1; do
         echo "Tuning $nvme..."
         
         # Set scheduler to none for NVMe (bypasses Linux IO scheduler)
-        echo "none" > /sys/block/$(basename "$nvme")/queue/scheduler 2>/dev/null || true
+        echo "none" > /sys/block/"$(basename "$nvme")"/queue/scheduler 2>/dev/null || true
         
         # Set read-ahead
-        echo "2048" > /sys/block/$(basename "$nvme")/queue/read_ahead_kb 2>/dev/null || true
+        echo "2048" > /sys/block/"$(basename "$nvme")"/queue/read_ahead_kb 2>/dev/null || true
         
         # Set number of requests
-        echo "1024" > /sys/block/$(basename "$nvme")/queue/nr_requests 2>/dev/null || true
+        echo "1024" > /sys/block/"$(basename "$nvme")"/queue/nr_requests 2>/dev/null || true
         
         # Set IO affinity
-        echo "2" > /sys/block/$(basename "$nvme")/queue/rq_affinity 2>/dev/null || true
+        echo "2" > /sys/block/"$(basename "$nvme")"/queue/rq_affinity 2>/dev/null || true
     fi
 done
 
@@ -109,10 +109,10 @@ if command -v fio &>/dev/null; then
     nvme_dev=$(nvme list | grep "^/dev" | head -1 | awk '{print $1}')
     
     echo "Testing sequential read on $nvme_dev..."
-    fio --name=seq-read --filename=$nvme_dev --direct=1 --rw=read --bs=1M --size=1G --runtime=5 --time_based --group_reporting
+    fio --name=seq-read --filename="$nvme_dev" --direct=1 --rw=read --bs=1M --size=1G --runtime=5 --time_based --group_reporting
     
     echo "Testing random read on $nvme_dev..."
-    fio --name=rand-read --filename=$nvme_dev --direct=1 --rw=randread --bs=4k --size=1G --runtime=5 --time_based --group_reporting
+    fio --name=rand-read --filename="$nvme_dev" --direct=1 --rw=randread --bs=4k --size=1G --runtime=5 --time_based --group_reporting
 else
     echo "fio not installed. Install with: apt-get install fio"
 fi

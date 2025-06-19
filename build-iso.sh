@@ -81,7 +81,7 @@ if result.get('status') != 'success':
 
     # Check the exit status of the Python command.
     # PIPESTATUS[0] holds the exit status of the first command in a pipe.
-    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         echo "[!] Module $module failed!" | tee -a "$LOG_FILE"
         exit 1 # Exit the bash script if the Python command failed.
     fi
