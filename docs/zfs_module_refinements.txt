@@ -1,0 +1,37 @@
+Key Areas for Future Refinement in ZFS Configuration Module:
+
+1.  **Disk Selection & UI Robustness:**
+    *   **Improved Used Disk Detection:** The current `lsblk` and pool info check for filtering disks is basic. A more robust method would involve deeper inspection of partition tables, filesystem signatures, and mount points to reliably identify and prevent accidental formatting of data disks or the OS drive of a pre-existing non-Calamares installation. Calamares' own partition scanning information could be leveraged here.
+    *   **Clearer Visual Distinction for Disks:** Mark disks that are part of existing ZFS pools (even if not imported by the current module run), disks with existing partitions/filesystems, or very small disks.
+    *   **Dedicated L2ARC/SLOG Selection UI:** Instead of a text entry, provide a proper disk selection UI (similar to the main pool disk selection) for L2ARC and SLOG devices, filtering for suitable device types (e.g., fast SSDs, partitions).
+    *   **Disk Wiping Option:** Offer an explicit option to wipe selected disks (e.g., `wipefs -a`) before pool creation for users who want to ensure a clean state.
+
+2.  **RAID Type vs. Disk Count Feedback & Guidance:**
+    *   **Dynamic RAID Option Availability:** Disable RAID options in the `self.new_pool_raid_type_combo` if an insufficient number of disks are selected (e.g., if only 2 disks are selected, disable raidz2, raidz3).
+    *   **More Granular Warnings:** Provide more specific warnings if, for example, a user selects 2 disks for raidz1 (technically works but is just a mirror).
+    *   **Visual Feedback:** Perhaps show a simple diagram or textual explanation of the selected RAID layout based on disk count.
+
+3.  **Encryption Passphrase Handling:**
+    *   **Secure Passphrase Input:** Ensure the passphrase entry uses appropriate masking.
+    *   **Keyfile Management for `zpool create`:** For `zpool create -O encryption=on -O keyformat=passphrase -O keylocation=file:///...`, Calamares would need to securely manage a temporary keyfile containing the passphrase, use it for pool creation, and then ensure `zfs load-key -L prompt poolname` is set up for the installed system, and the temporary keyfile is securely deleted. Current implementation relies on `keylocation=prompt` which might be handled by `zpool create` itself or require interactive input during the job.
+
+4.  **Clarity of Target Dataset Naming and Property Application:**
+    *   **Root Dataset for New Pools:** The current approach uses `self.dataset_entry` for the child dataset name (e.g., `ROOT/pve`) under the new pool. The `build_zpool_create_command` creates the pool itself (e.g., `rpool`). The Calamares job sequence must then explicitly create `rpool/ROOT` and `rpool/ROOT/pve`. This flow needs to be clearly documented and robustly implemented in the jobs.
+    *   **Property Inheritance:** Clarify how ZFS properties (compression, recordsize, etc.) set in the UI are applied. For new pools, they are applied to the root dataset via `-O` in `zpool create`. For existing pools, these properties need to be applied to the `install_dataset` using `zfs set property=value dataset_name` commands in a Calamares job. This distinction should be clear.
+
+5.  **Generic Pool Property Editor (Advanced):**
+    *   Consider adding a more generic way for users to set arbitrary ZFS pool (`-o`) and dataset (`-O`) properties if truly "Custom" control is desired, beyond the curated list. This would be an advanced feature.
+
+6.  **Review of All Tooltip and Help Text Content:**
+    *   Ensure all help texts, tooltips, and warning/info labels are accurate, clear, concise, and user-friendly. Technical accuracy is crucial for ZFS.
+
+7.  **System Resource Awareness (ARC Max Size):**
+    *   The ARC Max Size input could benefit from knowing the system's total RAM to provide more intelligent defaults or warnings (e.g., if user sets ARC larger than available RAM). This might require Calamares to expose system RAM information to Python modules.
+
+8.  **Internationalization (i18n):**
+    *   All UI strings, tooltips, and messages should be internationalized using Calamares' gettext mechanisms.
+
+9.  **Testing on Diverse Hardware:**
+    *   Thorough testing on various hardware configurations, especially concerning disk detection and `ashift` auto-detection by ZFS itself, is essential.
+---
+This list covers the main areas identified for potential future enhancements.
