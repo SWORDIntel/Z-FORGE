@@ -17,7 +17,7 @@ echo ""
 # Section: Root Check
 # This section ensures that the script is run with root privileges.
 # Root privileges are required for tasks like package installation and chroot operations.
-if [ "$EUID" -ne 0 ]; then 
+if [ "$EUID" -ne 0 ]; then
     echo "[!] This script must be run as root"
     exit 1
 fi
@@ -49,262 +49,6 @@ SCRIPT_DIR="$PWD"
 # This allows Python modules in the 'builder' subdirectory to be imported.
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
-# Function: ensure_dracut_installed
-# This function ensures that dracut is installed and configured within the chroot environment.
-# Dracut is used to create an initramfs, which is essential for booting the system.
-# It removes initramfs-tools (an alternative) if present, installs dracut and related packages,
-# and sets up basic ZFS configuration for dracut.
-# It also generates a hostid if one doesn't exist, which is important for ZFS.
-# Arguments:
-#   None
-# Returns:
-#   None
-ensure_dracut_installed() {
-    echo "[*] Ensuring dracut is properly installed..." | tee -a "$LOG_FILE"
-    
-    # Execute commands within the chroot environment.
-    chroot "$WORKSPACE/chroot" /bin/bash -c "
-        # Remove initramfs-tools to avoid conflicts with dracut.
-        # The '|| true' ensures the script doesn't fail if initramfs-tools is not installed.
-        apt-get remove -y initramfs-tools || true
-        
-        # Install dracut and its core, network, and squashfs components.
-        apt-get install -y dracut dracut-core dracut-network dracut-squash
-        
-        # Configure dracut to include ZFS support.
-        # This creates a configuration file for dracut to load ZFS modules.
-        mkdir -p /etc/dracut.conf.d
-        echo 'add_dracutmodules+=\" zfs \"' > /etc/dracut.conf.d/zfs.conf
-        echo 'filesystems+=\" zfs \"' >> /etc/dracut.conf.d/zfs.conf
-        
-        # Create a unique hostid if it doesn't exist.
-        # ZFS uses the hostid to identify the system.
-        if [ ! -f /etc/hostid ]; then
-            zgenhostid \$(hexdump -n 4 -e '\"0x%08x\"' /dev/urandom)
-        fi
-    "
-}
-
-# Function: ensure_dracut_module_exists
-# This function dynamically creates a Python module named 'dracut_config.py' if it doesn't already exist.
-# This module is responsible for more detailed dracut configuration during the Python-based build phase.
-# The content of the Python module is written here using a heredoc.
-# This approach allows for self-contained script logic without requiring separate Python files for this specific utility.
-# The Python module 'DracutConfig' handles:
-# - Removing initramfs-tools.
-# - Installing dracut packages.
-# - Applying detailed dracut configuration based on 'build_spec.yml'.
-# - Generating the initramfs image.
-# - Retrieving the dracut version.
-# Arguments:
-#   None
-# Returns:
-#   None
-ensure_dracut_module_exists() {
-    # Check if the dracut_config.py module already exists.
-    if [ ! -f "$SCRIPT_DIR/builder/modules/dracut_config.py" ]; then
-        echo "[*] Creating DracutConfig module..." | tee -a "$LOG_FILE"
-        # Create the Python module using a heredoc.
-        cat > "$SCRIPT_DIR/builder/modules/dracut_config.py" << 'EOF'
-#!/usr/bin/env python3
-
-"""
-Dracut Configuration Module
-Ensures dracut is properly installed and configured for ZFS
-"""
-
-import subprocess
-from pathlib import Path
-from typing import Dict, Optional
-import logging
-
-class DracutConfig:
-    """Handles dracut installation and configuration"""
-    
-    def __init__(self, workspace: Path, config: Dict):
-        self.workspace = workspace
-        self.config = config
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.chroot_path = workspace / "chroot"
-        
-    def execute(self, resume_data: Optional[Dict] = None) -> Dict:
-        """
-        Install and configure dracut
-        
-        Returns:
-            Dict with configuration status
-        """
-        
-        self.logger.info("Starting dracut configuration...")
-        
-        try:
-            # Remove initramfs-tools
-            self._remove_initramfs_tools()
-            
-            # Install dracut packages
-            self._install_dracut()
-            
-            # Configure dracut
-            self._configure_dracut()
-            
-            # Generate initramfs with dracut
-            self._generate_initramfs()
-            
-            return {
-                'status': 'success',
-                'dracut_version': self._get_dracut_version()
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Dracut configuration failed: {e}")
-            return {
-                'status': 'error',
-                'error': str(e),
-                'module': self.__class__.__name__
-            }
-    
-    def _remove_initramfs_tools(self):
-        """Remove initramfs-tools if installed"""
-        
-        self.logger.info("Removing initramfs-tools...")
-        
-        subprocess.run([
-            "chroot", str(self.chroot_path),
-            "apt-get", "remove", "-y", "initramfs-tools"
-        ], check=False)  # Don't fail if initramfs-tools isn't installed
-    
-    def _install_dracut(self):
-        """Install dracut packages"""
-        
-        self.logger.info("Installing dracut packages...")
-        
-        subprocess.run([
-            "chroot", str(self.chroot_path),
-            "apt-get", "install", "-y",
-            "dracut",
-            "dracut-core",
-            "dracut-network",
-            "dracut-squash"
-        ], check=True)
-    
-    def _configure_dracut(self):
-        """Configure dracut"""
-        
-        self.logger.info("Configuring dracut...")
-        
-        # Get dracut config from build configuration
-        dracut_cfg = self.config.get('dracut_config', {})
-        modules = dracut_cfg.get('modules', ['zfs', 'systemd', 'network'])
-        compress = dracut_cfg.get('compress', 'zstd')
-        hostonly = 'yes' if dracut_cfg.get('hostonly', True) else 'no'
-        kernel_cmdline = dracut_cfg.get('kernel_cmdline', 'root=zfs:AUTO')
-        extra_drivers = dracut_cfg.get('extra_drivers', ['nvme'])
-        
-        # Create main dracut configuration
-        dracut_conf = f"""# Z-Forge dracut configuration
-
-# Compression method
-compress="{compress}"
-
-# Include extra modules
-add_dracutmodules+=" {' '.join(modules)} "
-
-# Include necessary filesystem modules
-filesystems+=" zfs "
-
-# Enable hostonly mode
-hostonly="{hostonly}"
-
-# Add kernel command line parameters
-kernel_cmdline="{kernel_cmdline}"
-
-# Include any additional drivers
-add_drivers+=" {' '.join(extra_drivers)} "
-"""
-        
-        dracut_conf_path = self.chroot_path / "etc/dracut.conf.d/zforge.conf"
-        dracut_conf_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(dracut_conf_path, 'w') as f:
-            f.write(dracut_conf)
-        
-        # Create ZFS-specific configuration
-        zfs_conf = """# ZFS dracut configuration
-
-# Enable ZFS hostid support
-install_optional_items+=" /etc/hostid /etc/zfs/zpool.cache "
-
-# Include ZFS commands
-install_items+=" /usr/bin/zfs /usr/bin/zpool "
-"""
-        
-        zfs_conf_path = self.chroot_path / "etc/dracut.conf.d/zfs.conf"
-        with open(zfs_conf_path, 'w') as f:
-            f.write(zfs_conf)
-        
-        # Create hostid if it doesn't exist
-        hostid_path = self.chroot_path / "etc/hostid"
-        if not hostid_path.exists():
-            subprocess.run([
-                "chroot", str(self.chroot_path),
-                "bash", "-c", "zgenhostid $(hexdump -n 4 -e '\"0x%08x\"' /dev/urandom)"
-            ], check=True)
-    
-    def _generate_initramfs(self):
-        """Generate initramfs with dracut"""
-        
-        self.logger.info("Generating initramfs with dracut...")
-        
-        # Find installed kernel
-        kernel_version_cmd = "ls -1 /lib/modules | tail -1"
-        result = subprocess.run(
-            ["chroot", str(self.chroot_path), "bash", "-c", kernel_version_cmd],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        
-        kernel_version = result.stdout.strip()
-        
-        if not kernel_version:
-            raise Exception("No kernel modules found")
-        
-        self.logger.info(f"Regenerating initramfs for kernel {kernel_version}")
-        
-        # Generate initramfs
-        subprocess.run([
-            "chroot", str(self.chroot_path),
-            "dracut", "-f", f"/boot/initramfs-{kernel_version}.img", kernel_version,
-            "--force", "--verbose"
-        ], check=True)
-        
-        # Create symbolic link for compatibility
-        subprocess.run([
-            "chroot", str(self.chroot_path),
-            "ln", "-sf", f"initramfs-{kernel_version}.img", f"/boot/initrd.img-{kernel_version}"
-        ], check=True)
-    
-    def _get_dracut_version(self):
-        """Get installed dracut version"""
-        
-        result = subprocess.run(
-            ["chroot", str(self.chroot_path), "dracut", "--version"],
-            capture_output=True,
-            text=True
-        )
-        
-        if result.returncode == 0:
-            return result.stdout.strip()
-        return "unknown"
-EOF
-        chmod +x "$SCRIPT_DIR/builder/modules/dracut_config.py"
-    fi
-}
-
-        # Make the generated Python module executable.
-        chmod +x "$SCRIPT_DIR/builder/modules/dracut_config.py"
-    fi
-}
-
 # Function: run_module
 # This function executes a specified Python builder module.
 # It uses a short Python script to instantiate 'ZForgeBuilder' with the 'build_spec.yml'
@@ -319,7 +63,7 @@ EOF
 run_module() {
     local module=$1
     echo "[*] Running module: $module" | tee -a "$LOG_FILE"
-    
+
     # Execute the Python module runner.
     # This inline Python script imports the necessary builder components and runs the specified module.
     python3 -c "
@@ -334,7 +78,7 @@ if result.get('status') != 'success':
     print(f\"[!] Module $module failed: {result.get('error')}\")
     sys.exit(1)  # Exit Python script with an error code if the module failed.
 " 2>&1 | tee -a "$LOG_FILE" # Redirect stdout and stderr to log file and console.
-    
+
     # Check the exit status of the Python command.
     # PIPESTATUS[0] holds the exit status of the first command in a pipe.
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
@@ -346,10 +90,6 @@ if result.get('status') != 'success':
 # Section: Build Pipeline Execution
 # This section orchestrates the main build process.
 echo "[*] Starting build pipeline..." | tee -a "$LOG_FILE"
-
-# Ensure the dynamically created dracut_config.py Python module exists.
-# This is called early to make sure the module is available if needed by other Python modules.
-ensure_dracut_module_exists
 
 # Section: Default Build Specification
 # This section creates a default 'build_spec.yml' file if one doesn't already exist.
@@ -397,6 +137,7 @@ bootloader_config:
   opencore_drivers:         # List of OpenCore drivers to include if OpenCore is enabled.
     - NvmExpressDxe.efi
     - OpenRuntime.efi
+  encrypt_boot: true        # Enables boot partition encryption if supported by the bootloader.
 
 # Dracut (initramfs generator) configuration
 dracut_config:
@@ -426,6 +167,12 @@ modules:
     enabled: true
   - name: ProxmoxIntegration  # Installs and configures Proxmox VE.
     enabled: true
+  - name: BootloaderSetup    # Sets up the bootloader (e.g., GRUB, systemd-boot).
+    enabled: true
+  - name: SecurityHardening   # Applies security hardening configurations.
+    enabled: true
+  - name: EncryptionSupport   # Configures disk encryption.
+    enabled: true
   - name: LiveEnvironment     # Configures the live environment settings (e.g., user accounts, services).
     enabled: true
   - name: CalamaresIntegration # Integrates the Calamares installer if used.
@@ -453,22 +200,6 @@ modules=(
     "ISOGeneration"
 )
 
-# Function: after_debootstrap
-# This function is a special hook executed after the 'Debootstrap' Python module.
-# Its purpose is to perform immediate post-debootstrap tasks within the bash script,
-# specifically ensuring dracut is installed in the chroot using the bash function
-# 'ensure_dracut_installed'. This might be for initial setup before the more
-# comprehensive 'DracutConfig' Python module runs.
-# Arguments:
-#   None
-# Returns:
-#   None
-after_debootstrap() {
-    echo "[*] Post-Debootstrap: Ensuring dracut is installed..." | tee -a "$LOG_FILE"
-    # Call the bash function to install/configure dracut at a basic level.
-    ensure_dracut_installed
-}
-
 # Loop through the defined Python modules and execute them.
 for module in "${modules[@]}"; do
     if [ "$module" == "ISOGeneration" ]; then
@@ -482,13 +213,13 @@ for module in "${modules[@]}"; do
     fi
 
     run_module "$module" # Execute the current Python module.
-    
+
     # Check for special hooks that need to run after certain Python modules.
     # This allows for bash-level operations to be interleaved with Python module execution.
-    if [ "$module" == "Debootstrap" ]; then
-        # If the 'Debootstrap' module has just finished, call the 'after_debootstrap' bash function.
-        after_debootstrap
-    fi
+    # if [ "$module" == "Debootstrap" ]; then
+    #     # If the 'Debootstrap' module has just finished, call the 'after_debootstrap' bash function.
+    #     after_debootstrap # This line is removed as per instructions
+    # fi
 done
 
 # Section: Final Steps and Verification
