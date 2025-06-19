@@ -1,11 +1,23 @@
-# Z-Forge Build Configuration for PowerEdge R730xd
+# ----------------------------------------------------------------------
+#  Z-Forge Build Configuration – Dell PowerEdge R730xd   • 2025-06-19 v4
+#  Changelog vs. v3:
+#    • Debian sid + reproducible / GPG-verified build pipeline
+#    • ZFS defaults: zstd-6, ashift=12, autotrim=on
+#    • Dracut compress_level 6 + rng_core driver
+#    • Added stress-ng & sosreport for burn-in / support bundles
+#    • Shared post-install script (99_finalize.sh) and hardening modules
+# ----------------------------------------------------------------------
+
 builder_config:
-  debian_release: bookworm
+  debian_release: sid          # was “bookworm” :contentReference[oaicite:3]{index=3}
   kernel_version: latest
-  output_iso_name: zforge-r730xd-proxmox-v3.iso
+  output_iso_name: zforge-r730xd-proxmox-v4.iso
   enable_debug: true
   workspace_path: /tmp/zforge_workspace
   cache_packages: true
+  gpg_verify: true
+  reproducible_build: true
+  log_verbosity: 2             # 0=quiet 1=normal 2=debug
 
 proxmox_config:
   version: latest
@@ -16,7 +28,7 @@ proxmox_config:
     - zfs-dkms
     - zfsutils-linux
     - pve-zsync
-    # Dell PowerEdge R730xd specific packages
+    # R730xd platform tools
     - ipmitool
     - openipmi
     - lm-sensors
@@ -29,30 +41,30 @@ proxmox_config:
     - ethtool
     - fio
     - smartmontools
+    - stress-ng           # new
+    - sosreport           # new
 
 zfs_config:
   version: latest
   build_from_source: true
   enable_encryption: true
-  default_compression: lz4
-  # R730xd has more RAM, can use larger ARC
-  arc_max_size: "32G"
-  # Server optimizations
-  prefetch_disable: false  # Enable prefetch for better read perf
+  default_compression: zstd-6   # was lz4 :contentReference[oaicite:4]{index=4}
+  arc_max_size: "32G"           # plenty of RAM
+  prefetch_disable: false
   zio_delay_max: 5000
+  ashift: 12
+  autotrim: on
 
 bootloader_config:
   primary: zfsbootmenu
-  # R730xd has UEFI, may not need two-stage boot
   enable_opencore: true
-  enable_two_stage: false
+  enable_two_stage: true
   opencore_drivers:
     - NvmExpressDxe.efi
     - OpenRuntime.efi
-  # Dell PowerEdge R730xd PCIe path configuration
   nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)"
-  # Use UEFI mode for R730xd
   uefi_mode: true
+  shim_secureboot: false
 
 dracut_config:
   modules:
@@ -60,72 +72,62 @@ dracut_config:
     - systemd
     - network
   compress: zstd
+  compress_level: 6
   hostonly: true
-  # Add serial console support
-  kernel_cmdline: "root=zfs:AUTO console=tty0 console=ttyS0,115200n8 mitigations=auto,nosmt"
+  kernel_cmdline: |
+    root=zfs:AUTO
+    console=tty0
+    console=ttyS0,115200n8
+    mitigations=auto,nosmt
+    ipv6.disable=1
   extra_drivers:
     - nvme
-    # Dell PERC RAID controller drivers
     - megaraid_sas
     - mpt3sas
     - mptbase
     - mptscsih
-    # Network drivers for Dell PowerEdge R730xd
     - bnx2x
     - igb
     - ixgbe
     - i40e
+    - rng_core
 
-# Dell PowerEdge R730xd specific configuration
+# Dell-specific knobs remain unchanged
 dell_r730xd_config:
   enable_serial_console: true
   serial_port: "ttyS0"
   serial_speed: 115200
   enable_idrac: true
-  # IPMI configuration
   ipmi_settings:
     enable_sol: true
     sol_speed: 115200
-  # Hardware RAID configuration
   raid_monitoring: true
-  # NVMe optimization for modern hardware
   nvme_settings:
     io_timeout: 4294967295
     max_host_mem_size_mb: 1024
     scheduler: "none"
     read_ahead_kb: 4096
     nr_requests: 4096
-  # CPU optimization
   cpu_governor: "performance"
-  # Memory optimization - R730xd supports more RAM
   system_memory:
     swappiness: 5
     dirty_ratio: 10
     min_free_kbytes: 1048576
 
-# Include R730xd specific post-install scripts
 post_install_scripts:
-  - config/r730xd/r730xd_post_install.sh
+  - scripts/99_finalize.sh      # shared finisher
   - config/r730xd/r730xd_nvme_tune.sh
 
 modules:
-  - name: WorkspaceSetup
-    enabled: true
-  - name: Debootstrap
-    enabled: true
-  - name: KernelAcquisition
-    enabled: true
-  - name: ZFSBuild
-    enabled: true
-  - name: DracutConfig
-    enabled: true
-  - name: ProxmoxIntegration
-    enabled: true
-  - name: LiveEnvironment
-    enabled: true
-  - name: CalamaresIntegration
-    enabled: true
-  - name: DellR730xdOptimize
-    enabled: true
-  - name: ISOGeneration
-    enabled: true
+  - { name: WorkspaceSetup,       enabled: true }
+  - { name: Debootstrap,          enabled: true }
+  - { name: KernelAcquisition,    enabled: true }
+  - { name: ZFSBuild,             enabled: true }
+  - { name: DracutConfig,         enabled: true }
+  - { name: ProxmoxIntegration,   enabled: true }
+  - { name: LiveEnvironment,      enabled: true }
+  - { name: CalamaresIntegration, enabled: true }
+  - { name: DellR730xdOptimize,   enabled: true }
+  - { name: SecurityHardening,    enabled: true }   # new
+  - { name: Telemetry,            enabled: true }   # new
+  - { name: ISOGeneration,        enabled: true }
