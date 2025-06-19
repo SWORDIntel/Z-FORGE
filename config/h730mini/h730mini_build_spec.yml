@@ -7,15 +7,15 @@
 # ----------------------------------------------------------------------
 
 builder_config:
-  debian_release: sid          # ← changed from “bookworm”
+  debian_release: sid          # ← Switched from “bookworm” for latest packages
   kernel_version: latest
-  output_iso_name: zforge-h730mini-proxmox-v2.iso   # bumped minor version
+  output_iso_name: zforge-h730mini-proxmox-v2.iso   # Bumped minor version
   enable_debug: true
   workspace_path: /tmp/zforge_workspace
   cache_packages: true
-  # --- new knobs ------------------------------------------------------
-  gpg_verify: true             # verify downloaded debs/ISOs
-  reproducible_build: true     # fix timestamps/env for bit-repro builds
+  # --- New build-time integrity and debug knobs ---
+  gpg_verify: true             # Verify downloaded debs/ISOs
+  reproducible_build: true     # Fix timestamps/env for bit-for-bit reproducible builds
   log_verbosity: 2             # 0=quiet 1=normal 2=debug
 
 proxmox_config:
@@ -28,7 +28,7 @@ proxmox_config:
     - zfs-dkms
     - zfsutils-linux
     - pve-zsync
-    # H730 Mini / hardware mgmt
+    # H730 Mini / Dell hardware management
     - ipmitool
     - openipmi
     - lm-sensors
@@ -36,67 +36,70 @@ proxmox_config:
     - megacli
     - megactl
     - megaraid-status
-    - srvadmin-all            # Dell OMSA for sensor / RAID telemetry
-    # Observability & burn-in
+    - srvadmin-all           # Dell OMSA for sensor / RAID telemetry
+    # Observability, diagnostics & burn-in tools
     - snmp
     - ethtool
     - fio
     - smartmontools
-    - stress-ng               # (new) synthetic load generator
-    - sosreport               # (new) capture full HW/SW state for tickets
+    - stress-ng              # Synthetic load generator for validation
+    - sosreport              # Capture full HW/SW state for support tickets
 
 zfs_config:
   version: latest
-  build_from_source: true      # ensures SID toolchain is used
+  build_from_source: true      # Ensures the newest ZFS is built against the SID toolchain
   enable_encryption: true
-  default_compression: zstd-6  # ← changed from lz4 → zstd-6
-  arc_max_size: "16G"
+  default_compression: zstd-6  # Changed from lz4 for better space savings on servers
+  arc_max_size: "16G"          # Reasonable default, adjust based on system RAM
   prefetch_disable: false
   zio_delay_max: 5000
-  # --- new: optional pool-wide settings -------------------------------
-  ashift: 12                   # 4 KiB sector alignment (SSD-friendly)
-  autotrim: on                 # SSD wear-level; OK on H730 BBU cache
+  # --- New pool-wide settings for modern hardware ---
+  ashift: 12                   # 4 KiB sector alignment (critical for SSDs and modern HDDs)
+  autotrim: on                 # Enable automatic TRIM for SSD wear-leveling
 
 bootloader_config:
   primary: zfsbootmenu
   enable_opencore: true
-  enable_two_stage: true
+  enable_two_stage: true       # More flexible for complex boot scenarios
   opencore_drivers:
     - NvmExpressDxe.efi
     - OpenRuntime.efi
-  nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)"
+  nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)" # Adjust if topology differs
   uefi_mode: true
-  # --- secure-boot stub (optional) ------------------------------------
-  shim_secureboot: false       # flip to true if you sign zfsbootmenu
+  # --- Secure-boot stub (optional) ---
+  shim_secureboot: false       # Set to true if you sign zfsbootmenu with your own keys
 
 dracut_config:
   modules:
     - zfs
     - systemd
     - network
-  compress: zstd               # algorithm
-  compress_level: 6            # ← explicit level to mirror zstd-6
+  compress: zstd               # Algorithm for initramfs compression
+  compress_level: 6            # Explicitly match the zfs_config compression choice
   hostonly: true
-  kernel_cmdline: |
+  kernel_cmdline: |            # Multi-line format for readability
     root=zfs:AUTO
     console=tty0
     console=ttyS0,115200n8
     mitigations=auto,nosmt
-    ipv6.disable=1            # (optional) cut attack surface if unused
+    ipv6.disable=1             # Optional: Reduce attack surface if IPv6 is unused
   extra_drivers:
+    # Core storage drivers
     - nvme
-    - megaraid_sas
+    - megaraid_sas             # Essential for PERC H710/H730 series controllers
     - mpt3sas
     - mptbase
     - mptscsih
+    # Common server network drivers (add/remove as needed)
     - bnx2x
     - igb
     - ixgbe
     - i40e
-    - rng_core              # (new) HW RNG for faster keygen/entropy
+    # System drivers
+    - rng_core                 # Include HW RNG for better/faster entropy
 
 post_install_scripts:
-  # empty list → populate with bespoke hardening or agent deploy steps
+  # Populate with bespoke hardening or agent deployment scripts
   - scripts/99_finalize.sh
 
 modules:
@@ -118,7 +121,7 @@ modules:
     enabled: true
   - name: ISOGeneration
     enabled: true
-  # --- new modular hooks ----------------------------------------------
+  # --- New modular hooks for hardening and telemetry ---
   - name: SecurityHardening
     enabled: true
   - name: Telemetry
