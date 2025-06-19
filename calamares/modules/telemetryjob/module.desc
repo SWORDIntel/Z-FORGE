@@ -1,0 +1,7 @@
+---
+type:       "job"
+name:       "Telemetry Data Submission"
+interface:  "python"
+script:     "main.py"
+# This job should run very late, possibly even after a success/failure message.
+# Or it could be triggered by specific events if Calamares supports that.
