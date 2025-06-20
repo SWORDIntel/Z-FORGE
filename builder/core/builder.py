@@ -187,8 +187,8 @@ class ZForgeBuilder:
 
         # Import the module
         try:
-            module_path = f"modules.{module_name.lower()}"
-            module = importlib.import_module(module_path, package="builder")
+            module_path = f"builder.modules.{module_name.lower()}"
+            module = importlib.import_module(module_path)
 
             # Create instance
             class_name = module_name
