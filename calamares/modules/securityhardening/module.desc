@@ -1,8 +1,13 @@
+# securityhardening/module.desc
 ---
-type:       "job"
-name:       "Security Hardening"
-interface:  "python"
-script:     "main.py"
-# Optional: Define requirements if this module depends on others
-# required:
-#   - "some_other_module"
+type:           "job"
+name:           "Security Hardening"
+moduleVersion:  "1.0.0"
+description:    "Apply security hardening policies: file permissions, service lockdown, and firewall rules."
+interface:      "python"
+script:         "main.py"
+requiredModules:
+  - "packages"           # Packages must be installed
+  - "services-systemd"   # System services must be available
+  - "networkcfg"         # Network must be configured for remote management
+# Default config is loaded from securityhardening.conf in this module’s directory

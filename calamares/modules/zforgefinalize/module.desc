@@ -1,5 +1,11 @@
-type:       "job"
-name:       "zforgefinalize"
-interface:  "python"
-script:     "main.py"
-requires:   [ "mount" ]
+# zforgefinalize/module.desc
+---
+type:           "job"
+name:           "ZFS Finalization"
+moduleVersion:  "1.0.0"
+description:    "Perform final dataset creation, set recommended ZFS properties, and wrap up any post-installation ZFS tasks."
+interface:      "python"
+script:         "main.py"
+requiredModules:
+  - "zfsbootloader"  # Must have installed the bootloader first
+# Default config is loaded from zforgefinalize.conf in this module’s directory

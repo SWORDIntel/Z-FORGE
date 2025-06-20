@@ -1,5 +1,13 @@
+# zfsbootloader/module.desc
 ---
-type:       "job"
-name:       "zfsbootloader"
-interface:  "python"
-script:     "main.py"
+type:           "job"
+name:           "ZFS Bootloader Setup"
+moduleVersion:  "1.0.0"
+description:    "Install and configure a ZFS-aware bootloader so that root pools are recognized at boot."
+interface:      "python"
+script:         "main.py"
+requiredModules:
+  - "mount"         # Target root must be mounted
+  - "initcpio"      # Regenerate initramfs with ZFS support
+  - "fstab"         # Ensure fstab entries exist for ZFS datasets
+# Default config is loaded from zfsbootloader.conf in this module’s directory

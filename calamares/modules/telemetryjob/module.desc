@@ -1,7 +1,11 @@
+# telemetryjob/module.desc
 ---
-type:       "job"
-name:       "Telemetry Data Submission"
-interface:  "python"
-script:     "main.py"
-# This job should run very late, possibly even after a success/failure message.
-# Or it could be triggered by specific events if Calamares supports that.
+type:           "job"
+name:           "Telemetry Data Submission"
+moduleVersion:  "1.0.0"
+description:    "Collect and submit anonymized installation telemetry, honoring the user’s consent choice."
+interface:      "python"
+script:         "main.py"
+requiredModules:
+  - "networkcfg"    # Need networking to send data
+# Default config is loaded from telemetryjob.conf in this module’s directory
