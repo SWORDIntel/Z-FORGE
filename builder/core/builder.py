@@ -10,12 +10,22 @@ import sys
 import logging
 import importlib
 import traceback
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
 
 from .config import BuildConfig
 from .lockfile import BuildLockfile
+
+
+def _camel_to_snake(name: str) -> str:
+    """Converts a CamelCase string to snake_case."""
+    if not name:
+        return ""
+    # Insert an underscore before any uppercase letter that is not at the start of the string.
+    name = re.sub(r'(?<!^)(?=[A-Z])', '_', name)
+    return name.lower()
 
 
 class ZForgeBuilder:
@@ -187,8 +197,9 @@ class ZForgeBuilder:
 
         # Import the module
         try:
-            module_path = f"modules.{module_name.lower()}"
-            module = importlib.import_module(module_path, package="builder")
+            module_file_name = _camel_to_snake(module_name)
+            module_path = f"builder.modules.{module_file_name}"
+            module = importlib.import_module(module_path)
 
             # Create instance
             class_name = module_name

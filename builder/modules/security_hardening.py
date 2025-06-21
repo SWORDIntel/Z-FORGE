@@ -26,12 +26,14 @@ class SecurityHardening:
         self.workspace = workspace
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.chroot_path = self.workspace / "chroot"
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     def _run(self, cmd):
         try:
-            self.logger.debug(f"Running: {' '.join(cmd)}")
-            subprocess.run(cmd, check=True)
+            self.logger.debug(f"Preparing to run in chroot: {' '.join(cmd)}")
+            chrooted_cmd = ["chroot", str(self.chroot_path)] + cmd
+            subprocess.run(chrooted_cmd, check=True)
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Command failed: {e}")
             sys.exit(1)
@@ -56,7 +58,11 @@ class SecurityHardening:
             elif task == "apply_sysctl":
                 for key, val in self.config.get("sysctl", {}).items():
                     self._run(["sysctl", "-w", f"{key}={val}"])
-                Path("/etc/sysctl.d/99-hardening.conf").write_text(
+
+                # Write to chroot path
+                sysctl_conf_path = self.chroot_path / "etc/sysctl.d/99-hardening.conf"
+                sysctl_conf_path.parent.mkdir(parents=True, exist_ok=True) # Ensure directory exists
+                sysctl_conf_path.write_text(
                     "\n".join(f"{k} = {v}" for k,v in self.config.get("sysctl", {}).items())
                 )
                 self._run(["sysctl", "--system"])
