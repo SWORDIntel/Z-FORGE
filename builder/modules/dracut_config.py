@@ -7,6 +7,7 @@ Ensures dracut is properly installed and configured for ZFS
 """
 
 import subprocess
+import shutil
 from pathlib import Path
 from typing import Dict, Optional
 import logging
@@ -136,7 +137,61 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
                 "chroot", str(self.chroot_path),
                 "bash", "-c", "zgenhostid $(hexdump -n 4 -e '\"0x%08x\"' /dev/urandom)"
             ], check=True)
-    
+
+        self.logger.info("Installing custom Z-Forge Dracut modules (toram)...")
+
+        custom_module_name = "90zforge-toram"
+        # Assuming SCRIPT_DIR (repo root) is the current working directory for the overall build process.
+        host_custom_module_src_dir = Path("builder/dracut_toram_module")
+
+        if not host_custom_module_src_dir.is_dir():
+            error_msg = f"Custom Dracut module source directory not found: {host_custom_module_src_dir.resolve()}"
+            self.logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+
+        chroot_dracut_module_dir = self.chroot_path / "usr/lib/dracut/modules.d" / custom_module_name
+
+        self.logger.info(f"Creating Dracut module directory in chroot: {chroot_dracut_module_dir}")
+        chroot_dracut_module_dir.mkdir(parents=True, exist_ok=True)
+
+        module_setup_src = host_custom_module_src_dir / "module-setup.sh"
+        hook_script_src = host_custom_module_src_dir / "zforge-toram-hook.sh"
+
+        module_setup_dst = chroot_dracut_module_dir / "module-setup.sh"
+        hook_script_dst = chroot_dracut_module_dir / "zforge-toram-hook.sh"
+
+        if not module_setup_src.exists() or not hook_script_src.exists():
+            error_msg = "Custom Dracut module script files not found in source."
+            self.logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+
+        self.logger.info(f"Copying {module_setup_src} to {module_setup_dst}")
+        shutil.copy2(module_setup_src, module_setup_dst)
+        self.logger.info(f"Copying {hook_script_src} to {hook_script_dst}")
+        shutil.copy2(hook_script_src, hook_script_dst)
+
+        # Set execute permissions
+        chmod_path_setup = "/" + str(module_setup_dst.relative_to(self.chroot_path))
+        chmod_path_hook = "/" + str(hook_script_dst.relative_to(self.chroot_path))
+
+        subprocess.run(["chroot", str(self.chroot_path), "chmod", "+x", chmod_path_setup], check=True)
+        subprocess.run(["chroot", str(self.chroot_path), "chmod", "+x", chmod_path_hook], check=True)
+        self.logger.info(f"Set execute permissions for custom Dracut module scripts in chroot.")
+
+        dracut_zforge_conf_path = self.chroot_path / "etc/dracut.conf.d/zforge.conf"
+
+        existing_content = ""
+        if dracut_zforge_conf_path.exists():
+            with open(dracut_zforge_conf_path, "r") as f:
+                existing_content = f.read()
+
+        if f'add_dracutmodules+=" {custom_module_name} "' not in existing_content:
+            self.logger.info(f"Adding '{custom_module_name}' to Dracut modules in {dracut_zforge_conf_path}")
+            with open(dracut_zforge_conf_path, "a") as f:
+                f.write(f'\nadd_dracutmodules+=" {custom_module_name} "\n')
+        else:
+            self.logger.info(f"'{custom_module_name}' already present in Dracut modules list.")
+
     def _generate_initramfs(self):
         """Generate initramfs with dracut"""
         
