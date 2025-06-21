@@ -205,7 +205,11 @@ menuentry "Z-Forge Live" {{
     initrd /boot/initrd.img
 }}
 
-# Add other entries if needed, e.g., for memtest, EFI firmware setup
+menuentry "Z-Forge Live (Copy to RAM)" {{
+    linux /boot/vmlinuz {kernel_cmdline} zforge.toram=yes
+    initrd /boot/initrd.img
+}}
+
 menuentry "Reboot" {{
     reboot
 }}
