@@ -122,6 +122,20 @@ sudo ./build-iso.sh
 
 The resulting ISO will be created in the current directory.
 
+### Build Environment Prerequisites
+
+Before running the `build-iso.sh` script, your system must have a number of essential tools and dependencies installed. The build script will automatically run a pre-flight check (`scripts/check_build_env.sh`) to verify these. If any dependencies are missing, the script will notify you and exit.
+
+Common dependencies include:
+- `python3` (version 3.8 or higher) and the `requests` module
+- `git`
+- `debootstrap`
+- `xorriso` (or `mkisofs` as a fallback for some functions, though `xorriso` is preferred)
+- Standard build utilities like `make`, `gcc`, `gawk`, `autoconf`, `automake`, `libtool`
+- `curl`
+
+Please refer to the output of the check script for a complete list if you encounter issues, and install any missing packages using your system's package manager (e.g., `sudo apt install <package-name>`).
+
 ### Important Build Notes
 
 The Z-Forge build process, specifically the `builder/modules/calamares_integration.py` module, relies on custom Calamares modules to handle ZFS-specific installation tasks and other Proxmox configurations. These custom modules (typically consisting of Python scripts like `main.py` and a `module.desc` descriptor file) are expected to be located in a `calamares/modules/` directory at the root of the Z-Forge project repository.
