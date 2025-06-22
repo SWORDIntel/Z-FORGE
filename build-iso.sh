@@ -5,6 +5,15 @@
 
 set -euo pipefail
 
+# ── Initial Environment Check ────────────────────────────────────
+SCRIPT_DIR_ABS="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+# shellcheck source=scripts/check_build_env.sh
+if ! "$SCRIPT_DIR_ABS/scripts/check_build_env.sh"; then
+    echo "[!] Build environment check failed. Please resolve the issues above and try again."
+    exit 1
+fi
+# Proceed only if checks pass
+
 echo "════════════════════════════════════════════════════════════════"
 echo "                Z-FORGE V3  ISO  BUILD PROCESS"
 echo "════════════════════════════════════════════════════════════════"
