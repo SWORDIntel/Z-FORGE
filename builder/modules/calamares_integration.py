@@ -131,19 +131,24 @@ class CalamaresIntegration:
         # List of packages to install:
         # - calamares: The installer framework.
         # - calamares-settings-debian: Debian-specific configurations/modules for Calamares.
-        # - xfce4 & xfce4-terminal: A lightweight desktop environment and terminal.
-        # - lightdm & lightdm-gtk-greeter: A display manager and greeter for XFCE.
+        # - kde-standard & sddm: KDE Plasma desktop and SDDM display manager. (Replaces XFCE/LightDM)
+        # - konsole: KDE's terminal emulator.
         # - firefox-esr: A web browser for the live environment.
-        # - network-manager-gnome: For network configuration in the live environment.
-        # - gparted: Partition editor (useful tool, Calamares might use its libs or own partitioner).
+        # - network-manager: For network configuration in the live environment (plasma-nm for applet).
+        # - gparted: Partition editor.
         # - python3-pyqt5, python3-yaml, python3-jsonschema: Common dependencies for Calamares modules.
         packages_to_install: List[str] = [
             "calamares", "calamares-settings-debian",
-            "xfce4", "xfce4-terminal", "lightdm", "lightdm-gtk-greeter",
-            "firefox-esr", "network-manager-gnome",
+            # "kde-standard", "sddm", # Already installed in live_environment.py
+            "konsole", # KDE's terminal
+            "firefox-esr", "network-manager", "plasma-nm", # Network management with KDE applet
             "gparted", "vim", "nano", "htop", # Standard system utilities
             "python3-pyqt5", "python3-yaml", "python3-jsonschema"
         ]
+        # Ensure no XFCE or LightDM packages are installed if they were in a previous version of this list
+        # For example, by explicitly removing them or ensuring they are not in `packages_to_install`.
+        # Since kde-standard and sddm are now installed by live_environment.py,
+        # we only need to ensure Calamares and its direct GUI dependencies are here.
 
         # Using bash -c for a multi-line command to ensure proper execution order in chroot.
         install_script: str = f"""
@@ -432,107 +437,121 @@ Item {
 
     def _setup_live_desktop_environment(self) -> None:
         """
-        Configure the lightweight XFCE desktop environment for the live installer.
-        This typically involves setting up LightDM for auto-login to a specific user
-        (e.g., a 'live' user, or 'root' for simplicity in installer environments).
+        Configure the KDE Plasma desktop environment for the live installer.
+        This involves setting up SDDM for auto-login and ensuring Calamares
+        can be launched automatically or easily by the user.
         """
-        self.logger.info("Setting up live desktop environment (LightDM auto-login for XFCE)...")
+        self.logger.info("Setting up live KDE desktop environment (SDDM auto-login)...")
 
-        # Configure LightDM for auto-login as root to the XFCE session.
-        # This is common for live installer environments to simplify user experience.
-        # WARNING: Auto-login as root is generally insecure for a persistent system
-        # but acceptable for a transient live installer environment.
-        lightdm_conf_content: str = """
-[Seat:*]
-autologin-guest=false
-autologin-user=root  # Auto-login as root user
-autologin-user-timeout=0 # No timeout for auto-login
-autologin-session=xfce # Automatically start XFCE session
+        # Configure SDDM for auto-login as root to the Plasma session.
+        # WARNING: Auto-login as root is insecure for a persistent system but acceptable for a live installer.
+        sddm_conf_dir: Path = self.chroot_path / "etc/sddm.conf.d"
+        sddm_conf_dir.mkdir(parents=True, exist_ok=True)
+        sddm_conf_content: str = """[Autologin]
+User=root
+Session=plasma.desktop
+Relogin=false
 
-[Security]
-allow-root=true # Explicitly allow root login via LightDM (may be needed)
-"""
-        lightdm_conf_path: Path = self.chroot_path / "etc/lightdm/lightdm.conf"
-        lightdm_conf_path.parent.mkdir(parents=True, exist_ok=True) # Ensure /etc/lightdm exists
-        lightdm_conf_path.write_text(lightdm_conf_content)
-        self.logger.info(f"LightDM configuration for auto-login written to {lightdm_conf_path}")
+[Users]
+HideUsers=
+RememberLastUser=true
+RememberLastSession=true
 
-        # Create a default .xinitrc for the root user to start XFCE if LightDM fails
+[General]
+DisplayServer=x11
+""" # Using X11 for broader compatibility in live env, Wayland could be an option.
+        sddm_autologin_conf_path: Path = sddm_conf_dir / "autologin.conf"
+        sddm_autologin_conf_path.write_text(sddm_conf_content)
+        self.logger.info(f"SDDM configuration for auto-login written to {sddm_autologin_conf_path}")
+
+        # Create a default .xinitrc for the root user to start KDE Plasma if SDDM fails
         # or if starting X manually (e.g., via startx).
-        xinitrc_content: str = """#!/bin/bash
-# Start XFCE session
-exec startxfce4
+        # For KDE, `startplasma-x11` or `startplasma-wayland` is used.
+        xinitrc_content: str = """#!/bin/sh
+# Start KDE Plasma session (X11)
+export DESKTOP_SESSION=plasma
+export XDG_SESSION_DESKTOP=KDE
+export XDG_CURRENT_DESKTOP=KDE
+exec startplasma-x11
 """
         xinitrc_path: Path = self.chroot_path / "root/.xinitrc"
         xinitrc_path.write_text(xinitrc_content)
         xinitrc_path.chmod(0o755) # Make it executable.
-        self.logger.info(f"Root user .xinitrc created at {xinitrc_path}")
-        self.logger.info("Live desktop environment setup for Calamares completed.")
+        self.logger.info(f"Root user .xinitrc for KDE Plasma created at {xinitrc_path}")
+
+        # Autostart Calamares in KDE session
+        autostart_dir_chroot: Path = self.chroot_path / "root/.config/autostart" # User-specific autostart
+        # For system-wide autostart: /etc/xdg/autostart
+        # Since we auto-login as root, user-specific is fine.
+        autostart_dir_chroot.mkdir(parents=True, exist_ok=True)
+
+        calamares_autostart_content: str = f"""[Desktop Entry]
+Type=Application
+Name=Z-Forge Installer
+Comment=Launch Z-Forge Proxmox VE Installer
+Exec=calamares_polkit_wrapper # Reuse the wrapper for privilege escalation
+Icon=calamares
+Terminal=false
+X-KDE-Autostart-Phase=Setup # Ensures it starts at an appropriate time
+"""
+        calamares_autostart_file_path: Path = autostart_dir_chroot / "calamares-zforge-autostart.desktop"
+        calamares_autostart_file_path.write_text(calamares_autostart_content)
+        self.logger.info(f"Calamares autostart .desktop file created at {calamares_autostart_file_path}")
+        self.logger.info("Live KDE desktop environment setup for Calamares completed.")
+
 
     def _create_calamares_launcher(self) -> None:
         """
-        Create a .desktop file for launching Calamares from the XFCE desktop
-        or application menu in the live environment.
+        Create a .desktop file for launching Calamares from the KDE Plasma desktop
+        or application menu in the live environment. This is a fallback if autostart fails or is disabled.
         """
-        self.logger.info("Creating Calamares desktop launcher...")
+        self.logger.info("Creating Calamares desktop launcher for KDE...")
 
-        # Content for the .desktop file.
-        # Exec=pkexec calamares: Runs Calamares with root privileges using polkit.
-        # This assumes polkit is configured to allow this without password in live session.
-        # An alternative is `sudo calamares` or running Calamares directly if the
-        # entire desktop session runs as root (as configured by auto-login).
-        # If session is root, `Exec=calamares` might be enough. `pkexec` is safer if not root session.
-        # Given autologin-user=root, `Exec=calamares` should be fine.
-        # However, `pkexec calamares` is a common way Calamares is launched.
         calamares_launcher_content: str = f"""[Desktop Entry]
 Type=Application
 Version=1.0
 Name=Install Z-Forge Proxmox VE
 Comment=Install Z-Forge Proxmox VE to your hard disk
-Exec=calamares_polkit_wrapper # Use a wrapper for pkexec or direct sudo
-Icon=calamares # Calamares usually installs an icon
+Exec=calamares_polkit_wrapper
+Icon=calamares
 Terminal=false
 StartupNotify=true
-Categories=System;
+Categories=System;Application; # Standard categories for system tools
+Keywords=Installer;Z-Forge;Proxmox;
 """
-        # Create a wrapper script for launching Calamares with privileges
-        # This avoids issues with pkexec directly in .desktop file sometimes or provides flexibility
+        # Wrapper script (re-ensure it's created, content can be the same as before)
         calamares_wrapper_script_path_chroot = self.chroot_path / "usr/bin/calamares_polkit_wrapper"
-        calamares_wrapper_script_content = """#!/bin/bash
-# Wrapper to launch Calamares, ensuring it runs with root privileges.
-# Tries pkexec first, falls back to gksudo/kdesudo (if available), then direct sudo.
+        if not calamares_wrapper_script_path_chroot.exists():
+            calamares_wrapper_script_content = """#!/bin/bash
 if command -v pkexec >/dev/null 2>&1; then
     pkexec calamares
-elif command -v gksudo >/dev/null 2>&1; then
-    gksudo calamares
-elif command -v kdesudo >/dev/null 2>&1; then
-    kdesudo calamares
+elif command -v kdesu >/dev/null 2>&1; then # kdesu is more KDE-native than gksudo
+    kdesu calamares
 elif command -v sudo >/dev/null 2>&1; then
     sudo calamares
 else
-    # Fallback if no privilege escalation tool is found, try direct (might fail if not root)
     calamares
 fi
 """
-        calamares_wrapper_script_path_chroot.write_text(calamares_wrapper_script_content)
-        calamares_wrapper_script_path_chroot.chmod(0o755)
-        self.logger.info(f"Calamares wrapper script created at {calamares_wrapper_script_path_chroot}")
+            calamares_wrapper_script_path_chroot.write_text(calamares_wrapper_script_content)
+            calamares_wrapper_script_path_chroot.chmod(0o755)
+            self.logger.info(f"Calamares wrapper script created/verified at {calamares_wrapper_script_path_chroot}")
 
-
-        # Path for the .desktop file in system applications directory.
         applications_dir_chroot: Path = self.chroot_path / "usr/share/applications"
         applications_dir_chroot.mkdir(parents=True, exist_ok=True)
         calamares_desktop_file_path: Path = applications_dir_chroot / "calamares-zforge.desktop"
         calamares_desktop_file_path.write_text(calamares_launcher_content)
-        self.logger.info(f"Calamares .desktop file created at {calamares_desktop_file_path}")
+        self.logger.info(f"Calamares .desktop file for KDE created at {calamares_desktop_file_path}")
 
-        # Optionally, copy the .desktop file to the root user's Desktop for easy access.
-        # This assumes the live session user is root, as configured in _setup_live_desktop_environment.
+        # KDE places desktop icons in ~/Desktop or what's configured by kdeglobals.
+        # For root user, this is typically /root/Desktop.
         root_desktop_dir_chroot: Path = self.chroot_path / "root/Desktop"
         root_desktop_dir_chroot.mkdir(parents=True, exist_ok=True)
+        # Ensure the target path for shutil.copy is the full file name
         shutil.copy(calamares_desktop_file_path, root_desktop_dir_chroot / "Install_Z-Forge.desktop")
-        self.logger.info(f"Calamares launcher copied to root's Desktop at {root_desktop_dir_chroot}")
-        self.logger.info("Calamares desktop launcher creation completed.")
+        self.logger.info(f"Calamares launcher copied to root's Desktop for KDE at {root_desktop_dir_chroot}")
+        self.logger.info("Calamares KDE desktop launcher creation completed.")
+
 
     def _get_calamares_version(self) -> str:
         """

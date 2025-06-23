@@ -29,6 +29,10 @@ proxmox_config:
     - ethtool
     - fio
     - smartmontools
+    # Packages for KDE theme configuration and utilities
+    - "kwriteconfig5" # From kwriteconfig package, ensure it's available
+    - "breeze" # For Breeze themes, including Breeze Dark (usually part of kde-standard)
+    - "plasma-desktop-data" # For default theme data, if needed explicitly
 
 zfs_config:
   version: latest
@@ -124,6 +128,8 @@ modules:
   - name: LiveEnvironment
     enabled: true
   - name: CalamaresIntegration
+    enabled: true
+  - name: KDEThemeConfig # Added KDEThemeConfig module
     enabled: true
   - name: DellR730xdOptimize
     enabled: true

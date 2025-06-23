@@ -102,6 +102,11 @@ class ZForgeBuilder:
             lockfile_path = Path("build_spec.lock")
             lockfile = BuildLockfile(lockfile_path)
 
+        # Ensure modules_path is set for dynamic loading
+        if not hasattr(self, 'modules_path') or not self.modules_path:
+             self.modules_path = Path(__file__).parent.parent / "modules"
+
+
         # Track progress
         results = {}
         resume_data = {}
@@ -197,25 +202,62 @@ class ZForgeBuilder:
 
         # Import the module
         try:
-            module_file_name = _camel_to_snake(module_name)
-            module_path = f"builder.modules.{module_file_name}"
-            module = importlib.import_module(module_path)
+            module_file_name = _camel_to_snake(module_name) # e.g., KDEThemeConfig -> kde_theme_config
 
-            # Create instance
-            class_name = module_name
+            # Construct path to module file
+            module_file_path = self.modules_path / f"{module_file_name}.py"
+
+            if not module_file_path.exists():
+                return {
+                    'status': 'error',
+                    'error': f"Module file {module_file_path} not found for module {module_name}"
+                }
+
+            # Dynamically load the module from its file path
+            spec = importlib.util.spec_from_file_location(f"builder.modules.{module_file_name}", module_file_path)
+            if spec is None:
+                 return {
+                    'status': 'error',
+                    'error': f"Could not create module spec for {module_name} from {module_file_path}"
+                }
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module) # type: ignore
+
+            # Create instance - class name is expected to be CamelCase version of module_name
+            class_name = module_name # Assumes module_name is already CamelCase, e.g., "KDEThemeConfig"
+
+            # A common pattern is that the module name in config (e.g., "KDEThemeConfig")
+            # directly matches the class name.
             if not hasattr(module, class_name):
-                class_name = ''.join(
-                    word.title() for word in module_name.split('_')
-                )
+                # Fallback if module_name in config was snake_case (e.g., "kde_theme_config")
+                # then convert it to CamelCase for the class name.
+                class_name_camel = "".join(word.capitalize() for word in module_name.split('_'))
+                if hasattr(module, class_name_camel):
+                    class_name = class_name_camel
+                else:
+                    # Try simple title casing if module_name was all lower or mixed but not snake
+                    class_name_title = module_name.title().replace("_", "")
+                    if hasattr(module, class_name_title):
+                        class_name = class_name_title
+                    else:
+                         return {
+                            'status': 'error',
+                            'error': f"Class {class_name} (or {class_name_camel} or {class_name_title}) not found in module {module_name} at {module_file_path}"
+                        }
 
-            if hasattr(module, class_name):
-                module_instance = getattr(module, class_name)(
-                    self.workspace,
-                    self.config.data
-                )
+            module_instance = getattr(module, class_name)(
+                self.workspace,
+                self.config.data
+            )
 
-                # Execute module
-                result = module_instance.execute(resume_data)
+            # Execute module
+            if hasattr(module_instance, 'execute'):
+                result = module_instance.execute(resume_data) # type: ignore
+            else:
+                return {
+                    'status': 'error',
+                    'error': f"Module {module_name} instance does not have an execute method."
+                }
 
                 # Record to lockfile if provided
                 if lockfile and result.get('status') == 'success':
