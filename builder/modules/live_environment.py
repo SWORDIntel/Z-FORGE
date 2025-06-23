@@ -81,10 +81,12 @@ class LiveEnvironment:
             'rsync',
             'cryptsetup',
             'lvm2',
-            'mdadm'
+            'mdadm',
+            'kde-standard',  # Added KDE standard packages
+            'sddm'           # Added SDDM display manager
         ]
 
-        install_cmd = f"apt-get install -y {' '.join(packages)}"
+        install_cmd = f"apt-get install -y --no-install-recommends {' '.join(packages)}" # Added --no-install-recommends
 
         subprocess.run(
             ["chroot", str(self.chroot_path), "bash", "-c", install_cmd],
@@ -174,7 +176,7 @@ iface lo inet loopback
         services_to_enable = [
             'NetworkManager',
             'ssh',  # For remote debugging
-            'lightdm'
+            'sddm'  # Changed lightdm to sddm
         ]
 
         for service in services_to_enable:
@@ -196,21 +198,26 @@ iface lo inet loopback
             )
 
         # Create custom installer service
-        installer_service = """[Unit]
-Description=Z-Forge Installer
-After=graphical.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/calamares
-RemainAfterExit=yes
-
-[Install]
-WantedBy=graphical.target
-"""
-
+        # installer_service = """[Unit]
+# Description=Z-Forge Installer
+# After=graphical.target
+#
+# [Service]
+# Type=oneshot
+# ExecStart=/usr/bin/calamares
+# RemainAfterExit=yes
+#
+# [Install]
+# WantedBy=graphical.target
+# """
+        # service_path = self.chroot_path / "etc/systemd/system/zforge-installer.service"
+        # service_path.write_text(installer_service)
+        # Ensure the service file is removed if it exists from previous versions
         service_path = self.chroot_path / "etc/systemd/system/zforge-installer.service"
-        service_path.write_text(installer_service)
+        if service_path.exists():
+            service_path.unlink()
+            self.logger.info(f"Removed existing service file: {service_path}")
+
 
     def _generate_initramfs(self):
         """Generate initramfs for live boot"""
