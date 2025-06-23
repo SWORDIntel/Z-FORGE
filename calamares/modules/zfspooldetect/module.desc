@@ -1,0 +1,11 @@
+# zfspooldetect/module.desc
+---
+type:           "job"
+name:           "ZFS Pool Detection"
+moduleVersion:  "1.0.0"
+description:    "Detects existing ZFS pools on the system to make them available for installation."
+interface:      "python"
+script:         "main.py"
+# No specific module dependencies, should run early in the partitioning phase.
+# Consider if it needs to run before 'partition' or as part of it.
+# For now, assuming it's a standalone job that makes pools available to subsequent modules.
