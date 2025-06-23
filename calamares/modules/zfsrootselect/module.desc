@@ -1,0 +1,12 @@
+# zfsrootselect/module.desc
+---
+type:           "job"
+name:           "ZFS Root Filesystem Selection"
+moduleVersion:  "1.0.0"
+description:    "Allows selection or creation of the ZFS root filesystem for installation."
+interface:      "python"
+script:         "main.py"
+requiredModules:
+  - "zfspooldetect"  # Requires pools to be detected first
+# This module would typically interact with partitioning and mount setup.
+# It might need to run after initial disk partitioning but before actual package installation.

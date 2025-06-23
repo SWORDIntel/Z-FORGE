@@ -36,7 +36,7 @@ zfs_config:
   enable_encryption: true
   default_compression: lz4
   # R730xd has more RAM, can use larger ARC
-  arc_max_size: "32G"
+  arc_max_size: "16G"  # Updated based on user feedback
   # Server optimizations
   prefetch_disable: false  # Enable prefetch for better read perf
   zio_delay_max: 5000
@@ -138,10 +138,10 @@ iso_customization:
 security_config:
   security_hardening_profile: "server" # Options: "baseline", "server", or "none" (or omit for none)
 
-# Telemetry Configuration
-telemetry_config:
-  # Define the endpoint URL where telemetry data should be sent.
-  # If commented out or empty, the TelemetryJob module will not attempt to send data.
-  telemetry_endpoint_url: "https_example.com/telemetry_test_r730xd" # Placeholder URL
-  # User consent is handled via the TelemetryConsent UI module in Calamares.
-  # This URL is only used if the user explicitly opts-in during installation.
+# Telemetry Configuration (Disabled based on user feedback)
+# telemetry_config:
+#   # Define the endpoint URL where telemetry data should be sent.
+#   # If commented out or empty, the TelemetryJob module will not attempt to send data.
+#   telemetry_endpoint_url: "https_example.com/telemetry_test_r730xd" # Placeholder URL
+#   # User consent is handled via the TelemetryConsent UI module in Calamares.
+#   # This URL is only used if the user explicitly opts-in during installation.
