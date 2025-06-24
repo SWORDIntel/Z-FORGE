@@ -1,0 +1,50 @@
+2025-06-24 12:07:46,127 - WorkspaceSetup - INFO - Setting up workspace...
+2025-06-24 12:07:46,127 - WorkspaceSetup - INFO - Creating directories...
+2025-06-24 12:07:46,127 - WorkspaceSetup - INFO - Setting permissions...
+2025-06-24 12:07:46,127 - WorkspaceSetup - INFO - Preparing mounts...
+2025-06-24 12:07:46,127 - WorkspaceSetup - INFO - Workspace setup complete: /tmp/zforge_workspace
+2025-06-24 12:07:46,175 - Debootstrap - INFO - Starting debootstrap process...
+2025-06-24 12:07:46,175 - Debootstrap - INFO - Running debootstrap for Debian bookworm into /tmp/zforge_workspace/chroot...
+2025-06-24 12:07:46,175 - Debootstrap - INFO - Executing debootstrap command: debootstrap --arch=amd64 --include=locales,linux-base,sudo,bash-completion,apt-transport-https,ca-certificates,curl,wget,gnupg bookworm /tmp/zforge_workspace/chroot http://deb.debian.org/debian
+2025-06-24 12:08:38,504 - Debootstrap - INFO - Debootstrap command completed successfully.
+2025-06-24 12:08:38,504 - Debootstrap - INFO - Configuring basic system settings in chroot...
+2025-06-24 12:08:38,504 - Debootstrap - INFO - Updating package lists and upgrading packages in chroot...
+2025-06-24 12:08:38,504 - Debootstrap - INFO - Executing in chroot: apt-get update
+2025-06-24 12:08:38,988 - Debootstrap - ERROR - A command failed during debootstrap: ['chroot', '/tmp/zforge_workspace/chroot', 'apt-get', 'update'], Return Code: 100, Output: Hit:1 http://deb.debian.org/debian bookworm InRelease
+Get:2 http://security.debian.org/debian-security bookworm-security InRelease [48.0 kB]
+Get:3 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+Err:1 http://deb.debian.org/debian bookworm InRelease
+  gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+Get:4 http://deb.debian.org/debian bookworm-backports InRelease [59.4 kB]
+Err:2 http://security.debian.org/debian-security bookworm-security InRelease
+  gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+Err:3 http://deb.debian.org/debian bookworm-updates InRelease
+  gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+Err:4 http://deb.debian.org/debian bookworm-backports InRelease
+  gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+Reading package lists...
+, Stderr: /usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+E: gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+Sub-process apt-key returned an error code (29)/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+E: gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+Sub-process apt-key returned an error code (29)/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+E: gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+Sub-process apt-key returned an error code (29)/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+/usr/bin/apt-key: 95: cannot create /dev/null: Permission denied
+E: gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+Sub-process apt-key returned an error code (29)W: Download is performed unsandboxed as root as file '/var/lib/apt/lists/partial/deb.debian.org_debian_dists_bookworm_InRelease' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
+W: An error occurred during the signature verification. The repository is not updated and the previous index files will be used. GPG error: http://deb.debian.org/debian bookworm InRelease: gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+W: GPG error: http://security.debian.org/debian-security bookworm-security InRelease: gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+E: The repository 'http://security.debian.org/debian-security bookworm-security InRelease' is not signed.
+W: GPG error: http://deb.debian.org/debian bookworm-updates InRelease: gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+E: The repository 'http://deb.debian.org/debian bookworm-updates InRelease' is not signed.
+W: GPG error: http://deb.debian.org/debian bookworm-backports InRelease: gpgv, gpgv2 or gpgv1 required for verification, but neither seems installed
+E: The repository 'http://deb.debian.org/debian bookworm-backports InRelease' is not signed.
+
