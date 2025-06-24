@@ -1,6 +1,8 @@
 import subprocess
 from pathlib import Path
+from typing import Dict, Optional
 import logging
+from builder.core.lockfile import BuildLockfile
 
 class KDEThemeConfig:
     def __init__(self, workspace: Path, config: dict):
@@ -9,7 +11,7 @@ class KDEThemeConfig:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.chroot_path = workspace / "chroot"
 
-    def execute(self):
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[BuildLockfile] = None) -> Dict:
         self.logger.info("Configuring KDE dark theme and conditional SDDM start...")
 
         # Create a script to be run by systemd to check for headless boot

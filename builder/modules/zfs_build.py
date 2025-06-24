@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Dict, Optional, List, Any
 import logging
 import os
+from builder.core.lockfile import BuildLockfile
 
 class ZFSBuild:
     """
@@ -48,7 +49,7 @@ class ZFSBuild:
         self.zfs_repo_url: str = "https://github.com/openzfs/zfs.git"
         self.chroot_path: Path = self.workspace / "chroot"
         
-    def execute(self, resume_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def execute(self, resume_data: Optional[Dict[str, Any]] = None, lockfile: Optional[BuildLockfile] = None) -> Dict[str, Any]:
         """
         Execute the ZFS build and installation process.
 

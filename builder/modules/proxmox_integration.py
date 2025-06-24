@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Optional
 import logging
+from builder.core.lockfile import BuildLockfile
 
 class ProxmoxIntegration:
     """Handles Proxmox VE repository setup and package caching"""
@@ -18,7 +19,7 @@ class ProxmoxIntegration:
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
         
-    def execute(self, resume_data: Optional[Dict] = None) -> Dict:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[BuildLockfile] = None) -> Dict:
         """
         Configure Proxmox repositories and cache packages
         

@@ -3,6 +3,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, Optional
+from builder.core.lockfile import BuildLockfile
 
 class ISOGeneration:
     def __init__(self, workspace: Path, config: Dict):
@@ -11,7 +12,7 @@ class ISOGeneration:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.chroot_path = workspace / "chroot"
 
-    def execute(self, resume_data: Optional[Dict] = None) -> Dict:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[BuildLockfile] = None) -> Dict:
         self.logger.info("Checking for required tools (xorriso, mksquashfs)...")
 
         required_tools = ["xorriso", "mksquashfs"]

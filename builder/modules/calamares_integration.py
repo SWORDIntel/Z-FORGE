@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Dict, Optional, List, Any
 import logging
 import yaml
+from builder.core.lockfile import BuildLockfile
 
 class CalamaresIntegration:
     """
@@ -49,7 +50,7 @@ class CalamaresIntegration:
         # relative to the Z-Forge project root during the build.
         self.custom_calamares_modules_source_dir: Path = Path("calamares/modules")
 
-    def execute(self, resume_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def execute(self, resume_data: Optional[Dict[str, Any]] = None, lockfile: Optional[BuildLockfile] = None) -> Dict[str, Any]:
         """
         Execute the Calamares installation and configuration process.
 

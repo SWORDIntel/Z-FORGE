@@ -17,6 +17,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Optional, List, Any
 import logging
+from builder.core.lockfile import BuildLockfile
 
 class Debootstrap:
     """
@@ -45,7 +46,7 @@ class Debootstrap:
         # Define the path for the chroot environment.
         self.chroot_path: Path = workspace / "chroot"
         
-    def execute(self, resume_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def execute(self, resume_data: Optional[Dict[str, Any]] = None, lockfile: Optional[BuildLockfile] = None) -> Dict[str, Any]:
         """
         Execute the debootstrap process to create and configure the Debian base system.
 
@@ -58,6 +59,7 @@ class Debootstrap:
                          about a previous run, allowing the module to skip
                          steps if they were already completed. Currently, it
                          checks for a 'completed' flag.
+            lockfile: Optional BuildLockfile instance for recording package versions and checksums.
 
         Returns:
             A dictionary containing the status of the debootstrap operation.
@@ -88,11 +90,17 @@ class Debootstrap:
             # Step 1: Run the debootstrap command.
             self._run_debootstrap(debian_release)
             
-            # Step 2: Configure the basic system settings within the chroot.
+            # Step 2: Mount essential filesystems in chroot.
+            self._mount_chroot_filesystems()
+            
+            # Step 3: Configure the basic system settings within the chroot.
             self._configure_system(debian_release)
             
-            # Step 3: Install and configure dracut.
+            # Step 4: Install and configure dracut.
             self._install_dracut()
+            
+            # Step 5: Unmount chroot filesystems
+            self._unmount_chroot_filesystems()
             
             self.logger.info(f"Debootstrap completed successfully for Debian {debian_release}.")
             
@@ -105,6 +113,11 @@ class Debootstrap:
             
         except subprocess.CalledProcessError as e:
             self.logger.error(f"A command failed during debootstrap: {e.cmd}, Return Code: {e.returncode}, Output: {e.output}, Stderr: {e.stderr}")
+            # Try to unmount filesystems if they were mounted
+            try:
+                self._unmount_chroot_filesystems()
+            except:
+                pass  # Best effort cleanup
             return {
                 'status': 'error',
                 'error': f"Command failed: {' '.join(e.cmd)} - {e.stderr or e.output or str(e)}",
@@ -112,6 +125,11 @@ class Debootstrap:
             }
         except Exception as e:
             self.logger.error(f"Debootstrap process failed: {e}", exc_info=True)
+            # Try to unmount filesystems if they were mounted
+            try:
+                self._unmount_chroot_filesystems()
+            except:
+                pass  # Best effort cleanup
             return {
                 'status': 'error',
                 'error': str(e),
@@ -140,7 +158,8 @@ class Debootstrap:
             "apt-transport-https", # For HTTPS APT repositories
             "ca-certificates",# For SSL/TLS certificate validation
             "curl", "wget",   # For downloading files
-            "gnupg"           # For package signing and verification
+            "gnupg",          # For package signing and verification
+            "gpgv"            # Required for APT package verification
         ]
         
         # Construct the debootstrap command.
@@ -351,3 +370,82 @@ add_drivers+=" nvme "
         if result.stderr:
             self.logger.debug(f"Chroot command stderr: {result.stderr.strip()}") # Use debug for stderr as it might be noisy
         return result
+    
+    def _mount_chroot_filesystems(self) -> None:
+        """
+        Mount essential filesystems in the chroot environment.
+        
+        This includes /dev, /dev/pts, /proc, /sys which are required
+        for many operations within the chroot.
+        """
+        
+        self.logger.info("Mounting essential filesystems in chroot...")
+        
+        # Create mount points if they don't exist
+        mount_points = {
+            'dev': 'devtmpfs',
+            'dev/pts': 'devpts',
+            'proc': 'proc',
+            'sys': 'sysfs'
+        }
+        
+        for mount_point, fs_type in mount_points.items():
+            mount_path = self.chroot_path / mount_point
+            mount_path.mkdir(parents=True, exist_ok=True)
+            
+            # Check if already mounted
+            try:
+                result = subprocess.run(['mountpoint', '-q', str(mount_path)], 
+                                     capture_output=True)
+                if result.returncode == 0:
+                    self.logger.debug(f"{mount_path} is already mounted, skipping")
+                    continue
+            except:
+                pass  # mountpoint command might not exist
+            
+            # Mount the filesystem
+            if mount_point == 'dev':
+                # Bind mount /dev
+                cmd = ['mount', '--bind', '/dev', str(mount_path)]
+            elif mount_point == 'dev/pts':
+                cmd = ['mount', '-t', fs_type, 'devpts', str(mount_path)]
+            else:
+                cmd = ['mount', '-t', fs_type, fs_type, str(mount_path)]
+            
+            try:
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
+                self.logger.debug(f"Mounted {fs_type} on {mount_path}")
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"Failed to mount {mount_path}: {e}")
+                raise
+    
+    def _unmount_chroot_filesystems(self) -> None:
+        """
+        Unmount filesystems that were mounted in the chroot.
+        
+        This should be called when debootstrap is complete or on error.
+        """
+        
+        self.logger.info("Unmounting chroot filesystems...")
+        
+        # Unmount in reverse order
+        mount_points = ['dev/pts', 'dev', 'proc', 'sys']
+        
+        for mount_point in mount_points:
+            mount_path = self.chroot_path / mount_point
+            
+            if mount_path.exists():
+                try:
+                    # Check if mounted
+                    result = subprocess.run(['mountpoint', '-q', str(mount_path)], 
+                                         capture_output=True)
+                    if result.returncode != 0:
+                        continue  # Not mounted
+                    
+                    # Unmount
+                    subprocess.run(['umount', str(mount_path)], check=True, 
+                                 capture_output=True, text=True)
+                    self.logger.debug(f"Unmounted {mount_path}")
+                except subprocess.CalledProcessError as e:
+                    self.logger.warning(f"Failed to unmount {mount_path}: {e}")
+                    # Continue with other unmounts

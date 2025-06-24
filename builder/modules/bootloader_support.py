@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, Optional
+from builder.core.lockfile import BuildLockfile
 
 class BootloaderSetup:
     """
@@ -36,7 +37,7 @@ class BootloaderSetup:
             self.logger.error(f"Bootloader command failed: {e}")
             sys.exit(1)
 
-    def execute(self, resume_data: Optional[Dict] = None) -> Dict:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[BuildLockfile] = None) -> Dict:
         self.logger.info("=== BootloaderSetup start ===")
         resume = resume_data or {}
         result = {"completed_steps": []}

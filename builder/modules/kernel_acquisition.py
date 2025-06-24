@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Any, List
 import logging
+from builder.core.lockfile import BuildLockfile
 
 # Attempt to import GPG for signature verification, but don't make it a hard dependency
 try:
@@ -77,7 +78,7 @@ class KernelAcquisition:
         # Check if we should build from source or use Debian packages
         self.build_from_source = self.config.get('kernel_config', {}).get('build_from_source', False)
         
-    def execute(self, resume_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def execute(self, resume_data: Optional[Dict[str, Any]] = None, lockfile: Optional[BuildLockfile] = None) -> Dict[str, Any]:
         """
         Execute the kernel acquisition process.
 

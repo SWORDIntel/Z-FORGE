@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Optional
 import logging
+from builder.core.lockfile import BuildLockfile
 
 class LiveEnvironment:
     """Sets up live boot environment"""
@@ -19,7 +20,7 @@ class LiveEnvironment:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.chroot_path = workspace / "chroot"
 
-    def execute(self, resume_data: Optional[Dict] = None) -> Dict:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[BuildLockfile] = None) -> Dict:
         """
         Configure live environment
 
