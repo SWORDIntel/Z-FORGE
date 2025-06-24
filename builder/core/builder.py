@@ -7,8 +7,10 @@ Orchestrates the Z-Forge build process
 """
 
 import sys
+import json
 import logging
 import importlib
+import importlib.util
 import traceback
 import re
 from pathlib import Path
@@ -106,11 +108,10 @@ class ZForgeBuilder:
         if not hasattr(self, 'modules_path') or not self.modules_path:
              self.modules_path = Path(__file__).parent.parent / "modules"
 
-
         # Track progress
-        results = {} # This will hold results of module executions for the current run
-        loaded_resume_data = {} # This will hold data loaded from build_progress.json
-
+        results = {}  # This will hold results of module executions for the current run
+        
+        # Handle resume functionality
         if resume:
             progress_file = self.workspace / "build_progress.json"
             if progress_file.exists():
@@ -122,25 +123,21 @@ class ZForgeBuilder:
                     # We primarily care about using the keys of loaded_results_from_file
                     # to skip modules. The actual 'results' dict for this run will be
                     # populated by new module executions or confirmed skips.
-                    # For now, let's assign it to `results` to leverage the existing skip logic.
-                    # Later, we'll refine how module-specific resume_data is handled.
                     results = loaded_results_from_file
                     self.logger.info(f"Successfully loaded progress. Completed modules in previous run: {list(results.keys())}")
                 except (IOError, json.JSONDecodeError) as e:
                     self.logger.warning(f"Could not load or parse progress file {progress_file}: {e}. Starting a fresh build.")
-                    results = {} # Reset results to ensure a fresh build if file is corrupt
+                    results = {}  # Reset results to ensure a fresh build if file is corrupt
             else:
                 self.logger.info("Resume flag is set, but no progress file found. Starting a fresh build.")
 
         # This resume_data is for passing specific checkpoint data to modules,
         # which will be populated if loaded_results_from_file contains it.
-        # For now, it remains distinct from the 'results' dict used for skipping.
         module_specific_resume_data_store = {}
-        if results: # If we loaded some results, it might contain module specific checkpoints
+        if results:  # If we loaded some results, it might contain module specific checkpoints
             for mod_name, mod_result in results.items():
                 if isinstance(mod_result, dict) and 'module_checkpoint_data' in mod_result:
                     module_specific_resume_data_store[mod_name] = mod_result['module_checkpoint_data']
-
 
         try:
             # Execute each module in sequence
@@ -157,12 +154,11 @@ class ZForgeBuilder:
                 else:
                     self.logger.info(f"No specific resume data found for module {module_name}, will be called with None.")
 
-
                 # Execute the module
                 self.logger.info(f"Executing module: {module_name}")
 
                 try:
-                    result = self._execute_module(module_name, module_resume, lockfile)
+                    result = self._execute_module(module_name, module_actual_resume_data, lockfile)
                     results[module_name] = result
 
                     # Check if the module was successful
@@ -199,14 +195,6 @@ class ZForgeBuilder:
             if 'ISOGeneration' in results:
                 iso_path = results['ISOGeneration'].get('iso_path')
 
-            return {
-                'status': 'success',
-                'results': results,
-                'iso_path': iso_path,
-                'log_path': str(self.log_path),
-                'lockfile_path': str(lockfile.lockfile_path),
-            }
-
             # Successful completion, clean up progress file
             progress_file = self.workspace / "build_progress.json"
             if progress_file.exists():
@@ -216,7 +204,13 @@ class ZForgeBuilder:
                 except OSError as e:
                     self.logger.warning(f"Could not delete progress file {progress_file}: {e}")
 
-            return success_return # Return the previously constructed success dict
+            return {
+                'status': 'success',
+                'results': results,
+                'iso_path': iso_path,
+                'log_path': str(self.log_path),
+                'lockfile_path': str(lockfile.lockfile_path),
+            }
 
         except Exception as e:
             error_msg = f"Build pipeline failed: {str(e)}"
@@ -249,7 +243,7 @@ class ZForgeBuilder:
 
         # Import the module
         try:
-            module_file_name = _camel_to_snake(module_name) # e.g., KDEThemeConfig -> kde_theme_config
+            module_file_name = _camel_to_snake(module_name)  # e.g., KDEThemeConfig -> kde_theme_config
 
             # Construct path to module file
             module_file_path = self.modules_path / f"{module_file_name}.py"
@@ -268,10 +262,15 @@ class ZForgeBuilder:
                     'error': f"Could not create module spec for {module_name} from {module_file_path}"
                 }
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module) # type: ignore
+            if spec.loader is None:
+                return {
+                    'status': 'error',
+                    'error': f"Module spec loader is None for {module_name}"
+                }
+            spec.loader.exec_module(module)
 
             # Create instance - class name is expected to be CamelCase version of module_name
-            class_name = module_name # Assumes module_name is already CamelCase, e.g., "KDEThemeConfig"
+            class_name = module_name  # Assumes module_name is already CamelCase, e.g., "KDEThemeConfig"
 
             # A common pattern is that the module name in config (e.g., "KDEThemeConfig")
             # directly matches the class name.
@@ -299,9 +298,11 @@ class ZForgeBuilder:
 
             # Execute module
             if hasattr(module_instance, 'execute'):
-                result = module_instance.execute(resume_data) # type: ignore
+                # Pass resume_data and now also the lockfile instance
+                result = module_instance.execute(resume_data=resume_data, lockfile=lockfile)
 
-                # Record to lockfile if provided
+                # Record to lockfile if provided (primarily for module execution status)
+                # Individual modules can now also use the lockfile instance to record specific details.
                 if lockfile and result.get('status') == 'success':
                     lockfile.record_module_execution(module_name, result)
 
@@ -312,20 +313,6 @@ class ZForgeBuilder:
                     'status': 'error',
                     'error': f"Module {module_name} instance does not have an execute method."
                 }
-
-        # This was the incorrectly placed else block. It seems it was intended to be part of
-        # the class name resolution logic further up.
-        # For now, I will remove it as the logic for class name not found is already handled.
-        # If further issues arise, this might need re-evaluation.
-        #
-        # else:
-        #     error_msg = (
-        #         f"Class {class_name} not found in module {module_name}"
-        #     )
-        #     return {
-        #         'status': 'error',
-        #         'error': error_msg
-        #     }
 
         except ImportError as e:
             return {
@@ -340,8 +327,7 @@ class ZForgeBuilder:
 
     def _save_progress(self, results: Dict, lockfile: BuildLockfile):
         """Save current build progress to enable resuming"""
-        import json # Make sure json is imported
-
+        
         # Define progress file path
         progress_file = self.workspace / "build_progress.json"
 
@@ -359,6 +345,3 @@ class ZForgeBuilder:
 
         # Save lockfile
         lockfile.save()
-
-        # In a more complete implementation, we'd save the results here
-        # to persist them between runs

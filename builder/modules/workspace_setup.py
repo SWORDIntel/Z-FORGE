@@ -29,12 +29,14 @@ class WorkspaceSetup:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.chroot_path = workspace / "chroot"
         
-    def execute(self, resume_data: Optional[Dict] = None) -> Dict:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[BuildLockfile] = None) -> Dict: # type: ignore
         """
         Create workspace with resume capability
         
         Args:
-            resume_point: Optional checkpoint data to resume from
+            resume_data: Optional checkpoint data to resume from
+            lockfile: Optional BuildLockfile instance for recording versions/checksums.
+                      Note: WorkspaceSetup itself may not use it much.
             
         Returns:
             Dict with status and checkpoint information
