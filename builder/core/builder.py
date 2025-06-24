@@ -253,11 +253,6 @@ class ZForgeBuilder:
             # Execute module
             if hasattr(module_instance, 'execute'):
                 result = module_instance.execute(resume_data) # type: ignore
-            else:
-                return {
-                    'status': 'error',
-                    'error': f"Module {module_name} instance does not have an execute method."
-                }
 
                 # Record to lockfile if provided
                 if lockfile and result.get('status') == 'success':
@@ -265,13 +260,25 @@ class ZForgeBuilder:
 
                 return result
             else:
-                error_msg = (
-                    f"Class {class_name} not found in module {module_name}"
-                )
+                # This else corresponds to `if hasattr(module_instance, 'execute')`
                 return {
                     'status': 'error',
-                    'error': error_msg
+                    'error': f"Module {module_name} instance does not have an execute method."
                 }
+
+        # This was the incorrectly placed else block. It seems it was intended to be part of
+        # the class name resolution logic further up.
+        # For now, I will remove it as the logic for class name not found is already handled.
+        # If further issues arise, this might need re-evaluation.
+        #
+        # else:
+        #     error_msg = (
+        #         f"Class {class_name} not found in module {module_name}"
+        #     )
+        #     return {
+        #         'status': 'error',
+        #         'error': error_msg
+        #     }
 
         except ImportError as e:
             return {
