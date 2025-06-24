@@ -1,4 +1,11 @@
-[*] Build started at Thu Jun 19 17:47:46 UTC 2025
+[*] Build started at Tue Jun 24 01:28:01 AM UTC 2025
 [*] Starting build pipeline…
 [*] Running module: WorkspaceSetup
-[!] Module WorkspaceSetup failed: Failed to import module WorkspaceSetup: No module named 'modules'
+Traceback (most recent call last):
+  File "<stdin>", line 2, in <module>
+  File "/home/siducer/Documents/GitHub/Z-FORGE/builder/core/__init__.py", line 7, in <module>
+    from .builder import ZForgeBuilder
+  File "/home/siducer/Documents/GitHub/Z-FORGE/builder/core/builder.py", line 267
+    else:
+    ^^^^
+SyntaxError: invalid syntax
