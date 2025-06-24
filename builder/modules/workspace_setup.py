@@ -49,25 +49,25 @@ class WorkspaceSetup:
         }
         
         # Load previous progress if resuming
-        if resume_data and 'checkpoints' in resume_data:
-            checkpoints = resume_data['checkpoints']
+        if resume_data: # resume_data is now the checkpoints dict itself
+            checkpoints = resume_data
             self.logger.info(f"Resuming from checkpoint: {checkpoints}")
         
         try:
-            if not checkpoints['directories_created']:
+            if not checkpoints.get('directories_created'): # Use .get for safety on first run
                 self._create_directories()
                 checkpoints['directories_created'] = True
-                self._save_checkpoint(checkpoints)
+                # self._save_checkpoint(checkpoints) # Removed: ZForgeBuilder handles persistence
                 
-            if not checkpoints['permissions_set']:
+            if not checkpoints.get('permissions_set'):
                 self._set_permissions()
                 checkpoints['permissions_set'] = True
-                self._save_checkpoint(checkpoints)
+                # self._save_checkpoint(checkpoints) # Removed
                 
-            if not checkpoints['mounts_prepared']:
+            if not checkpoints.get('mounts_prepared'):
                 self._prepare_mounts()
                 checkpoints['mounts_prepared'] = True
-                self._save_checkpoint(checkpoints)
+                # self._save_checkpoint(checkpoints) # Removed
                 
             self.logger.info(f"Workspace setup complete: {self.workspace}")
                 
@@ -75,16 +75,17 @@ class WorkspaceSetup:
                 'status': 'success',
                 'workspace': str(self.workspace),
                 'chroot': str(self.chroot_path),
-                'checkpoints': checkpoints,
-                'version': '1.0'
+                'module_checkpoint_data': checkpoints, # Adhere to the new contract
+                'version': '1.0' # Keep module version
             }
             
         except Exception as e:
             self.logger.error(f"Workspace setup failed: {e}")
+            # Return current checkpoints state in case of failure for potential debugging
             return {
                 'status': 'error',
                 'error': str(e),
-                'checkpoint': checkpoints,
+                'module_checkpoint_data': checkpoints,
                 'module': self.__class__.__name__
             }
     
@@ -143,10 +144,10 @@ class WorkspaceSetup:
             mount_dir = self.chroot_path / mount
             mount_dir.mkdir(parents=True, exist_ok=True)
     
-    def _save_checkpoint(self, checkpoints: Dict):
-        """Save checkpoint data to file"""
-        
-        checkpoint_file = self.workspace / "workspace_checkpoint.json"
-        
-        with open(checkpoint_file, 'w') as f:
-            json.dump(checkpoints, f)
+    # def _save_checkpoint(self, checkpoints: Dict): # Removed
+    #     """Save checkpoint data to file""" # Removed
+          # Removed
+    #     checkpoint_file = self.workspace / "workspace_checkpoint.json" # Removed
+          # Removed
+    #     with open(checkpoint_file, 'w') as f: # Removed
+    #         json.dump(checkpoints, f) # Removed

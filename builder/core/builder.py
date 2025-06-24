@@ -108,8 +108,39 @@ class ZForgeBuilder:
 
 
         # Track progress
-        results = {}
-        resume_data = {}
+        results = {} # This will hold results of module executions for the current run
+        loaded_resume_data = {} # This will hold data loaded from build_progress.json
+
+        if resume:
+            progress_file = self.workspace / "build_progress.json"
+            if progress_file.exists():
+                self.logger.info(f"Resume flag is set. Attempting to load progress from {progress_file}")
+                try:
+                    with progress_file.open('r') as f:
+                        loaded_results_from_file = json.load(f)
+
+                    # We primarily care about using the keys of loaded_results_from_file
+                    # to skip modules. The actual 'results' dict for this run will be
+                    # populated by new module executions or confirmed skips.
+                    # For now, let's assign it to `results` to leverage the existing skip logic.
+                    # Later, we'll refine how module-specific resume_data is handled.
+                    results = loaded_results_from_file
+                    self.logger.info(f"Successfully loaded progress. Completed modules in previous run: {list(results.keys())}")
+                except (IOError, json.JSONDecodeError) as e:
+                    self.logger.warning(f"Could not load or parse progress file {progress_file}: {e}. Starting a fresh build.")
+                    results = {} # Reset results to ensure a fresh build if file is corrupt
+            else:
+                self.logger.info("Resume flag is set, but no progress file found. Starting a fresh build.")
+
+        # This resume_data is for passing specific checkpoint data to modules,
+        # which will be populated if loaded_results_from_file contains it.
+        # For now, it remains distinct from the 'results' dict used for skipping.
+        module_specific_resume_data_store = {}
+        if results: # If we loaded some results, it might contain module specific checkpoints
+            for mod_name, mod_result in results.items():
+                if isinstance(mod_result, dict) and 'module_checkpoint_data' in mod_result:
+                    module_specific_resume_data_store[mod_name] = mod_result['module_checkpoint_data']
+
 
         try:
             # Execute each module in sequence
@@ -119,8 +150,13 @@ class ZForgeBuilder:
                     self.logger.info(f"Skipping already completed module: {module_name}")
                     continue
 
-                # Get resume data for this module if available
-                module_resume = resume_data.get(module_name)
+                # Get module-specific resume data if available from the loaded progress
+                module_actual_resume_data = module_specific_resume_data_store.get(module_name)
+                if module_actual_resume_data:
+                    self.logger.info(f"Providing specific resume data to module {module_name}.")
+                else:
+                    self.logger.info(f"No specific resume data found for module {module_name}, will be called with None.")
+
 
                 # Execute the module
                 self.logger.info(f"Executing module: {module_name}")
@@ -170,6 +206,17 @@ class ZForgeBuilder:
                 'log_path': str(self.log_path),
                 'lockfile_path': str(lockfile.lockfile_path),
             }
+
+            # Successful completion, clean up progress file
+            progress_file = self.workspace / "build_progress.json"
+            if progress_file.exists():
+                try:
+                    self.logger.info(f"Build successful, deleting progress file: {progress_file}")
+                    progress_file.unlink()
+                except OSError as e:
+                    self.logger.warning(f"Could not delete progress file {progress_file}: {e}")
+
+            return success_return # Return the previously constructed success dict
 
         except Exception as e:
             error_msg = f"Build pipeline failed: {str(e)}"
@@ -293,9 +340,22 @@ class ZForgeBuilder:
 
     def _save_progress(self, results: Dict, lockfile: BuildLockfile):
         """Save current build progress to enable resuming"""
+        import json # Make sure json is imported
 
-        # Save results to progress file
-        # progress_file = self.workspace / "build_progress.json" # TODO: Implement saving results
+        # Define progress file path
+        progress_file = self.workspace / "build_progress.json"
+
+        self.logger.info(f"Saving build progress to {progress_file}")
+        try:
+            with progress_file.open('w') as f:
+                json.dump(results, f, indent=2)
+            self.logger.debug(f"Successfully saved progress to {progress_file}")
+        except IOError as e:
+            self.logger.error(f"Failed to save build progress to {progress_file}: {e}")
+            # Depending on policy, we might want to raise this or handle it
+            # For now, log and continue, as lockfile saving is separate.
+        except TypeError as e:
+            self.logger.error(f"Failed to serialize results to JSON for {progress_file}: {e}")
 
         # Save lockfile
         lockfile.save()
