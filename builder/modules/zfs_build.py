@@ -240,9 +240,9 @@ class ZFSBuild:
 
         if actual_zfs_src_dir.exists():
             self.logger.info(f"ZFS source directory {actual_zfs_src_dir} already exists. Removing it.")
-            shutil.rmtree(actual_zfs_src_dir)
+            subprocess.run(["sudo", "rm", "-rf", str(actual_zfs_src_dir)], check=True)
 
-        actual_zfs_src_dir.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["sudo", "mkdir", "-p", str(actual_zfs_src_dir)], check=True)
 
         # Clone the repository. --depth 1 for shallow clone if only building specific tag.
         # However, to checkout a tag, we might need more history.
@@ -252,8 +252,8 @@ class ZFSBuild:
 
         # Let's try running git clone directly into the chroot target path from host.
         # This avoids needing git inside the chroot initially.
-        subprocess.run(["git", "clone", self.zfs_repo_url, str(actual_zfs_src_dir)], check=True)
-        subprocess.run(["git", "-C", str(actual_zfs_src_dir), "checkout", zfs_version_tag], check=True)
+        subprocess.run(["sudo", "git", "clone", self.zfs_repo_url, str(actual_zfs_src_dir)], check=True)
+        subprocess.run(["sudo", "git", "-C", str(actual_zfs_src_dir), "checkout", zfs_version_tag], check=True)
 
         self.logger.info(f"ZFS repository cloned and checked out to {zfs_version_tag} in {actual_zfs_src_dir}.")
         return zfs_chroot_src_dir # Return path as seen from *inside* the chroot

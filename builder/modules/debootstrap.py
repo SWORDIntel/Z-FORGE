@@ -84,8 +84,13 @@ class Debootstrap:
                     'completed': True
                 }
             
-            # Ensure the chroot parent directory exists.
+            # Ensure the chroot parent directory exists with proper permissions.
             self.chroot_path.mkdir(parents=True, exist_ok=True)
+            
+            # Set maximum permissions on workspace and chroot directories
+            self.logger.info("Setting permissions on workspace directories...")
+            subprocess.run(["sudo", "chmod", "-R", "777", str(self.workspace)], check=True)
+            subprocess.run(["sudo", "chmod", "777", str(self.chroot_path)], check=True)
 
             # Step 1: Run the debootstrap command.
             self._run_debootstrap(debian_release)
@@ -169,6 +174,7 @@ class Debootstrap:
         # self.chroot_path: The target directory for the chroot.
         # http://deb.debian.org/debian: The Debian mirror URL.
         cmd: List[str] = [
+            "sudo",
             "debootstrap",
             "--arch=amd64",
             f"--include={','.join(include_packages)}",
@@ -358,7 +364,7 @@ add_drivers+=" nvme "
         """
         
         # Prepend "chroot" and the chroot path to the command.
-        full_cmd: List[str] = ["chroot", str(self.chroot_path)] + command
+        full_cmd: List[str] = ["sudo", "chroot", str(self.chroot_path)] + command
         self.logger.info(f"Executing in chroot: {' '.join(command)}")
         
         # Run the command.
@@ -395,7 +401,7 @@ add_drivers+=" nvme "
             
             # Check if already mounted
             try:
-                result = subprocess.run(['mountpoint', '-q', str(mount_path)], 
+                result = subprocess.run(['sudo', 'mountpoint', '-q', str(mount_path)], 
                                      capture_output=True)
                 if result.returncode == 0:
                     self.logger.debug(f"{mount_path} is already mounted, skipping")
@@ -406,11 +412,11 @@ add_drivers+=" nvme "
             # Mount the filesystem
             if mount_point == 'dev':
                 # Bind mount /dev
-                cmd = ['mount', '--bind', '/dev', str(mount_path)]
+                cmd = ['sudo', 'mount', '--bind', '/dev', str(mount_path)]
             elif mount_point == 'dev/pts':
-                cmd = ['mount', '-t', fs_type, 'devpts', str(mount_path)]
+                cmd = ['sudo', 'mount', '-t', fs_type, 'devpts', str(mount_path)]
             else:
-                cmd = ['mount', '-t', fs_type, fs_type, str(mount_path)]
+                cmd = ['sudo', 'mount', '-t', fs_type, fs_type, str(mount_path)]
             
             try:
                 subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -437,13 +443,13 @@ add_drivers+=" nvme "
             if mount_path.exists():
                 try:
                     # Check if mounted
-                    result = subprocess.run(['mountpoint', '-q', str(mount_path)], 
+                    result = subprocess.run(['sudo', 'mountpoint', '-q', str(mount_path)], 
                                          capture_output=True)
                     if result.returncode != 0:
                         continue  # Not mounted
                     
                     # Unmount
-                    subprocess.run(['umount', str(mount_path)], check=True, 
+                    subprocess.run(['sudo', 'umount', str(mount_path)], check=True, 
                                  capture_output=True, text=True)
                     self.logger.debug(f"Unmounted {mount_path}")
                 except subprocess.CalledProcessError as e:

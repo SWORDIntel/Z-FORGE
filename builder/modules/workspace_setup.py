@@ -97,11 +97,13 @@ class WorkspaceSetup:
         
         self.logger.info("Creating directories...")
         
-        # Create main workspace directory
-        self.workspace.mkdir(parents=True, exist_ok=True)
+        # Create main workspace directory with sudo and full permissions
+        subprocess.run(["sudo", "mkdir", "-p", str(self.workspace)], check=True)
+        subprocess.run(["sudo", "chmod", "777", str(self.workspace)], check=True)
         
-        # Create chroot directory
-        self.chroot_path.mkdir(parents=True, exist_ok=True)
+        # Create chroot directory with full permissions
+        subprocess.run(["sudo", "mkdir", "-p", str(self.chroot_path)], check=True)
+        subprocess.run(["sudo", "chmod", "777", str(self.chroot_path)], check=True)
         
         # Create additional workspace directories
         dirs = [
@@ -114,20 +116,21 @@ class WorkspaceSetup:
         ]
         
         for directory in dirs:
-            (self.workspace / directory).mkdir(parents=True, exist_ok=True)
+            dir_path = self.workspace / directory
+            subprocess.run(["sudo", "mkdir", "-p", str(dir_path)], check=True)
+            subprocess.run(["sudo", "chmod", "777", str(dir_path)], check=True)
     
     def _set_permissions(self):
         """Set correct permissions for workspace"""
         
         self.logger.info("Setting permissions...")
         
-        # Set world-writable permissions for temp directories
-        temp_dirs = [
-            self.workspace / "tmp"
-        ]
+        # Set full permissions on entire workspace with sudo
+        subprocess.run(["sudo", "chmod", "-R", "777", str(self.workspace)], check=True)
         
-        for directory in temp_dirs:
-            directory.chmod(0o1777)
+        # Specifically set sticky bit on tmp directory
+        tmp_dir = self.workspace / "tmp"
+        subprocess.run(["sudo", "chmod", "1777", str(tmp_dir)], check=True)
     
     def _prepare_mounts(self):
         """Prepare mount points for chroot"""
@@ -145,7 +148,8 @@ class WorkspaceSetup:
         
         for mount in mount_points:
             mount_dir = self.chroot_path / mount
-            mount_dir.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["sudo", "mkdir", "-p", str(mount_dir)], check=True)
+            subprocess.run(["sudo", "chmod", "755", str(mount_dir)], check=True)
     
     # def _save_checkpoint(self, checkpoints: Dict): # Removed
     #     """Save checkpoint data to file""" # Removed

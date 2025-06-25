@@ -64,7 +64,7 @@ class DracutConfig:
         self.logger.info("Removing initramfs-tools...")
         
         subprocess.run([
-            "chroot", str(self.chroot_path),
+            "sudo", "chroot", str(self.chroot_path),
             "apt-get", "remove", "-y", "initramfs-tools"
         ], check=False)  # Don't fail if initramfs-tools isn't installed
     
@@ -74,7 +74,7 @@ class DracutConfig:
         self.logger.info("Installing dracut packages...")
         
         subprocess.run([
-            "chroot", str(self.chroot_path),
+            "sudo", "chroot", str(self.chroot_path),
             "apt-get", "install", "-y",
             "dracut",
             "dracut-core",
@@ -175,8 +175,8 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         chmod_path_setup = "/" + str(module_setup_dst.relative_to(self.chroot_path))
         chmod_path_hook = "/" + str(hook_script_dst.relative_to(self.chroot_path))
 
-        subprocess.run(["chroot", str(self.chroot_path), "chmod", "+x", chmod_path_setup], check=True)
-        subprocess.run(["chroot", str(self.chroot_path), "chmod", "+x", chmod_path_hook], check=True)
+        subprocess.run(["sudo", "chroot", str(self.chroot_path), "chmod", "+x", chmod_path_setup], check=True)
+        subprocess.run(["sudo", "chroot", str(self.chroot_path), "chmod", "+x", chmod_path_hook], check=True)
         self.logger.info(f"Set execute permissions for custom Dracut module scripts in chroot.")
 
         dracut_zforge_conf_path = self.chroot_path / "etc/dracut.conf.d/zforge.conf"
@@ -201,7 +201,7 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         # Find installed kernel
         kernel_version_cmd = "ls -1 /lib/modules | tail -1"
         result = subprocess.run(
-            ["chroot", str(self.chroot_path), "bash", "-c", kernel_version_cmd],
+            ["sudo", "chroot", str(self.chroot_path), "bash", "-c", kernel_version_cmd],
             capture_output=True,
             text=True,
             check=True
@@ -216,14 +216,14 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         
         # Generate initramfs
         subprocess.run([
-            "chroot", str(self.chroot_path),
+            "sudo", "chroot", str(self.chroot_path),
             "dracut", "-f", f"/boot/initramfs-{kernel_version}.img", kernel_version,
             "--force", "--verbose"
         ], check=True)
         
         # Create symbolic link for compatibility
         subprocess.run([
-            "chroot", str(self.chroot_path),
+            "sudo", "chroot", str(self.chroot_path),
             "ln", "-sf", f"initramfs-{kernel_version}.img", f"/boot/initrd.img-{kernel_version}"
         ], check=True)
     
@@ -231,7 +231,7 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         """Get installed dracut version"""
         
         result = subprocess.run(
-            ["chroot", str(self.chroot_path), "dracut", "--version"],
+            ["sudo", "chroot", str(self.chroot_path), "dracut", "--version"],
             capture_output=True,
             text=True
         )

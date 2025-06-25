@@ -63,6 +63,7 @@ class ISOGeneration:
         # Common exclusions: /proc, /sys, /dev, /tmp, /run, /media, /mnt, /var/tmp, /var/cache/apt/archives (if not already cleaned)
         # Also, the squashfs image itself if it were somehow being created inside the chroot.
         mksquashfs_cmd = [
+            "sudo",
             "mksquashfs",
             str(self.chroot_path),  # Source directory
             str(squashfs_image_path), # Output file
@@ -255,6 +256,7 @@ menuentry "Shutdown" {{
         return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
 
     xorriso_cmd = [
+        "sudo",
         "xorriso",
         "-as", "mkisofs",
         "-o", str(final_iso_path),
