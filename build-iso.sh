@@ -30,6 +30,56 @@ WORKSPACE="/tmp/zforge_workspace"
 ISO_OUTPUT="$PWD/zforge-proxmox-v3.iso"
 LOG_FILE="$PWD/zforge-build.log"
 
+# ── Cleanup function and trap ────────────────────────────────────
+cleanup() {
+    local exit_code=$?
+    echo
+    if [[ $exit_code -ne 0 ]]; then
+        echo "[!] Build failed. Cleaning up workspace..." | tee -a "$LOG_FILE"
+    else
+        echo "[*] Build completed. Cleaning up workspace..." | tee -a "$LOG_FILE"
+    fi
+    
+    # Run cleanup script if it exists
+    if [[ -x "$SCRIPT_DIR_ABS/cleanup-workspace.sh" ]]; then
+        "$SCRIPT_DIR_ABS/cleanup-workspace.sh" "$WORKSPACE" || true
+    else
+        # Fallback: basic cleanup
+        echo "[*] Running basic cleanup..." | tee -a "$LOG_FILE"
+        
+        # Unmount any mounted filesystems
+        for mount in dev/pts dev proc sys run; do
+            if mountpoint -q "$WORKSPACE/chroot/$mount" 2>/dev/null; then
+                umount "$WORKSPACE/chroot/$mount" || umount -l "$WORKSPACE/chroot/$mount" || true
+            fi
+        done
+        
+        # Remove workspace
+        rm -rf "$WORKSPACE" || sudo rm -rf "$WORKSPACE" || true
+    fi
+    
+    if [[ $exit_code -ne 0 ]]; then
+        echo "[!] Build failed with exit code: $exit_code" | tee -a "$LOG_FILE"
+    fi
+    
+    exit $exit_code
+}
+
+# Set trap to run cleanup on exit, error, or interrupt
+trap cleanup EXIT INT TERM ERR
+
+# Check if workspace already exists and clean it
+if [[ -d "$WORKSPACE" ]]; then
+    echo "[!] Workspace already exists at ${WORKSPACE}" | tee -a "$LOG_FILE"
+    echo "[*] Cleaning existing workspace..." | tee -a "$LOG_FILE"
+    
+    if [[ -x "$SCRIPT_DIR_ABS/cleanup-workspace.sh" ]]; then
+        "$SCRIPT_DIR_ABS/cleanup-workspace.sh" "$WORKSPACE"
+    else
+        rm -rf "$WORKSPACE" || sudo rm -rf "$WORKSPACE"
+    fi
+fi
+
 echo "[*] Creating workspace at ${WORKSPACE}…" ; mkdir -p "$WORKSPACE"
 echo "[*] Build started at $(date)" | tee  "$LOG_FILE"
 

@@ -97,6 +97,32 @@ class WorkspaceSetup:
         
         self.logger.info("Creating directories...")
         
+        # Check if workspace already exists and has content
+        if self.workspace.exists() and any(self.workspace.iterdir()):
+            self.logger.warning(f"Workspace {self.workspace} already exists with content!")
+            # Try to clean it up
+            self.logger.info("Attempting to clean existing workspace...")
+            try:
+                # First unmount any filesystems that might be mounted
+                chroot_mounts = ["dev/pts", "dev", "proc", "sys", "run"]
+                for mount in chroot_mounts:
+                    mount_path = self.workspace / "chroot" / mount
+                    if mount_path.exists():
+                        try:
+                            subprocess.run(["sudo", "mountpoint", "-q", str(mount_path)], 
+                                         capture_output=True, check=True)
+                            # If mountpoint succeeds, it's mounted
+                            subprocess.run(["sudo", "umount", str(mount_path)], 
+                                         capture_output=True, check=False)
+                        except:
+                            pass  # Not mounted or error, continue
+                
+                # Remove the workspace
+                subprocess.run(["sudo", "rm", "-rf", str(self.workspace)], check=True)
+                self.logger.info("Successfully cleaned existing workspace")
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"Failed to clean existing workspace: {e}")
+        
         # Create main workspace directory with sudo and full permissions
         subprocess.run(["sudo", "mkdir", "-p", str(self.workspace)], check=True)
         subprocess.run(["sudo", "chmod", "777", str(self.workspace)], check=True)
@@ -125,12 +151,42 @@ class WorkspaceSetup:
         
         self.logger.info("Setting permissions...")
         
-        # Set full permissions on entire workspace with sudo
-        subprocess.run(["sudo", "chmod", "-R", "777", str(self.workspace)], check=True)
+        # Use find to set permissions while excluding special filesystems
+        # This prevents errors when /proc, /sys, /dev are mounted
+        find_cmd = [
+            "sudo", "find", str(self.workspace),
+            # Exclude special filesystem directories
+            "-path", f"{self.workspace}/chroot/proc", "-prune", "-o",
+            "-path", f"{self.workspace}/chroot/sys", "-prune", "-o",
+            "-path", f"{self.workspace}/chroot/dev", "-prune", "-o",
+            "-path", f"{self.workspace}/chroot/run", "-prune", "-o",
+            # For all other files/directories, set permissions
+            "-type", "d", "-exec", "chmod", "777", "{}", "+",
+            "-o", "-type", "f", "-exec", "chmod", "666", "{}", "+"
+        ]
+        
+        try:
+            subprocess.run(find_cmd, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            # If find fails, try a more aggressive approach
+            self.logger.warning(f"Find command failed: {e}, trying alternative approach")
+            
+            # Set permissions on workspace root and direct subdirectories only
+            subprocess.run(["sudo", "chmod", "777", str(self.workspace)], check=True)
+            
+            # Set permissions on each subdirectory individually, skipping chroot
+            for item in self.workspace.iterdir():
+                if item.name != "chroot" and item.is_dir():
+                    subprocess.run(["sudo", "chmod", "-R", "777", str(item)], check=True)
+            
+            # For chroot, only set permissions on the directory itself, not recursively
+            if self.chroot_path.exists():
+                subprocess.run(["sudo", "chmod", "777", str(self.chroot_path)], check=True)
         
         # Specifically set sticky bit on tmp directory
         tmp_dir = self.workspace / "tmp"
-        subprocess.run(["sudo", "chmod", "1777", str(tmp_dir)], check=True)
+        if tmp_dir.exists():
+            subprocess.run(["sudo", "chmod", "1777", str(tmp_dir)], check=True)
     
     def _prepare_mounts(self):
         """Prepare mount points for chroot"""

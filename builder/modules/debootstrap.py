@@ -87,10 +87,21 @@ class Debootstrap:
             # Ensure the chroot parent directory exists with proper permissions.
             self.chroot_path.mkdir(parents=True, exist_ok=True)
             
-            # Set maximum permissions on workspace and chroot directories
+            # Set permissions on workspace directories, but avoid special filesystems
             self.logger.info("Setting permissions on workspace directories...")
-            subprocess.run(["sudo", "chmod", "-R", "777", str(self.workspace)], check=True)
+            # Only set permissions on the workspace root and chroot directory itself
+            # Avoid recursive chmod that might hit mounted filesystems
+            subprocess.run(["sudo", "chmod", "777", str(self.workspace)], check=True)
             subprocess.run(["sudo", "chmod", "777", str(self.chroot_path)], check=True)
+            
+            # Set permissions on workspace subdirectories individually, avoiding chroot
+            for item in self.workspace.iterdir():
+                if item.name != "chroot" and item.is_dir():
+                    try:
+                        subprocess.run(["sudo", "chmod", "-R", "777", str(item)], check=True)
+                    except subprocess.CalledProcessError:
+                        # If setting permissions fails, just log and continue
+                        self.logger.warning(f"Could not set permissions on {item}, continuing...")
 
             # Step 1: Run the debootstrap command.
             self._run_debootstrap(debian_release)
@@ -153,6 +164,25 @@ class Debootstrap:
         """
 
         self.logger.info(f"Running debootstrap for Debian {debian_release} into {self.chroot_path}...")
+        
+        # Verify chroot directory exists and has proper permissions
+        self.logger.info(f"Verifying chroot directory: {self.chroot_path}")
+        if not self.chroot_path.exists():
+            self.logger.error(f"Chroot directory does not exist: {self.chroot_path}")
+            raise RuntimeError(f"Chroot directory missing: {self.chroot_path}")
+        
+        # Check permissions
+        import os
+        stat_info = os.stat(self.chroot_path)
+        self.logger.info(f"Chroot directory permissions: {oct(stat_info.st_mode)}, owned by {stat_info.st_uid}:{stat_info.st_gid}")
+        
+        # Ensure directory is writable
+        if not os.access(self.chroot_path, os.W_OK):
+            self.logger.error("Chroot directory is not writable!")
+            # Try to fix permissions
+            self.logger.info("Attempting to fix chroot directory permissions...")
+            subprocess.run(["sudo", "chmod", "777", str(self.chroot_path)], check=True)
+            subprocess.run(["sudo", "chown", f"{os.getuid()}:{os.getgid()}", str(self.chroot_path)], check=True)
 
         # Define essential packages to include in the base system.
         include_packages: List[str] = [
@@ -176,6 +206,7 @@ class Debootstrap:
         cmd: List[str] = [
             "sudo",
             "debootstrap",
+            "--verbose",      # Add verbose flag for more detailed output
             "--arch=amd64",
             f"--include={','.join(include_packages)}",
             debian_release,
@@ -184,9 +215,32 @@ class Debootstrap:
         ]
         
         self.logger.info(f"Executing debootstrap command: {' '.join(cmd)}")
-        # Execute the command, raising an exception on failure.
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-        self.logger.info("Debootstrap command completed successfully.")
+        # Execute the command with a 30-minute timeout for the initial debootstrap
+        # This process downloads many packages and can take time on slow connections
+        try:
+            # Run without capturing output initially to see real-time progress
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=1800)  # 30 minutes
+            
+            if result.stdout:
+                self.logger.debug(f"Debootstrap stdout:\n{result.stdout}")
+            if result.stderr:
+                self.logger.warning(f"Debootstrap stderr:\n{result.stderr}")
+                
+            self.logger.info("Debootstrap command completed successfully.")
+        except subprocess.TimeoutExpired as e:
+            self.logger.error("Debootstrap command timed out after 30 minutes")
+            if e.stdout:
+                self.logger.error(f"Partial stdout:\n{e.stdout}")
+            if e.stderr:
+                self.logger.error(f"Partial stderr:\n{e.stderr}")
+            raise
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Debootstrap failed with exit code {e.returncode}")
+            if e.stdout:
+                self.logger.error(f"Stdout:\n{e.stdout}")
+            if e.stderr:
+                self.logger.error(f"Stderr:\n{e.stderr}")
+            raise
     
     def _configure_system(self, debian_release: str) -> None:
         """
@@ -347,7 +401,7 @@ add_drivers+=" nvme "
         self.logger.info(f"Dracut configuration written to {dracut_conf_file}")
         self.logger.info("Dracut installation and basic configuration completed.")
     
-    def _run_chroot_command(self, command: List[str], check: bool = True) -> subprocess.CompletedProcess:
+    def _run_chroot_command(self, command: List[str], check: bool = True, timeout: Optional[int] = None) -> subprocess.CompletedProcess:
         """
         Helper method to run a command within the chroot environment.
 
@@ -355,27 +409,50 @@ add_drivers+=" nvme "
             command: A list of strings representing the command and its arguments.
             check: If True, a `subprocess.CalledProcessError` will be raised
                    if the command returns a non-zero exit code. Defaults to True.
+            timeout: Optional timeout in seconds. Defaults to 300 (5 minutes).
 
         Returns:
             A `subprocess.CompletedProcess` instance.
 
         Raises:
             subprocess.CalledProcessError: If `check` is True and the command fails.
+            subprocess.TimeoutExpired: If the command times out.
         """
+        
+        # Set default timeout
+        if timeout is None:
+            timeout = 300  # 5 minutes default
+        
+        # Prepend environment variables for apt/dpkg commands to run non-interactively
+        if command[0] in ["apt-get", "apt", "dpkg", "dpkg-reconfigure"]:
+            # Add environment variables inside the chroot
+            command = ["env", "DEBIAN_FRONTEND=noninteractive", "APT_LISTCHANGES_FRONTEND=none"] + command
+            self.logger.debug("Setting non-interactive environment for package management command")
+            
+            # Add -y flag to apt-get commands if not present
+            if command[2] in ["apt-get", "apt"] and "-y" not in command:
+                # Find the subcommand position (install, remove, etc.)
+                subcommand_idx = 3
+                if subcommand_idx < len(command) and command[subcommand_idx] in ["install", "remove", "upgrade", "dist-upgrade", "autoremove"]:
+                    command.insert(subcommand_idx + 1, "-y")
         
         # Prepend "chroot" and the chroot path to the command.
         full_cmd: List[str] = ["sudo", "chroot", str(self.chroot_path)] + command
         self.logger.info(f"Executing in chroot: {' '.join(command)}")
         
-        # Run the command.
-        # `text=True` decodes stdout/stderr as strings.
-        # `capture_output=True` is useful if we need to inspect output/errors from this helper.
-        result = subprocess.run(full_cmd, check=check, capture_output=True, text=True)
-        if result.stdout:
-            self.logger.debug(f"Chroot command stdout: {result.stdout.strip()}")
-        if result.stderr:
-            self.logger.debug(f"Chroot command stderr: {result.stderr.strip()}") # Use debug for stderr as it might be noisy
-        return result
+        try:
+            # Run the command with timeout.
+            # `text=True` decodes stdout/stderr as strings.
+            # `capture_output=True` is useful if we need to inspect output/errors from this helper.
+            result = subprocess.run(full_cmd, check=check, capture_output=True, text=True, timeout=timeout)
+            if result.stdout:
+                self.logger.debug(f"Chroot command stdout: {result.stdout.strip()}")
+            if result.stderr:
+                self.logger.debug(f"Chroot command stderr: {result.stderr.strip()}") # Use debug for stderr as it might be noisy
+            return result
+        except subprocess.TimeoutExpired as e:
+            self.logger.error(f"Command timed out after {timeout} seconds: {' '.join(command)}")
+            raise
     
     def _mount_chroot_filesystems(self) -> None:
         """
