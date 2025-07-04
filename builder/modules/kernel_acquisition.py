@@ -243,28 +243,21 @@ class KernelAcquisition:
         # Update package lists
         self._run_chroot_command(["apt-get", "update"])
         
-        # Install necessary packages
-        required_packages = [
-            "dracut",
-            "dracut-core",
-            "linux-base",
-            "initramfs-tools",
-            "zfsutils-linux",
-            "zfs-dkms",
-            "dkms"
-        ]
+        # Split package installation into groups to isolate failures
+        # Base ZFS/DKMS/Dracut dependencies
+        base_packages = ["linux-base", "dkms"]
+        dracut_packages = ["dracut", "dracut-core"] # initramfs-tools is intentionally omitted here
+        zfs_packages = ["zfsutils-linux", "zfs-dkms"]
         
-        # Add encryption-related packages if needed
+        package_groups_to_install = [base_packages, dracut_packages, zfs_packages]
+
         if zfs_encryption_enabled:
-            required_packages.extend([
-                "cryptsetup",
-                "keyutils",
-                "libpam-zfs"
-            ])
-        
+            crypt_packages = ["cryptsetup", "keyutils", "libpam-zfs"]
+            package_groups_to_install.append(crypt_packages)
+
         # For source builds, we need additional packages
         if self.build_from_source:
-            required_packages.extend([
+            source_build_packages = [
                 "build-essential",
                 "libncurses-dev",
                 "bison",
@@ -272,12 +265,23 @@ class KernelAcquisition:
                 "libssl-dev",
                 "libelf-dev",
                 "bc"
-            ])
-        
-        # Install all required packages
-        self._run_chroot_command([
-            "apt-get", "install", "-y", "--no-install-recommends"
-        ] + required_packages)
+            ]
+            # Add as a separate group or extend an existing one.
+            # For simplicity, adding as a new group.
+            package_groups_to_install.append(source_build_packages)
+
+        for package_group in package_groups_to_install:
+            if not package_group: # Skip empty groups
+                continue
+            try:
+                self.logger.info(f"Installing package group: {', '.join(package_group)}")
+                self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends"] + package_group)
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"Failed to install {package_group}: {e.stderr if e.stderr else e.stdout}")
+                # Decide if we should raise, or continue as per patch instruction "Continue with next group"
+                self.logger.warning(f"Continuing with the next package group despite previous error.")
+                # If a critical group like dkms or zfs-dkms fails, subsequent steps might also fail.
+                # The original patch implies just logging and continuing.
         
         # Ensure /boot is properly mounted if it's a separate partition
         # This is normally handled by the earlier debootstrap module

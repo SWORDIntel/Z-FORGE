@@ -1,0 +1,71 @@
+2025-07-04 01:01:00,259 - ZForge - INFO - Starting Z-Forge build pipeline
+2025-07-04 01:01:00,259 - ZForge - INFO - Executing modules: WorkspaceSetup, Debootstrap, KernelAcquisition, ZFSBuild, DracutConfig, ProxmoxIntegration, LiveEnvironment, CalamaresIntegration, KDEThemeConfig, DellR730xdOptimize, ISOGeneration
+2025-07-04 01:01:00,259 - ZForge - INFO - No specific resume data found for module WorkspaceSetup, will be called with None.
+2025-07-04 01:01:00,259 - ZForge - INFO - Executing module: WorkspaceSetup
+2025-07-04 01:01:00,265 - WorkspaceSetup - INFO - Setting up workspace...
+2025-07-04 01:01:00,265 - WorkspaceSetup - INFO - Creating directories...
+2025-07-04 01:01:00,265 - WorkspaceSetup - WARNING - Workspace /tmp/zforge_workspace already exists with content!
+2025-07-04 01:01:00,265 - WorkspaceSetup - INFO - Attempting to clean existing workspace...
+2025-07-04 01:01:02,591 - WorkspaceSetup - INFO - Successfully cleaned existing workspace
+2025-07-04 01:01:02,860 - WorkspaceSetup - INFO - Setting permissions...
+2025-07-04 01:01:02,894 - WorkspaceSetup - INFO - Preparing mounts...
+2025-07-04 01:01:03,068 - WorkspaceSetup - INFO - Workspace setup complete: /tmp/zforge_workspace
+2025-07-04 01:01:03,068 - ZForge - INFO - Saving build progress to /tmp/zforge_workspace/build_progress.json
+2025-07-04 01:01:03,069 - ZForge - INFO - No specific resume data found for module Debootstrap, will be called with None.
+2025-07-04 01:01:03,069 - ZForge - INFO - Executing module: Debootstrap
+2025-07-04 01:01:03,070 - Debootstrap - INFO - Starting debootstrap process...
+2025-07-04 01:01:03,070 - Debootstrap - INFO - Setting permissions on workspace directories...
+2025-07-04 01:01:03,177 - Debootstrap - INFO - Running debootstrap for Debian bookworm into /tmp/zforge_workspace/chroot...
+2025-07-04 01:01:03,178 - Debootstrap - INFO - Verifying chroot directory: /tmp/zforge_workspace/chroot
+2025-07-04 01:01:03,178 - Debootstrap - INFO - Chroot directory permissions: 0o40777, owned by 0:0
+2025-07-04 01:01:03,178 - Debootstrap - INFO - Executing debootstrap command: sudo debootstrap --verbose --arch=amd64 --include=locales,linux-base,sudo,bash-completion,apt-transport-https,ca-certificates,curl,wget,gnupg,gpgv bookworm /tmp/zforge_workspace/chroot http://deb.debian.org/debian
+2025-07-04 01:03:46,531 - Debootstrap - INFO - Debootstrap command completed successfully.
+2025-07-04 01:03:46,531 - Debootstrap - INFO - Mounting essential filesystems in chroot...
+2025-07-04 01:03:46,646 - Debootstrap - INFO - Configuring basic system settings in chroot...
+2025-07-04 01:03:46,647 - Debootstrap - INFO - Updating package lists and upgrading packages in chroot...
+2025-07-04 01:03:46,647 - Debootstrap - INFO - Executing in chroot: env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get update
+2025-07-04 01:03:49,666 - Debootstrap - INFO - Executing in chroot: env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get upgrade -y
+2025-07-04 01:04:01,806 - Debootstrap - INFO - Installing essential packages: build-essential, python3, python3-distutils, vim, nano, less, htop, net-tools, iproute2, iputils-ping
+2025-07-04 01:04:01,806 - Debootstrap - INFO - Executing in chroot: env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get install -y build-essential python3 python3-distutils vim nano less htop net-tools iproute2 iputils-ping
+2025-07-04 01:04:36,682 - Debootstrap - INFO - Generating en_US.UTF-8 locale...
+2025-07-04 01:04:36,710 - Debootstrap - INFO - Executing in chroot: locale-gen en_US.UTF-8
+2025-07-04 01:04:36,750 - Debootstrap - INFO - Setting timezone to UTC...
+2025-07-04 01:04:36,750 - Debootstrap - INFO - Executing in chroot: ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+2025-07-04 01:04:36,767 - Debootstrap - INFO - Basic system configuration in chroot completed.
+2025-07-04 01:04:36,767 - Debootstrap - INFO - Installing and configuring dracut in chroot...
+2025-07-04 01:04:36,767 - Debootstrap - INFO - Executing in chroot: env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get remove -y initramfs-tools
+2025-07-04 01:04:37,219 - Debootstrap - INFO - Installing dracut packages: dracut, dracut-core, dracut-network, dracut-squash
+2025-07-04 01:04:37,219 - Debootstrap - INFO - Executing in chroot: env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get install -y dracut dracut-core dracut-network dracut-squash
+2025-07-04 01:04:55,061 - Debootstrap - INFO - Dracut configuration written to /tmp/zforge_workspace/chroot/etc/dracut.conf.d/zforge.conf
+2025-07-04 01:04:55,061 - Debootstrap - INFO - Dracut installation and basic configuration completed.
+2025-07-04 01:04:55,061 - Debootstrap - INFO - Unmounting chroot filesystems...
+2025-07-04 01:04:55,177 - Debootstrap - INFO - Debootstrap completed successfully for Debian bookworm.
+2025-07-04 01:04:55,177 - ZForge - INFO - Saving build progress to /tmp/zforge_workspace/build_progress.json
+2025-07-04 01:04:55,178 - ZForge - INFO - No specific resume data found for module KernelAcquisition, will be called with None.
+2025-07-04 01:04:55,178 - ZForge - INFO - Executing module: KernelAcquisition
+2025-07-04 01:04:55,342 - KernelAcquisition - INFO - Starting Linux kernel acquisition process...
+2025-07-04 01:04:55,343 - KernelAcquisition - INFO - ZFS native encryption is enabled - ensuring kernel has required support
+2025-07-04 01:04:55,343 - KernelAcquisition - INFO - Fetching latest stable kernel version from https://www.kernel.org/releases.json...
+2025-07-04 01:04:55,471 - KernelAcquisition - INFO - Latest stable kernel version found: 6.15.4
+2025-07-04 01:04:55,471 - KernelAcquisition - INFO - Target kernel version: 6.15.4
+2025-07-04 01:04:55,472 - KernelAcquisition - INFO - Preparing chroot environment for kernel installation...
+2025-07-04 01:04:55,472 - KernelAcquisition - INFO - Executing in chroot: apt-get update
+2025-07-04 01:05:08,065 - KernelAcquisition - DEBUG - Chroot command stdout: Hit:1 http://security.debian.org/debian-security bookworm-security InRelease
+Hit:2 http://deb.debian.org/debian bookworm InRelease
+Hit:3 http://deb.debian.org/debian bookworm-updates InRelease
+Hit:4 http://deb.debian.org/debian bookworm-backports InRelease
+Reading package lists...
+2025-07-04 01:05:08,066 - KernelAcquisition - INFO - Executing in chroot: apt-get install -y --no-install-recommends dracut dracut-core linux-base initramfs-tools zfsutils-linux zfs-dkms dkms cryptsetup keyutils libpam-zfs
+2025-07-04 01:05:08,468 - KernelAcquisition - ERROR - Kernel acquisition failed: Command '['chroot', '/tmp/zforge_workspace/chroot', 'apt-get', 'install', '-y', '--no-install-recommends', 'dracut', 'dracut-core', 'linux-base', 'initramfs-tools', 'zfsutils-linux', 'zfs-dkms', 'dkms', 'cryptsetup', 'keyutils', 'libpam-zfs']' returned non-zero exit status 100.
+Traceback (most recent call last):
+  File "/app/builder/modules/kernel_acquisition.py", line 130, in execute
+    self._prepare_chroot_environment(zfs_encryption_enabled)
+  File "/app/builder/modules/kernel_acquisition.py", line 278, in _prepare_chroot_environment
+    self._run_chroot_command([
+  File "/app/builder/modules/kernel_acquisition.py", line 187, in _run_chroot_command
+    result = subprocess.run(full_cmd, check=check, capture_output=True, text=True, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.11/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['chroot', '/tmp/zforge_workspace/chroot', 'apt-get', 'install', '-y', '--no-install-recommends', 'dracut', 'dracut-core', 'linux-base', 'initramfs-tools', 'zfsutils-linux', 'zfs-dkms', 'dkms', 'cryptsetup', 'keyutils', 'libpam-zfs']' returned non-zero exit status 100.
+2025-07-04 01:05:08,470 - ZForge - ERROR - Module KernelAcquisition failed: Command '['chroot', '/tmp/zforge_workspace/chroot', 'apt-get', 'install', '-y', '--no-install-recommends', 'dracut', 'dracut-core', 'linux-base', 'initramfs-tools', 'zfsutils-linux', 'zfs-dkms', 'dkms', 'cryptsetup', 'keyutils', 'libpam-zfs']' returned non-zero exit status 100.

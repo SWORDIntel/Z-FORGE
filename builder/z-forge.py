@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 # Add builder modules to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.builder import ZForgeBuilder
 from core.config import BuildConfig
 from core.lockfile import BuildLockfile
@@ -97,8 +97,8 @@ def execute_new_build(options: Dict):
     builder = ZForgeBuilder(config_path)
     
     # Update build config with encryption settings
-    if options.get('encryption', {}).get('enabled', False):
-        builder.update_encryption_settings(options['encryption'])
+    # if options.get('encryption', {}).get('enabled', False):
+    #     builder.update_encryption_settings(options['encryption'])
     
     # Create build lockfile
     lockfile = BuildLockfile(Path("build_spec.lock"))
