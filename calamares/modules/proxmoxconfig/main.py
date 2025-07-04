@@ -12,17 +12,9 @@ import os
 import socket
 import json
 import shutil
-import sys
 from pathlib import Path
 import libcalamares
 from libcalamares.utils import check_target_env_call, target_env_call
-
-# Add parent directory to path to import from builder.utils
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-try:
-    from builder.utils.pci_detection import PCIDetector
-except ImportError:
-    PCIDetector = None
 
 def pretty_name():
     return "Configuring Proxmox VE"
@@ -263,36 +255,14 @@ iface vmbr0 inet dhcp
                 grub_content = f.read()
             
             # Configure with specific parameters for each server
-            base_params = "console=tty0 console=ttyS0,115200n8"
-            
-            # Try to detect optimal PCI parameters
-            additional_params = []
-            if PCIDetector:
-                try:
-                    detector = PCIDetector()
-                    pci_params = detector.get_optimal_kernel_params()
-                    if pci_params:
-                        additional_params.extend(pci_params)
-                        libcalamares.utils.debug(f"Auto-detected PCI parameters: {pci_params}")
-                        
-                        # Generate and log detection report
-                        report = detector.generate_report()
-                        libcalamares.utils.debug("PCI Detection Report:")
-                        for line in report.split('\n'):
-                            libcalamares.utils.debug(f"  {line}")
-                except Exception as e:
-                    libcalamares.utils.debug(f"PCI detection failed: {e}")
-            
             if is_dell_r420:
                 # R420 serial console config
-                kernel_params = [base_params] + additional_params
                 grub_content = grub_content.replace('GRUB_CMDLINE_LINUX=""', 
-                                                  f'GRUB_CMDLINE_LINUX="{" ".join(kernel_params)}"')
+                                                  'GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200n8"')
             elif is_dell_r730xd:
                 # R730xd has more CPU cores, add mitigations=auto,nosmt for better performance
-                kernel_params = [base_params, "mitigations=auto,nosmt"] + additional_params
                 grub_content = grub_content.replace('GRUB_CMDLINE_LINUX=""', 
-                                                  f'GRUB_CMDLINE_LINUX="{" ".join(kernel_params)}"')
+                                                  'GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200n8 mitigations=auto,nosmt"')
             
             # Common serial console settings
             grub_content = grub_content.replace('#GRUB_TERMINAL=console', 
@@ -1119,159 +1089,10 @@ Categories=System;
         f.write(shortcut)
     os.chmod(shortcut_path, 0o755)
 
-def create_pci_detection_script():
-    """Create PCI detection diagnostic script"""
-    
-    script_content = '''#!/usr/bin/env python3
-"""
-PCI Detection Diagnostic Script
-Run this to check NVMe and PCI device detection
-"""
-
-import subprocess
-import re
-from pathlib import Path
-
-def detect_nvme_devices():
-    """Simple NVMe detection for diagnostic purposes"""
-    print("Detecting NVMe devices...")
-    print("-" * 50)
-    
-    try:
-        # Run lspci to find NVMe controllers
-        result = subprocess.run(['lspci', '-nn'], capture_output=True, text=True)
-        
-        nvme_found = False
-        for line in result.stdout.splitlines():
-            if '[0108]' in line or 'Non-Volatile memory controller' in line:
-                nvme_found = True
-                pci_addr = line.split()[0]
-                print(f"Found NVMe controller at PCI address: {pci_addr}")
-                print(f"  Description: {line}")
-                
-                # Try to find associated block device
-                nvme_path = f"/sys/bus/pci/devices/0000:{pci_addr}/nvme"
-                if Path(nvme_path).exists():
-                    for nvme_dev in Path(nvme_path).iterdir():
-                        if nvme_dev.is_dir():
-                            print(f"  Block device: /dev/{nvme_dev.name}")
-                
-                # Get more details
-                detail = subprocess.run(['lspci', '-vvs', pci_addr], 
-                                      capture_output=True, text=True)
-                for detail_line in detail.stdout.splitlines():
-                    if "LnkSta:" in detail_line:
-                        print(f"  PCIe Link: {detail_line.strip()}")
-                print()
-        
-        if not nvme_found:
-            print("No NVMe devices detected")
-            
-    except Exception as e:
-        print(f"Error detecting NVMe devices: {e}")
-
-def check_kernel_params():
-    """Check current kernel parameters"""
-    print("\\nCurrent kernel command line:")
-    print("-" * 50)
-    try:
-        with open('/proc/cmdline', 'r') as f:
-            cmdline = f.read().strip()
-            print(cmdline)
-            
-            # Check for PCI-related parameters
-            pci_params = []
-            for param in cmdline.split():
-                if param.startswith('pci=') or param.startswith('pcie_'):
-                    pci_params.append(param)
-            
-            if pci_params:
-                print("\\nPCI-related parameters found:")
-                for param in pci_params:
-                    print(f"  - {param}")
-            else:
-                print("\\nNo PCI-related parameters found")
-                
-    except Exception as e:
-        print(f"Error reading kernel parameters: {e}")
-
-def check_dell_model():
-    """Check if running on Dell hardware"""
-    print("\\nSystem Information:")
-    print("-" * 50)
-    try:
-        if Path("/sys/class/dmi/id/product_name").exists():
-            with open("/sys/class/dmi/id/product_name", "r") as f:
-                product = f.read().strip()
-                print(f"Product: {product}")
-                
-        if Path("/sys/class/dmi/id/sys_vendor").exists():
-            with open("/sys/class/dmi/id/sys_vendor", "r") as f:
-                vendor = f.read().strip()
-                print(f"Vendor: {vendor}")
-                
-    except Exception as e:
-        print(f"Error reading system information: {e}")
-
-def suggest_kernel_params():
-    """Suggest kernel parameters based on detected hardware"""
-    print("\\nRecommended kernel parameters:")
-    print("-" * 50)
-    
-    suggestions = []
-    
-    # Check if NVMe devices exist
-    if Path("/sys/class/nvme").exists() and list(Path("/sys/class/nvme").iterdir()):
-        suggestions.append("nvme_core.default_ps_max_latency_us=0  # Disable NVMe power saving")
-        
-    # Check for Dell R730xd
-    try:
-        with open("/sys/class/dmi/id/product_name", "r") as f:
-            if "R730xd" in f.read():
-                suggestions.extend([
-                    "pci=realloc=on  # Enable PCI BAR reallocation for R730xd",
-                    "pcie_aspm=off   # Disable PCIe ASPM for stability",
-                    "intel_iommu=on  # Enable VT-d for virtualization"
-                ])
-    except:
-        pass
-    
-    if suggestions:
-        for suggestion in suggestions:
-            print(f"  {suggestion}")
-    else:
-        print("  No specific recommendations")
-
-if __name__ == "__main__":
-    print("Z-FORGE PCI Detection Diagnostic")
-    print("=" * 50)
-    print()
-    
-    check_dell_model()
-    detect_nvme_devices()
-    check_kernel_params()
-    suggest_kernel_params()
-    
-    print("\\nDiagnostic complete.")
-'''
-    
-    # Save the script
-    target_root = libcalamares.globalstorage.value("rootMountPoint")
-    script_path = os.path.join(target_root, "usr/local/bin/pci-detect-diag.py")
-    
-    with open(script_path, 'w') as f:
-        f.write(script_content)
-    os.chmod(script_path, 0o755)
-    
-    libcalamares.utils.debug("Created PCI detection diagnostic script")
-
 def create_post_install_notes(is_dell_r420=False, is_dell_r730xd=False):
     """Create post-installation notes"""
     
     libcalamares.utils.debug("Creating post-install notes")
-    
-    # Create PCI detection script first
-    create_pci_detection_script()
     
     post_install_notes = """# Z-Forge Proxmox VE - Post-Installation Notes
 
@@ -1307,20 +1128,10 @@ The following R730xd-specific optimizations have been applied:
 - Serial console enabled (115200 baud, ttyS0)
 - Dell OpenManage Server Administrator installed
 - IPMI and iDRAC configuration with fan control
-- NVMe and SSD optimizations with automatic PCI detection
+- NVMe and SSD optimizations
 - CPU performance tuning with SMT optimizations
 - RAID monitoring and alerts configured
 - Hardware sensor monitoring enabled
-- Automatic PCI BAR reallocation for NVMe cards (if detected)
-
-### NVMe PCI Detection
-
-The installer automatically detected your NVMe configuration and applied
-appropriate kernel parameters. To check the detection results, run:
-
-    python3 /usr/local/bin/pci-detect-diag.py
-
-This will show detected NVMe devices and current kernel parameters.
 """
 
     post_install_notes += """
