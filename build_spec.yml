@@ -1,6 +1,6 @@
 # Z-Forge Build Configuration for PowerEdge R730xd
 builder_config:
-  debian_release: bookworm
+  debian_release: trixie
   kernel_version: latest
   output_iso_name: zforge-r730xd-proxmox-v3.iso
   enable_debug: true
@@ -132,7 +132,7 @@ modules:
   - name: KDEThemeConfig # Added KDEThemeConfig module
     enabled: true
   - name: DellR730xdOptimize
-    enabled: true
+    enabled: false  # Module not yet implemented
   - name: ISOGeneration
     enabled: true
 

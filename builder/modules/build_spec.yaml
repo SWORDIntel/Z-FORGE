@@ -1,5 +1,5 @@
 builder_config:
-  debian_release: sid
+  debian_release: trixie
   kernel_version: latest
   output_iso_name: zforge-proxmox-v3.iso
   enable_debug: true

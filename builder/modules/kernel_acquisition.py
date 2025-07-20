@@ -179,6 +179,20 @@ class KernelAcquisition:
         if not self.chroot_path.exists():
             raise FileNotFoundError(f"Chroot directory {self.chroot_path} does not exist. Has debootstrap been run?")
         
+        # Set up environment for non-interactive package installation
+        env = os.environ.copy()
+        env['DEBIAN_FRONTEND'] = 'noninteractive'
+        env['DEBCONF_NONINTERACTIVE_SEEN'] = 'true'
+        env['LC_ALL'] = 'C'
+        env['LANG'] = 'C'
+        
+        # Merge with any provided environment
+        if 'env' in kwargs:
+            env.update(kwargs['env'])
+            kwargs['env'] = env
+        else:
+            kwargs['env'] = env
+        
         # Prepare the full command
         full_cmd = ["chroot", str(self.chroot_path)] + command
         self.logger.info(f"Executing in chroot: {' '.join(command)}")
@@ -240,16 +254,44 @@ class KernelAcquisition:
         """
         self.logger.info("Preparing chroot environment for kernel installation...")
         
-        # Update package lists
-        self._run_chroot_command(["apt-get", "update"])
+        # Generate locale to prevent perl warnings
+        self.logger.info("Generating locale configuration...")
+        try:
+            self._run_chroot_command(["locale-gen", "en_US.UTF-8"])
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to generate locale: {e}")
+        
+        # Ensure wget is installed for downloading GPG keys
+        try:
+            self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends", "wget", "curl", "ca-certificates"])
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to install wget/curl: {e}")
+        
+        # Update package lists with retry
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self._run_chroot_command(["apt-get", "update"])
+                break
+            except subprocess.CalledProcessError as e:
+                if attempt < max_retries - 1:
+                    self.logger.warning(f"apt-get update failed (attempt {attempt + 1}/{max_retries}), retrying...")
+                    time.sleep(5)
+                else:
+                    raise
         
         # Split package installation into groups to isolate failures
-        # Base ZFS/DKMS/Dracut dependencies
-        base_packages = ["linux-base", "dkms"]
+        # Base packages first
+        base_packages = ["linux-base"]
+        # Install kernel headers before DKMS (required for module compilation)
+        kernel_packages = ["linux-headers-amd64", "linux-image-amd64"]
+        # Then DKMS and dracut
+        dkms_packages = ["dkms"]
         dracut_packages = ["dracut", "dracut-core"] # initramfs-tools is intentionally omitted here
+        # Finally ZFS packages (requires DKMS and kernel headers)
         zfs_packages = ["zfsutils-linux", "zfs-dkms"]
         
-        package_groups_to_install = [base_packages, dracut_packages, zfs_packages]
+        package_groups_to_install = [base_packages, kernel_packages, dkms_packages, dracut_packages, zfs_packages]
 
         if zfs_encryption_enabled:
             crypt_packages = ["cryptsetup", "keyutils", "libpam-zfs"]
@@ -314,18 +356,15 @@ class KernelAcquisition:
             # Check for specific proxmox kernel first
             proxmox_major_version = self.config.get('proxmox_config', {}).get('version', 'latest')
             if proxmox_major_version == 'latest':
-                # Use Proxmox 8.x kernel by default
-                kernel_image_pkg = "proxmox-kernel-6.8"
-                kernel_headers_pkg = "proxmox-kernel-headers-6.8"
+                # Use standard Debian kernel by default to avoid dependency issues
+                # Proxmox kernels will be handled by ProxmoxIntegration module
+                kernel_image_pkg = "linux-image-amd64"
+                kernel_headers_pkg = "linux-headers-amd64"
             else:
                 # Try to match based on Proxmox version
-                # For now, hardcode some known good matchings
-                if proxmox_major_version.startswith("8"):
-                    kernel_image_pkg = "proxmox-kernel-6.8"
-                    kernel_headers_pkg = "proxmox-kernel-headers-6.8"
-                else:
-                    kernel_image_pkg = "linux-image-amd64"
-                    kernel_headers_pkg = "linux-headers-amd64"
+                # For now, use standard kernel to avoid dependency issues
+                kernel_image_pkg = "linux-image-amd64"
+                kernel_headers_pkg = "linux-headers-amd64"
         else:
             # Fallback to direct name
             kernel_image_pkg = f"linux-image-{requested_version}"
@@ -339,12 +378,37 @@ class KernelAcquisition:
             # Add Proxmox repositories if needed
             if "proxmox" in kernel_image_pkg:
                 self._configure_proxmox_repo()
-            
-            # Install the kernel packages
-            self._run_chroot_command([
-                "apt-get", "install", "-y", "--no-install-recommends",
-                kernel_image_pkg, kernel_headers_pkg
-            ])
+                
+                # For Proxmox kernels, try to find available packages
+                try:
+                    # Search for available Proxmox kernel packages
+                    search_result = self._run_chroot_command([
+                        "apt-cache", "search", "^proxmox-kernel-6"
+                    ])
+                    available_packages = search_result.stdout.strip()
+                    self.logger.info(f"Available Proxmox kernel packages:\n{available_packages}")
+                    
+                    # Proxmox kernels include headers in the main package
+                    # Try installing just the kernel package first
+                    self._run_chroot_command([
+                        "apt-get", "install", "-y", "--no-install-recommends",
+                        kernel_image_pkg
+                    ])
+                except subprocess.CalledProcessError as e:
+                    self.logger.warning(f"Failed to install Proxmox kernel: {e.stderr}")
+                    # Fall back to standard Debian kernel
+                    kernel_image_pkg = "linux-image-amd64"
+                    kernel_headers_pkg = "linux-headers-amd64"
+                    self._run_chroot_command([
+                        "apt-get", "install", "-y", "--no-install-recommends",
+                        kernel_image_pkg, kernel_headers_pkg
+                    ])
+            else:
+                # Install standard kernel packages
+                self._run_chroot_command([
+                    "apt-get", "install", "-y", "--no-install-recommends",
+                    kernel_image_pkg, kernel_headers_pkg
+                ])
         except subprocess.CalledProcessError as e:
             # If first attempt failed, try fallback to generic packages
             if "proxmox" in kernel_image_pkg or kernel_image_pkg == "linux-image-amd64":
@@ -430,15 +494,28 @@ class KernelAcquisition:
         """
         self.logger.info("Configuring Proxmox repositories...")
         
-        # Add repository key
-        self._run_chroot_command([
-            "bash", "-c", 
-            "wget -qO- 'https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg' | apt-key add -"
-        ], check=False)  # apt-key is deprecated but still works
+        # Create directory for keyrings if it doesn't exist
+        keyrings_dir = self.chroot_path / "etc" / "apt" / "keyrings"
+        keyrings_dir.mkdir(parents=True, exist_ok=True)
         
-        # Add repository to sources.list.d
+        # Download repository key using the new method
+        try:
+            self._run_chroot_command([
+                "wget", "-qO", "/etc/apt/keyrings/proxmox-release-bookworm.gpg",
+                "https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg"
+            ])
+        except subprocess.CalledProcessError:
+            self.logger.warning("Failed to download Proxmox GPG key, trying alternative method")
+            # Try curl as fallback
+            self._run_chroot_command([
+                "curl", "-fsSL", "-o", "/etc/apt/keyrings/proxmox-release-bookworm.gpg",
+                "https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg"
+            ])
+        
+        # Add repository to sources.list.d with signed-by option
+        # Note: Using bookworm for Proxmox as they may not have trixie repos yet
         sources_list = """# Proxmox kernel repositories
-deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription
+deb [signed-by=/etc/apt/keyrings/proxmox-release-bookworm.gpg] http://download.proxmox.com/debian/pve bookworm pve-no-subscription
 """
         # Write the sources list file
         sources_path = self.chroot_path / "etc" / "apt" / "sources.list.d" / "proxmox.list"

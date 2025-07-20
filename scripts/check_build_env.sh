@@ -88,6 +88,53 @@ check_command "libtool" "Shared library management (ZFS dependency)." "libtool"
 # check_command "mount" "Mounting filesystems." "util-linux"
 # check_command "umount" "Unmounting filesystems." "util-linux"
 
+# --- System Resources Check ---
+echo "Checking system resources..."
+# Check available RAM
+total_ram_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+total_ram_gb=$((total_ram_kb / 1024 / 1024))
+recommended_ram_gb=26  # Doubled from 13GB
+
+echo -n "[?] Checking available memory... "
+if [ $total_ram_gb -lt $recommended_ram_gb ]; then
+    echo "${total_ram_gb}GB detected"
+    echo "[!] WARNING: Only ${total_ram_gb}GB RAM available. Recommended: ${recommended_ram_gb}GB or more"
+    echo "    Building ZFS from source may require significant memory."
+    echo "    Consider adding more RAM or swap space, or disable build_from_source in build_spec.yaml"
+    # Not a fatal error, just a warning
+else
+    echo "${total_ram_gb}GB detected - OK"
+fi
+echo
+
+# Check available disk space
+echo -n "[?] Checking available disk space... "
+workspace_parent="/tmp"
+available_space_gb=$(df -BG "$workspace_parent" | awk 'NR==2 {print $4}' | sed 's/G//')
+required_space_gb=20
+
+if [ "$available_space_gb" -lt "$required_space_gb" ]; then
+    echo "${available_space_gb}GB available"
+    echo "[!] ERROR: Insufficient disk space in $workspace_parent"
+    echo "    Available: ${available_space_gb}GB, Required: ${required_space_gb}GB"
+    FAILED_CHECKS=$((FAILED_CHECKS + 1))
+else
+    echo "${available_space_gb}GB available - OK"
+fi
+echo
+
+# Check CPU architecture
+echo -n "[?] Checking CPU architecture... "
+arch=$(uname -m)
+if [[ "$arch" != "x86_64" && "$arch" != "amd64" ]]; then
+    echo "$arch"
+    echo "[!] ERROR: Unsupported architecture. Only x86_64/amd64 is supported."
+    FAILED_CHECKS=$((FAILED_CHECKS + 1))
+else
+    echo "$arch - OK"
+fi
+echo
+
 # --- Python Modules ---
 # Only check if python3 itself was found and is a suitable version
 if command -v "python3" &>/dev/null && python3 -c "import sys; assert sys.version_info >= (3, 8)" &>/dev/null; then

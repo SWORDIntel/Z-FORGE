@@ -113,7 +113,7 @@ if [[ ! -f "${SCRIPT_DIR}/build_spec.yml" ]]; then
 # ───────────── Z-FORGE Build Configuration ─────────────
 
 builder_config:
-  debian_release: bookworm
+  debian_release: trixie
   kernel_version: latest
   output_iso_name: zforge-proxmox-v3.iso
   enable_debug: true
@@ -236,8 +236,8 @@ cat <<EOS | tee -a "$LOG_FILE"
 ════════════════════════════════════════════════════════════════
 
 Next steps:
-1. Test ISO in a VM:
-   qemu-system-x86_64 -m 4G -cdrom $ISO_OUTPUT -enable-kvm
+1. Test ISO in a VM (recommended 8GB+ RAM for optimal performance):
+   qemu-system-x86_64 -m 8G -cdrom $ISO_OUTPUT -enable-kvm
 
 2. Write to USB drive (replace /dev/sdX):
    dd if=$ISO_OUTPUT of=/dev/sdX bs=4M status=progress

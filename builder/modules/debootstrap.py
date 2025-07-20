@@ -258,7 +258,14 @@ class Debootstrap:
         
         # Configure /etc/apt/sources.list to include main, updates, security, and backports repositories.
         # non-free-firmware is included for broader hardware compatibility.
-        sources_list_content: str = f"""# Main Debian repositories
+        # Note: Trixie (testing) doesn't have -updates or -backports
+        if debian_release == "trixie":
+            sources_list_content: str = f"""# Main Debian repositories
+deb http://deb.debian.org/debian {debian_release} main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian-security {debian_release}-security main contrib non-free non-free-firmware
+"""
+        else:
+            sources_list_content: str = f"""# Main Debian repositories
 deb http://deb.debian.org/debian {debian_release} main contrib non-free non-free-firmware
 deb http://deb.debian.org/debian {debian_release}-updates main contrib non-free non-free-firmware
 deb http://security.debian.org/debian-security {debian_release}-security main contrib non-free non-free-firmware
@@ -309,24 +316,51 @@ proc             /proc          proc    defaults   0       0
             f.write(fstab_content)
         self.logger.debug(f"Configured {fstab_path}")
         
+        # Configure additional repositories (Dell OpenManage)
+        self._configure_dell_repositories()
+        
         # Update package lists and upgrade installed packages within the chroot.
         self.logger.info("Updating package lists and upgrading packages in chroot...")
         self._run_chroot_command(["apt-get", "update"])
         self._run_chroot_command(["apt-get", "upgrade", "-y"]) # -y to auto-confirm.
         
-        # Install some essential packages for a functional system and for subsequent build steps.
-        essential_packages: List[str] = [
-            "build-essential",  # For compiling software (e.g., ZFS DKMS modules)
-            "python3",          # Python interpreter
-            "python3-distutils",# For Python package building/installation
+        # Install essential packages in groups to avoid timeout issues
+        # Group 1: Basic utilities and network tools
+        basic_packages = [
             "vim", "nano",      # Text editors
             "less", "htop",     # System utilities
             "net-tools",        # Networking utilities (e.g., ifconfig)
             "iproute2",         # Modern networking utilities (e.g., ip addr)
             "iputils-ping"      # For network diagnostics
         ]
-        self.logger.info(f"Installing essential packages: {', '.join(essential_packages)}")
-        self._run_chroot_command(["apt-get", "install", "-y"] + essential_packages)
+        self.logger.info(f"Installing basic packages: {', '.join(basic_packages)}")
+        try:
+            self._run_chroot_command(["apt-get", "install", "-y"] + basic_packages)
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to install some basic packages: {e}")
+        
+        # Group 2: Python packages
+        python_packages = [
+            "python3",          # Python interpreter
+            "python3-distutils" # For Python package building/installation
+        ]
+        self.logger.info(f"Installing Python packages: {', '.join(python_packages)}")
+        try:
+            self._run_chroot_command(["apt-get", "install", "-y"] + python_packages)
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to install Python packages: {e}")
+        
+        # Group 3: Build tools (this is the largest group)
+        build_packages = [
+            "build-essential"   # For compiling software (e.g., ZFS DKMS modules)
+        ]
+        self.logger.info(f"Installing build packages (this may take a while): {', '.join(build_packages)}")
+        try:
+            self._run_chroot_command(["apt-get", "install", "-y"] + build_packages)
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Failed to install build-essential: {e}")
+            # This is critical for ZFS DKMS, so we should probably fail here
+            raise
         
         # Generate the en_US.UTF-8 locale.
         self.logger.info("Generating en_US.UTF-8 locale...")
@@ -419,9 +453,16 @@ add_drivers+=" nvme "
             subprocess.TimeoutExpired: If the command times out.
         """
         
-        # Set default timeout
+        # Set default timeout based on command type
         if timeout is None:
-            timeout = 300  # 5 minutes default
+            # Longer timeout for package installation commands
+            if len(command) > 0 and command[0] in ["apt-get", "apt"]:
+                if len(command) > 1 and command[1] in ["install", "upgrade", "dist-upgrade"]:
+                    timeout = 1200  # 20 minutes for package installations
+                else:
+                    timeout = 600   # 10 minutes for other apt operations
+            else:
+                timeout = 300  # 5 minutes default for other commands
         
         # Prepend environment variables for apt/dpkg commands to run non-interactively
         if command[0] in ["apt-get", "apt", "dpkg", "dpkg-reconfigure"]:
@@ -453,6 +494,53 @@ add_drivers+=" nvme "
         except subprocess.TimeoutExpired as e:
             self.logger.error(f"Command timed out after {timeout} seconds: {' '.join(command)}")
             raise
+    
+    def _configure_dell_repositories(self) -> None:
+        """
+        Configure Dell OpenManage repositories for Dell server hardware support.
+        """
+        self.logger.info("Configuring Dell OpenManage repositories...")
+        
+        # Create directory for keyrings if it doesn't exist
+        keyrings_dir = self.chroot_path / "etc" / "apt" / "keyrings"
+        keyrings_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Download and install Dell GPG key
+        try:
+            # Download Dell GPG key
+            self._run_chroot_command([
+                "wget", "-qO", "/etc/apt/keyrings/dell-omsa.gpg",
+                "https://linux.dell.com/repo/pgp_pubkeys/0x1285491434D8786F.asc"
+            ])
+            self.logger.info("Downloaded Dell GPG key")
+        except subprocess.CalledProcessError:
+            self.logger.warning("Failed to download Dell GPG key, trying alternative method")
+            try:
+                self._run_chroot_command([
+                    "curl", "-fsSL", "-o", "/etc/apt/keyrings/dell-omsa.gpg",
+                    "https://linux.dell.com/repo/pgp_pubkeys/0x1285491434D8786F.asc"
+                ])
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"Failed to download Dell GPG key: {e}")
+                return
+        
+        # Add Dell repository
+        dell_sources = """# Dell OpenManage Server Administrator
+deb [signed-by=/etc/apt/keyrings/dell-omsa.gpg] https://linux.dell.com/repo/community/openmanage/11100/jammy jammy main
+"""
+        dell_sources_path = self.chroot_path / "etc" / "apt" / "sources.list.d" / "dell-omsa.list"
+        with open(dell_sources_path, "w") as f:
+            f.write(dell_sources)
+        self.logger.info("Added Dell OpenManage repository")
+        
+        # Also add MegaRAID repository for LSI/Broadcom RAID controllers
+        megaraid_sources = """# MegaRAID Storage Manager
+deb [trusted=yes] http://hwraid.le-vert.net/debian trixie main
+"""
+        megaraid_sources_path = self.chroot_path / "etc" / "apt" / "sources.list.d" / "megaraid.list"
+        with open(megaraid_sources_path, "w") as f:
+            f.write(megaraid_sources)
+        self.logger.info("Added MegaRAID repository")
     
     def _mount_chroot_filesystems(self) -> None:
         """

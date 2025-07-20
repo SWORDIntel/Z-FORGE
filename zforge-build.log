@@ -1,219 +1,52 @@
-[*] Build started at Wed Jun 25 03:30:25 AM UTC 2025
+[*] Build started at Sun Jul 20 06:39:59 PM BST 2025
 [*] Starting build pipeline…
 [*] Running module: WorkspaceSetup
-2025-06-25 03:30:25,186 - WorkspaceSetup - INFO - Setting up workspace...
-2025-06-25 03:30:25,186 - WorkspaceSetup - INFO - Creating directories...
-2025-06-25 03:30:25,385 - WorkspaceSetup - INFO - Setting permissions...
-2025-06-25 03:30:25,507 - WorkspaceSetup - INFO - Preparing mounts...
-2025-06-25 03:30:25,630 - WorkspaceSetup - INFO - Workspace setup complete: /tmp/zforge_workspace
+2025-07-20 18:39:59,527 - WorkspaceSetup - INFO - Setting up workspace...
+2025-07-20 18:39:59,527 - WorkspaceSetup - INFO - Creating directories...
+2025-07-20 18:39:59,842 - WorkspaceSetup - INFO - Setting permissions...
+2025-07-20 18:39:59,891 - WorkspaceSetup - INFO - Preparing mounts...
+2025-07-20 18:40:00,089 - WorkspaceSetup - INFO - Workspace setup complete: /tmp/zforge_workspace
 [*] Running module: Debootstrap
-2025-06-25 03:30:25,679 - Debootstrap - INFO - Starting debootstrap process...
-2025-06-25 03:30:25,679 - Debootstrap - INFO - Setting permissions on workspace directories...
-2025-06-25 03:30:25,780 - Debootstrap - INFO - Running debootstrap for Debian bookworm into /tmp/zforge_workspace/chroot...
-2025-06-25 03:30:25,780 - Debootstrap - INFO - Executing debootstrap command: sudo debootstrap --arch=amd64 --include=locales,linux-base,sudo,bash-completion,apt-transport-https,ca-certificates,curl,wget,gnupg,gpgv bookworm /tmp/zforge_workspace/chroot http://deb.debian.org/debian
-2025-06-25 03:30:32,523 - Debootstrap - ERROR - A command failed during debootstrap: ['sudo', 'debootstrap', '--arch=amd64', '--include=locales,linux-base,sudo,bash-completion,apt-transport-https,ca-certificates,curl,wget,gnupg,gpgv', 'bookworm', '/tmp/zforge_workspace/chroot', 'http://deb.debian.org/debian'], Return Code: 1, Output: I: Target architecture can be executed
-I: Checking Release signature
-I: Valid Release signature (key id 4D64FEC119C2029067D6E791F8D2585B8783D481)
-I: Validating Packages 
-I: Resolving dependencies of required packages...
-I: Resolving dependencies of base packages...
-I: Checking component main on http://deb.debian.org/debian...
-I: Validating adduser 3.134
-I: Validating apt 2.6.1
-I: Validating apt-transport-https 2.6.1
-I: Validating apt-utils 2.6.1
-I: Validating base-files 12.4+deb12u11
-I: Validating base-passwd 3.6.1
-I: Validating bash 5.2.15-2+b8
-I: Validating bash-completion 1:2.11-6
-I: Validating bsdutils 1:2.38.1-5+deb12u3
-I: Validating ca-certificates 20230311
-I: Validating coreutils 9.1-1
-I: Validating cpio 2.13+dfsg-7.1
-I: Validating cron 3.0pl1-162
-I: Validating cron-daemon-common 3.0pl1-162
-I: Validating curl 7.88.1-10+deb12u12
-I: Validating dash 0.5.12-2
-I: Validating debconf 1.5.82
-I: Validating debconf-i18n 1.5.82
-I: Validating debian-archive-keyring 2023.3+deb12u2
-I: Validating debianutils 5.7-0.5~deb12u1
-I: Validating diffutils 1:3.8-4
-I: Validating dirmngr 2.2.40-1.1
-I: Validating dmidecode 3.4-1
-I: Validating dmsetup 2:1.02.185-2
-I: Validating dpkg 1.21.22
-I: Validating e2fsprogs 1.47.0-2
-I: Validating fdisk 2.38.1-5+deb12u3
-I: Validating findutils 4.9.0-4
-I: Validating gcc-12-base 12.2.0-14+deb12u1
-I: Validating gnupg 2.2.40-1.1
-I: Validating gnupg-l10n 2.2.40-1.1
-I: Validating gnupg-utils 2.2.40-1.1
-I: Validating gpg 2.2.40-1.1
-I: Validating gpg-agent 2.2.40-1.1
-I: Validating gpg-wks-client 2.2.40-1.1
-I: Validating gpg-wks-server 2.2.40-1.1
-I: Validating gpgconf 2.2.40-1.1
-I: Validating gpgsm 2.2.40-1.1
-I: Validating gpgv 2.2.40-1.1
-I: Validating grep 3.8-5
-I: Validating gzip 1.12-1
-I: Validating hostname 3.23+nmu1
-I: Validating ifupdown 0.8.41
-I: Validating init 1.65.2
-I: Validating init-system-helpers 1.65.2
-I: Validating iproute2 6.1.0-3
-I: Validating iputils-ping 3:20221126-1+deb12u1
-I: Validating isc-dhcp-client 4.4.3-P1-2
-I: Validating isc-dhcp-common 4.4.3-P1-2
-I: Validating kmod 30+20221128-1
-I: Validating less 590-2.1~deb12u2
-I: Validating libacl1 2.3.1-3
-I: Validating libapparmor1 3.0.8-3
-I: Validating libapt-pkg6.0 2.6.1
-I: Validating libargon2-1 0~20171227-0.3+deb12u1
-I: Validating libassuan0 2.5.5-5
-I: Validating libattr1 1:2.5.1-4
-I: Validating libaudit-common 1:3.0.9-1
-I: Validating libaudit1 1:3.0.9-1
-I: Validating libblkid1 2.38.1-5+deb12u3
-I: Validating libbpf1 1:1.1.0-1
-I: Validating libbrotli1 1.0.9-2+b6
-I: Validating libbsd0 0.11.7-2
-I: Validating libbz2-1.0 1.0.8-5+b1
-I: Validating libc-bin 2.36-9+deb12u10
-I: Validating libc-l10n 2.36-9+deb12u10
-I: Validating libc6 2.36-9+deb12u10
-I: Validating libcap-ng0 0.8.3-1+b3
-I: Validating libcap2 1:2.66-4+deb12u1
-I: Validating libcap2-bin 1:2.66-4+deb12u1
-I: Validating libcom-err2 1.47.0-2
-I: Validating libcrypt1 1:4.4.33-2
-I: Validating libcryptsetup12 2:2.6.1-4~deb12u2
-I: Validating libcurl4 7.88.1-10+deb12u12
-I: Validating libdb5.3 5.3.28+dfsg2-1
-I: Validating libdebconfclient0 0.270
-I: Validating libdevmapper1.02.1 2:1.02.185-2
-I: Validating libedit2 3.1-20221030-2
-I: Validating libelf1 0.188-2.1
-I: Validating libext2fs2 1.47.0-2
-I: Validating libfdisk1 2.38.1-5+deb12u3
-I: Validating libffi8 3.4.4-1
-I: Validating libgcc-s1 12.2.0-14+deb12u1
-I: Validating libgcrypt20 1.10.1-3
-I: Validating libgmp10 2:6.2.1+dfsg1-1.1
-I: Validating libgnutls30 3.7.9-2+deb12u4
-I: Validating libgpg-error0 1.46-1
-I: Validating libgssapi-krb5-2 1.20.1-2+deb12u3
-I: Validating libhogweed6 3.8.1-2
-I: Validating libidn2-0 2.3.3-1+b1
-I: Validating libip4tc2 1.8.9-2
-I: Validating libjansson4 2.14-2
-I: Validating libjson-c5 0.16-2
-I: Validating libk5crypto3 1.20.1-2+deb12u3
-I: Validating libkeyutils1 1.6.3-2
-I: Validating libkmod2 30+20221128-1
-I: Validating libkrb5-3 1.20.1-2+deb12u3
-I: Validating libkrb5support0 1.20.1-2+deb12u3
-I: Validating libksba8 1.6.3-2
-I: Validating libldap-2.5-0 2.5.13+dfsg-5
-I: Validating liblocale-gettext-perl 1.07-5
-I: Validating liblz4-1 1.9.4-1
-I: Validating liblzma5 5.4.1-1
-I: Validating libmd0 1.0.4-2
-I: Validating libmnl0 1.0.4-3
-I: Validating libmount1 2.38.1-5+deb12u3
-I: Validating libncursesw6 6.4-4
-I: Validating libnettle8 3.8.1-2
-I: Validating libnewt0.52 0.52.23-1+b1
-I: Validating libnftables1 1.0.6-2+deb12u2
-I: Validating libnftnl11 1.2.4-2
-I: Validating libnghttp2-14 1.52.0-1+deb12u2
-I: Validating libnpth0 1.6-3
-I: Validating libp11-kit0 0.24.1-2
-I: Validating libpam-modules 1.5.2-6+deb12u1
-I: Validating libpam-modules-bin 1.5.2-6+deb12u1
-I: Validating libpam-runtime 1.5.2-6+deb12u1
-I: Validating libpam0g 1.5.2-6+deb12u1
-I: Validating libpcre2-8-0 10.42-1
-I: Validating libpopt0 1.19+dfsg-1
-I: Validating libproc2-0 2:4.0.2-3
-I: Validating libpsl5 0.21.2-1
-I: Validating libreadline8 8.2-1.3
-I: Validating librtmp1 2.4+20151223.gitfa8646d.1-2+b2
-I: Validating libsasl2-2 2.1.28+dfsg-10
-I: Validating libsasl2-modules-db 2.1.28+dfsg-10
-I: Validating libseccomp2 2.5.4-1+deb12u1
-I: Validating libselinux1 3.4-1+b6
-I: Validating libsemanage-common 3.4-1
-I: Validating libsemanage2 3.4-1+b5
-I: Validating libsepol2 3.4-2.1
-I: Validating libslang2 2.3.3-3
-I: Validating libsmartcols1 2.38.1-5+deb12u3
-I: Validating libsqlite3-0 3.40.1-2+deb12u1
-I: Validating libss2 1.47.0-2
-I: Validating libssh2-1 1.10.0-3+b1
-I: Validating libssl3 3.0.16-1~deb12u1
-I: Validating libstdc++6 12.2.0-14+deb12u1
-I: Validating libsystemd-shared 252.36-1~deb12u1
-I: Validating libsystemd0 252.36-1~deb12u1
-I: Validating libtasn1-6 4.19.0-2+deb12u1
-I: Validating libtext-charwidth-perl 0.04-11
-I: Validating libtext-iconv-perl 1.7-8
-I: Validating libtext-wrapi18n-perl 0.06-10
-I: Validating libtinfo6 6.4-4
-I: Validating libtirpc-common 1.3.3+ds-1
-I: Validating libtirpc3 1.3.3+ds-1
-I: Validating libudev1 252.36-1~deb12u1
-I: Validating libunistring2 1.0-2
-I: Validating libuuid1 2.38.1-5+deb12u3
-I: Validating libxtables12 1.8.9-2
-I: Validating libxxhash0 0.8.1-1
-I: Validating libzstd1 1.5.4+dfsg2-5
-I: Validating linux-base 4.9
-I: Validating locales 2.36-9+deb12u10
-I: Validating login 1:4.13+dfsg1-1+deb12u1
-I: Validating logrotate 3.21.0-1
-I: Validating logsave 1.47.0-2
-I: Validating lsb-base 11.6
-I: Validating mawk 1.3.4.20200120-3.1
-I: Validating mount 2.38.1-5+deb12u3
-I: Validating nano 7.2-1+deb12u1
-I: Validating ncurses-base 6.4-4
-I: Validating ncurses-bin 6.4-4
-I: Validating netbase 6.4
-I: Validating nftables 1.0.6-2+deb12u2
-I: Validating openssl 3.0.16-1~deb12u1
-I: Validating passwd 1:4.13+dfsg1-1+deb12u1
-I: Validating perl-base 5.36.0-7+deb12u2
-I: Validating pinentry-curses 1.2.1-1
-I: Validating procps 2:4.0.2-3
-I: Validating readline-common 8.2-1.3
-I: Validating sed 4.9-1
-I: Validating sensible-utils 0.0.17+nmu1
-I: Validating sudo 1.9.13p3-1+deb12u1
-I: Validating systemd 252.36-1~deb12u1
-I: Validating systemd-sysv 252.36-1~deb12u1
-I: Validating sysvinit-utils 3.06-4
-I: Validating tar 1.34+dfsg-1.2+deb12u1
-I: Validating tasksel 3.73
-I: Validating tasksel-data 3.73
-I: Validating tzdata 2025b-0+deb12u1
-I: Validating udev 252.36-1~deb12u1
-I: Validating usr-is-merged 37~deb12u1
-I: Validating util-linux 2.38.1-5+deb12u3
-I: Validating util-linux-extra 2.38.1-5+deb12u3
-I: Validating vim-common 2:9.0.1378-2+deb12u2
-I: Validating vim-tiny 2:9.0.1378-2+deb12u2
-I: Validating wget 1.21.3-1+deb12u1
-I: Validating whiptail 0.52.23-1+b1
-I: Validating zlib1g 1:1.2.13.dfsg-1
-I: Chosen extractor for .deb packages: dpkg-deb
-I: Extracting adduser...
-E: Tried to extract package, but tar failed. Exit...
-, Stderr: /usr/sbin/debootstrap: 1858: cannot create /tmp/zforge_workspace/chroot/test-dev-null: Permission denied
-
-2025-06-25 03:30:32,523 - Debootstrap - INFO - Unmounting chroot filesystems...
-[!] Module Debootstrap failed: Command failed: sudo debootstrap --arch=amd64 --include=locales,linux-base,sudo,bash-completion,apt-transport-https,ca-certificates,curl,wget,gnupg,gpgv bookworm /tmp/zforge_workspace/chroot http://deb.debian.org/debian - /usr/sbin/debootstrap: 1858: cannot create /tmp/zforge_workspace/chroot/test-dev-null: Permission denied
-
+2025-07-20 18:40:00,180 - Debootstrap - INFO - Starting debootstrap process...
+2025-07-20 18:40:00,180 - Debootstrap - INFO - Setting permissions on workspace directories...
+2025-07-20 18:40:00,368 - Debootstrap - INFO - Running debootstrap for Debian bookworm into /tmp/zforge_workspace/chroot...
+2025-07-20 18:40:00,369 - Debootstrap - INFO - Verifying chroot directory: /tmp/zforge_workspace/chroot
+2025-07-20 18:40:00,370 - Debootstrap - INFO - Chroot directory permissions: 0o40777, owned by 0:0
+2025-07-20 18:40:00,370 - Debootstrap - INFO - Executing debootstrap command: sudo debootstrap --verbose --arch=amd64 --include=locales,linux-base,sudo,bash-completion,apt-transport-https,ca-certificates,curl,wget,gnupg,gpgv bookworm /tmp/zforge_workspace/chroot http://deb.debian.org/debian
+2025-07-20 18:46:30,790 - Debootstrap - INFO - Debootstrap command completed successfully.
+2025-07-20 18:46:30,791 - Debootstrap - INFO - Mounting essential filesystems in chroot...
+2025-07-20 18:46:30,994 - Debootstrap - INFO - Configuring basic system settings in chroot...
+2025-07-20 18:46:30,994 - Debootstrap - INFO - Updating package lists and upgrading packages in chroot...
+2025-07-20 18:46:30,994 - Debootstrap - INFO - Executing in chroot: env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get update
+2025-07-20 18:46:44,935 - Debootstrap - INFO - Executing in chroot: env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get upgrade -y
+2025-07-20 18:47:18,334 - Debootstrap - INFO - Installing essential packages: build-essential, python3, python3-distutils, vim, nano, less, htop, net-tools, iproute2, iputils-ping
+2025-07-20 18:47:18,335 - Debootstrap - INFO - Executing in chroot: env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get install -y build-essential python3 python3-distutils vim nano less htop net-tools iproute2 iputils-ping
+2025-07-20 18:52:18,345 - Debootstrap - ERROR - Command timed out after 300 seconds: env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get install -y build-essential python3 python3-distutils vim nano less htop net-tools iproute2 iputils-ping
+2025-07-20 18:52:18,346 - Debootstrap - ERROR - Debootstrap process failed: Command '['sudo', 'chroot', '/tmp/zforge_workspace/chroot', 'env', 'DEBIAN_FRONTEND=noninteractive', 'APT_LISTCHANGES_FRONTEND=none', 'apt-get', 'install', '-y', 'build-essential', 'python3', 'python3-distutils', 'vim', 'nano', 'less', 'htop', 'net-tools', 'iproute2', 'iputils-ping']' timed out after 300 seconds
+Traceback (most recent call last):
+  File "/opt/github/Z-FORGE/builder/modules/debootstrap.py", line 113, in execute
+    self._configure_system(debian_release)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/opt/github/Z-FORGE/builder/modules/debootstrap.py", line 329, in _configure_system
+    self._run_chroot_command(["apt-get", "install", "-y"] + essential_packages)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/github/Z-FORGE/builder/modules/debootstrap.py", line 447, in _run_chroot_command
+    result = subprocess.run(full_cmd, check=check, capture_output=True, text=True, timeout=timeout)
+  File "/usr/lib/python3.13/subprocess.py", line 556, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1222, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 2129, in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1269, in _check_timeout
+    raise TimeoutExpired(
+    ...<2 lines>...
+            stderr=b''.join(stderr_seq) if stderr_seq else None)
+subprocess.TimeoutExpired: Command '['sudo', 'chroot', '/tmp/zforge_workspace/chroot', 'env', 'DEBIAN_FRONTEND=noninteractive', 'APT_LISTCHANGES_FRONTEND=none', 'apt-get', 'install', '-y', 'build-essential', 'python3', 'python3-distutils', 'vim', 'nano', 'less', 'htop', 'net-tools', 'iproute2', 'iputils-ping']' timed out after 300 seconds
+2025-07-20 18:52:18,358 - Debootstrap - INFO - Unmounting chroot filesystems...
+[!] Module Debootstrap failed: Command '['sudo', 'chroot', '/tmp/zforge_workspace/chroot', 'env', 'DEBIAN_FRONTEND=noninteractive', 'APT_LISTCHANGES_FRONTEND=none', 'apt-get', 'install', '-y', 'build-essential', 'python3', 'python3-distutils', 'vim', 'nano', 'less', 'htop', 'net-tools', 'iproute2', 'iputils-ping']' timed out after 300 seconds
+[!] Build failed. Cleaning up workspace...
+[!] Build failed with exit code: 1
