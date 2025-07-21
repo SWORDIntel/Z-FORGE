@@ -207,6 +207,50 @@ class HardwareDatabase:
     
     # Consumer/Prosumer Hardware
     CONSUMER_HARDWARE = {
+        # Generic profiles for NVMe-optimized systems
+        "Sabrent Rocket System": HardwareProfile(
+            name="System with Sabrent Rocket NVMe",
+            vendor="Generic",
+            model="Sabrent Rocket",
+            type="workstation",
+            optimal_settings={
+                "zfs": {
+                    "arc_max_percent": 40,
+                    "l2arc_write_max": "64M",
+                    "zfs_txg_timeout": "5",
+                    # High-performance NVMe settings
+                    "zfs_vdev_async_write_min_active": "16",
+                    "zfs_vdev_async_write_max_active": "64",
+                    "zfs_vdev_sync_write_min_active": "32",
+                    "zfs_vdev_sync_write_max_active": "64",
+                    "zfs_vdev_queue_depth_pct": "400",
+                    "zil_slog_bulk": "1048576"
+                },
+                "kernel": {
+                    "vm_swappiness": 1,
+                    "transparent_hugepages": "never",
+                    "nmi_watchdog": "0"
+                },
+                "nvme": {
+                    "sabrent": {
+                        "queue_depth": 1024,
+                        "read_ahead_kb": 4096,
+                        "io_poll": True
+                    }
+                }
+            },
+            known_issues=[
+                "Sabrent drives may run hot under sustained loads",
+                "Ensure adequate cooling for optimal performance"
+            ],
+            special_features=[
+                "PCIe 4.0 support (Rocket 4 Plus)",
+                "Up to 7000MB/s read speeds",
+                "High queue depth performance",
+                "TLC NAND with DRAM cache"
+            ],
+            tested=True
+        ),
         # Dell Precision Workstations
         "Precision G8": HardwareProfile(
             name="Dell Precision Microstation G8",
@@ -496,13 +540,57 @@ class HardwareDatabase:
                     if device["name"].startswith("nvme"):
                         dev_info["interface"] = "NVMe"
                         
-                        # Check for Intel 750 Series
-                        if "INTEL SSDPE" in dev_info["model"].upper() or "750" in dev_info["model"]:
+                        # Detect specific NVMe models and apply optimizations
+                        model_upper = dev_info["model"].upper()
+                        
+                        # Intel 750 Series
+                        if "INTEL SSDPE" in model_upper or "750" in model_upper:
                             dev_info["special"] = "Intel 750 Series"
                             dev_info["optimizations"] = {
                                 "queue_depth": 256,
                                 "io_poll": True,
-                                "io_poll_delay": 0
+                                "io_poll_delay": 0,
+                                "read_ahead_kb": 2048
+                            }
+                        
+                        # Sabrent Rocket NVMe
+                        elif "SABRENT" in model_upper or "ROCKET" in model_upper:
+                            dev_info["special"] = "Sabrent Rocket NVMe"
+                            dev_info["optimizations"] = {
+                                "queue_depth": 1024,  # Sabrent supports higher queue depths
+                                "io_poll": True,
+                                "io_poll_delay": 0,
+                                "read_ahead_kb": 4096  # Larger read-ahead for better sequential
+                            }
+                        
+                        # Samsung 970/980/990 Series
+                        elif "SAMSUNG" in model_upper and any(x in model_upper for x in ["970", "980", "990"]):
+                            dev_info["special"] = "Samsung NVMe"
+                            dev_info["optimizations"] = {
+                                "queue_depth": 512,
+                                "io_poll": True,
+                                "io_poll_delay": 0,
+                                "read_ahead_kb": 2048
+                            }
+                        
+                        # WD Black / SN850
+                        elif "WD" in model_upper or "WESTERN DIGITAL" in model_upper:
+                            dev_info["special"] = "WD Black NVMe"
+                            dev_info["optimizations"] = {
+                                "queue_depth": 512,
+                                "io_poll": True,
+                                "io_poll_delay": 0,
+                                "read_ahead_kb": 2048
+                            }
+                        
+                        # Generic high-performance NVMe
+                        else:
+                            dev_info["special"] = "Generic NVMe"
+                            dev_info["optimizations"] = {
+                                "queue_depth": 256,
+                                "io_poll": True,
+                                "io_poll_delay": 0,
+                                "read_ahead_kb": 2048
                             }
                             
                     elif device["name"].startswith("sd"):

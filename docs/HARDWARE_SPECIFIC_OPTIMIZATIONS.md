@@ -1,5 +1,76 @@
 # Hardware-Specific Optimizations
 
+## Universal NVMe Drive Support
+
+Z-FORGE now includes comprehensive support for various PCIe NVMe drives with automatic detection and optimization:
+
+### Supported NVMe Drives
+
+1. **Intel 750 Series**
+   - Queue Depth: 256
+   - Read-ahead: 2MB
+   - Special: Power loss protection
+
+2. **Sabrent Rocket Series** 
+   - Queue Depth: 1024 (high performance)
+   - Read-ahead: 4MB 
+   - Special: PCIe 4.0 support (Rocket 4 Plus)
+
+3. **Samsung 970/980/990 Series**
+   - Queue Depth: 512
+   - Read-ahead: 2MB
+   - Special: Excellent random I/O
+
+4. **WD Black / SN850 Series**
+   - Queue Depth: 512
+   - Read-ahead: 2MB
+   - Special: Game mode optimizations
+
+5. **Other Drives**
+   - Crucial P5/P5 Plus
+   - Kingston KC3000/Fury
+   - Corsair MP600/MP700
+   - Generic NVMe (automatic detection)
+
+### Automatic Optimization
+
+Run the universal NVMe optimizer:
+```bash
+sudo /opt/github/Z-FORGE/scripts/optimize_nvme_universal.sh
+
+# Show current settings only
+sudo /opt/github/Z-FORGE/scripts/optimize_nvme_universal.sh --show
+```
+
+### Server-Specific Considerations
+
+#### High-Performance NVMe (Sabrent Rocket, Samsung 980/990 Pro)
+When these drives are detected, Z-FORGE applies aggressive optimizations:
+- ZFS vdev queues: 16-64 (async), 32-64 (sync)
+- Queue depth percentage: 400%
+- Larger ZIL slog bulk: 1MB
+- CPU governor: performance mode
+- Deep C-states: disabled
+
+#### Enterprise Servers with Multiple NVMe
+For servers with multiple NVMe drives:
+1. Each drive is individually optimized
+2. NUMA-aware IRQ balancing (if applicable)
+3. Per-drive thermal monitoring
+4. RAID/mirror considerations for ZFS
+
+#### Thermal Management
+High-performance NVMe drives require cooling:
+```bash
+# Monitor NVMe temperatures
+for nvme in /dev/nvme*; do
+    nvme smart-log $nvme | grep -i temp
+done
+
+# Set temperature warning threshold
+nvme set-feature /dev/nvme0 -f 4 -v 343  # 70°C in Kelvin
+```
+
 ## Dell Precision Microstation G8 with Intel 750 Series SSD
 
 ### Overview

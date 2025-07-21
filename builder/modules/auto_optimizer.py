@@ -211,28 +211,39 @@ echo {value} > /sys/module/zfs/parameters/{param} 2>/dev/null || true
 echo "options zfs {param}={value}" >> /etc/modprobe.d/zfs.conf
 """
         
-        # Check for Intel 750 Series SSD
+        # Check for specific NVMe drives and apply optimizations
         if self.optimization_report.get("hardware", {}).get("storage"):
+            nvme_found = False
+            high_perf_nvme = False
+            
             for disk in self.optimization_report["hardware"]["storage"]:
-                if disk.get("special") == "Intel 750 Series":
-                    script_content += """
-# Intel 750 Series NVMe optimizations
-echo "Detected Intel 750 Series SSD - applying specific optimizations"
+                if disk.get("interface") == "NVMe" and disk.get("special"):
+                    nvme_found = True
+                    if "Sabrent" in disk["special"] or "Samsung" in disk["special"]:
+                        high_perf_nvme = True
+                    
+            if nvme_found:
+                script_content += """
+# NVMe optimizations
+echo "Detected NVMe drives - applying optimizations"
 
-# Increase queue depth for Intel 750
-for nvme in /sys/block/nvme*/queue; do
-    echo 256 > $nvme/nr_requests
-    echo 256 > $nvme/queue_depth 2>/dev/null || true
-done
-
-# Enable IO polling for lower latency
-echo 1 > /sys/module/nvme_core/parameters/io_poll 2>/dev/null || true
-echo 0 > /sys/module/nvme_core/parameters/io_poll_delay 2>/dev/null || true
-
-# Set optimal scheduler for NVMe
-for nvme in /sys/block/nvme*; do
-    echo none > $nvme/queue/scheduler 2>/dev/null || true
-done
+# Run universal NVMe optimization script
+if [ -x /opt/github/Z-FORGE/scripts/optimize_nvme_universal.sh ]; then
+    /opt/github/Z-FORGE/scripts/optimize_nvme_universal.sh --apply
+else
+    # Fallback: basic NVMe optimizations
+    for nvme in /sys/block/nvme*/queue; do
+        echo 256 > $nvme/nr_requests 2>/dev/null || true
+        echo 256 > $nvme/queue_depth 2>/dev/null || true
+        echo none > $nvme/scheduler 2>/dev/null || true
+        echo 2048 > $nvme/read_ahead_kb 2>/dev/null || true
+        echo 0 > $nvme/iostats 2>/dev/null || true
+    done
+    
+    # NVMe core settings
+    echo 1 > /sys/module/nvme_core/parameters/io_poll 2>/dev/null || true
+    echo 0 > /sys/module/nvme_core/parameters/io_poll_delay 2>/dev/null || true
+fi
 """
         
         script_content += """
