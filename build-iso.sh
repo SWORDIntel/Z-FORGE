@@ -186,19 +186,29 @@ YAML
 fi
 
 # ── Bash-level build pipeline ────────────────────────────────────
+# IMPORTANT: Order matters! Each module may depend on previous ones
 modules=(
-  "WorkspaceSetup"
-  "Debootstrap"
-  "KernelAcquisition"
-  "ZFSBuild"
-  "DracutConfig"
-  "ProxmoxIntegration"
-  "BootloaderSetup"
-  "SecurityHardening"
-  "EncryptionSupport"
-  "LiveEnvironment"
+  # Phase 1: Base System Setup
+  "WorkspaceSetup"      # Create workspace directories
+  "Debootstrap"         # Bootstrap base Debian system
+  
+  # Phase 2: Kernel and Core Modules  
+  "KernelAcquisition"   # Install kernel + headers (required for DKMS)
+  "ZFSBuild"            # Build/install ZFS (needs kernel headers)
+  
+  # Phase 3: Boot Infrastructure
+  "DracutConfig"        # Configure dracut (needs ZFS modules)
+  "BootloaderSetup"     # Configure bootloader with ZFS support
+  
+  # Phase 4: System Integration
+  "ProxmoxIntegration"  # Install Proxmox (can use ZFS storage)
+  "SecurityHardening"   # Apply security configurations  
+  "EncryptionSupport"   # Setup encryption support
+  
+  # Phase 5: Live Environment and ISO
+  "LiveEnvironment"     # Setup live system
   # CalamaresIntegration will be injected just before ISOGeneration
-  "ISOGeneration"
+  "ISOGeneration"       # Generate final ISO
 )
 
 echo "[*] Starting build pipeline…" | tee -a "$LOG_FILE"

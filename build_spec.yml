@@ -119,26 +119,43 @@ post_install_scripts:
   - config/r730xd/r730xd_nvme_tune.sh
 
 modules:
+  # Phase 1: Base System Setup
   - name: WorkspaceSetup
     enabled: true
   - name: Debootstrap
     enabled: true
+    
+  # Phase 2: Kernel and Core Modules
   - name: KernelAcquisition
     enabled: true
   - name: ZFSBuild
     enabled: true
+    
+  # Phase 3: Boot Infrastructure  
   - name: DracutConfig
     enabled: true
+  - name: BootloaderSetup
+    enabled: true
+    
+  # Phase 4: System Integration
   - name: ProxmoxIntegration
     enabled: true
+  - name: SecurityHardening
+    enabled: true
+  - name: EncryptionSupport
+    enabled: true
+    
+  # Phase 5: Live Environment
   - name: LiveEnvironment
     enabled: true
   - name: CalamaresIntegration
     enabled: true
-  - name: KDEThemeConfig # Added KDEThemeConfig module
-    enabled: true
+  - name: KDEThemeConfig
+    enabled: false  # Optional - enable if KDE is installed
   - name: DellR730xdOptimize
     enabled: false  # Module not yet implemented
+    
+  # Phase 6: ISO Generation
   - name: ISOGeneration
     enabled: true
 
