@@ -207,6 +207,7 @@ modules=(
   
   # Phase 5: Live Environment and ISO
   "LiveEnvironment"     # Setup live system
+  "HardwareProfilerIntegration"  # Add hardware profiler to LiveCD
   # CalamaresIntegration will be injected just before ISOGeneration
   "ISOGeneration"       # Generate final ISO
 )
