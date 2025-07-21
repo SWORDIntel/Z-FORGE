@@ -1,0 +1,232 @@
+# Z-FORGE Development Workstation Preset
+# Optimized for development and testing
+---
+name: "Development Workstation"
+description: "Configuration for development and testing environments"
+
+modules:
+  networkconfig:
+    preset: "developer_flexible"
+    interfaces:
+      primary:
+        type: "dhcp"  # Flexible for different networks
+        bridge: true  # For VMs/containers
+        bridge_name: "vmbr0"
+      docker:
+        bridge: "docker0"
+        subnet: "172.17.0.0/16"
+      lxc:
+        bridge: "lxcbr0"
+        subnet: "10.0.3.0/24"
+    dns:
+      servers:
+        - "8.8.8.8"
+        - "8.8.4.4"
+      local_domains:
+        - "test"
+        - "local"
+        - "dev"
+  
+  hardwarehealth:
+    preset: "developer_minimal"
+    monitoring:
+      temperature: true
+      smart: true
+      raid: false
+      power: false
+    alerts:
+      email: ""  # Optional for dev
+      cpu_temp_warning: 75
+      cpu_temp_critical: 85
+      disk_temp_warning: 50
+      disk_space_warning: 90  # Devs need space
+    services:
+      - "lm-sensors"
+      - "smartmontools"
+  
+  gpupassthrough:
+    preset: "dev_testing"
+    settings:
+      enable_iommu: true
+      acs_override: true  # More flexibility
+      vfio_load_early: false  # Switch between host/guest
+    profiles:
+      testing:
+        allow_gpu_switching: true
+        quick_unbind: true
+      ml_development:
+        cuda_support: true
+        rocm_support: true
+  
+  storagelayout:
+    preset: "developer_fast"
+    template: "development_workstation"
+    pools:
+      - name: "rpool"
+        type: "single"  # Speed over redundancy
+        disks: 1
+        disk_type: "nvme"
+        purpose: "system"
+        datasets:
+          - name: "ROOT"
+            mountpoint: "/"
+            quota: "none"  # Flexible
+          - name: "home"
+            mountpoint: "/home"
+            quota: "none"
+            properties:
+              snapdir: "visible"  # Easy access
+      - name: "work"
+        type: "stripe"  # Maximum performance
+        disks: 2
+        disk_type: "nvme"
+        purpose: "development"
+        datasets:
+          - name: "projects"
+            recordsize: "128K"
+            compression: "lz4"
+            atime: "off"
+            properties:
+              sync: "disabled"  # Living dangerously
+          - name: "builds"
+            recordsize: "128K"
+            compression: "off"  # Build artifacts
+            properties:
+              sync: "disabled"
+          - name: "vms"
+            recordsize: "64K"
+            compression: "lz4"
+          - name: "containers"
+            recordsize: "128K"
+            compression: "lz4"
+          - name: "databases"
+            recordsize: "16K"
+            compression: "lz4"
+            logbias: "throughput"
+  
+  postinstall:
+    preset: "developer_tools"
+    first_boot_wizard: true
+    auto_start: false  # Let dev choose
+    categories:
+      development:
+        priority: "high"
+        tasks:
+          - "install_dev_tools"
+          - "setup_git"
+          - "configure_ssh_keys"
+          - "install_docker"
+          - "setup_kubernetes"
+      languages:
+        priority: "medium"
+        tasks:
+          - "install_python_env"
+          - "install_node_env"
+          - "install_go_env"
+          - "install_rust_env"
+      editors:
+        priority: "medium"
+        tasks:
+          - "install_vscode"
+          - "install_vim_config"
+          - "install_emacs"
+      databases:
+        priority: "low"
+        tasks:
+          - "install_postgresql"
+          - "install_mysql"
+          - "install_redis"
+          - "install_mongodb"
+
+# Development-specific settings
+development_features:
+  containers:
+    docker:
+      enabled: true
+      compose: true
+      buildkit: true
+    podman:
+      enabled: true
+      rootless: true
+    lxc:
+      enabled: true
+      unprivileged: true
+  
+  virtualization:
+    kvm:
+      nested: true
+      huge_pages: true
+    virtualbox:
+      enabled: false  # Conflicts with KVM
+  
+  version_control:
+    git:
+      global_gitignore: true
+      credential_helper: "cache"
+    tools:
+      - "git-lfs"
+      - "git-flow"
+      - "tig"
+
+# System tweaks for development
+system_tweaks:
+  zfs:
+    arc_max_percent: 50
+    l2arc_write_max: "16M"
+    zfs_txg_timeout: 30  # Less aggressive
+  kernel:
+    vm_swappiness: 10
+    fs_inotify_max_user_watches: 524288  # For IDEs
+    fs_file_max: 2097152
+  security:
+    mode: "permissive"  # Development flexibility
+    firewall: "minimal"
+
+# Development packages
+additional_packages:
+  # Build tools
+  - "build-essential"
+  - "cmake"
+  - "ninja-build"
+  - "ccache"
+  - "meson"
+  
+  # Languages
+  - "python3-pip"
+  - "python3-venv"
+  - "nodejs"
+  - "npm"
+  - "golang"
+  - "rustc"
+  - "cargo"
+  
+  # Containers
+  - "docker.io"
+  - "docker-compose"
+  - "podman"
+  - "buildah"
+  - "skopeo"
+  
+  # VCS
+  - "git"
+  - "git-lfs"
+  - "subversion"
+  - "mercurial"
+  
+  # Databases
+  - "postgresql-client"
+  - "mysql-client"
+  - "redis-tools"
+  - "mongodb-clients"
+  
+  # Utils
+  - "tmux"
+  - "screen"
+  - "htop"
+  - "iotop"
+  - "ncdu"
+  - "ripgrep"
+  - "fd-find"
+  - "bat"
+  - "jq"
+  - "httpie"

@@ -1,0 +1,216 @@
+# Z-FORGE Datacenter Configuration Preset
+# Enterprise-grade settings for production environments
+---
+name: "Datacenter Server"
+description: "Production-ready configuration for datacenter deployment"
+
+modules:
+  networkconfig:
+    preset: "datacenter_bonding"
+    interfaces:
+      bond0:
+        type: "bond"
+        mode: "802.3ad"  # LACP
+        slaves:
+          - "eth0"
+          - "eth1"
+        bridge: true
+        bridge_name: "vmbr0"
+        mtu: 9000  # Jumbo frames
+      management:
+        interface: "eth2"
+        type: "static"
+        vlan: 100
+    dns:
+      servers:
+        - "${DNS_SERVER_1}"
+        - "${DNS_SERVER_2}"
+      search_domains:
+        - "${DOMAIN}"
+    ntp:
+      servers:
+        - "${NTP_SERVER_1}"
+        - "${NTP_SERVER_2}"
+  
+  hardwarehealth:
+    preset: "enterprise_monitoring"
+    monitoring:
+      temperature: true
+      smart: true
+      raid: true
+      power: true
+      ecc_memory: true
+    alerts:
+      email: "${ALERT_EMAIL}"
+      sms: "${ALERT_SMS}"
+      cpu_temp_warning: 65
+      cpu_temp_critical: 75
+      disk_temp_warning: 40
+      disk_temp_critical: 50
+      disk_space_warning: 80
+      disk_space_critical: 90
+    services:
+      - "lm-sensors"
+      - "smartmontools"
+      - "ipmitool"
+      - "megacli"
+      - "dell-omsa"  # If Dell hardware
+    snmp:
+      enabled: true
+      community: "${SNMP_COMMUNITY}"
+      trap_destinations:
+        - "${MONITORING_SERVER}"
+  
+  gpupassthrough:
+    preset: "vdi_gpu"
+    settings:
+      enable_iommu: true
+      acs_override: false
+      vfio_load_early: true
+      sriov: true  # For compatible GPUs
+    gpu_profiles:
+      nvidia_grid:
+        vgpu_profiles:
+          - "grid_p40-8q"
+          - "grid_p40-4q"
+      amd_mxgpu:
+        enabled: true
+    security:
+      gpu_isolation: "strict"
+      reset_on_vm_stop: true
+  
+  storagelayout:
+    preset: "datacenter_ssd"
+    template: "enterprise_virtualization"
+    pools:
+      - name: "rpool"
+        type: "mirror"
+        disks: 2
+        disk_type: "ssd"
+        purpose: "system"
+        datasets:
+          - name: "ROOT"
+            mountpoint: "/"
+            quota: "100G"
+            reservation: "50G"
+      - name: "fast-pool"
+        type: "raidz2"
+        disks: 6
+        disk_type: "nvme"
+        purpose: "vm_storage"
+        properties:
+          ashift: 12
+          autotrim: "on"
+        datasets:
+          - name: "vms"
+            recordsize: "64K"
+            compression: "lz4"
+            sync: "standard"
+            primarycache: "all"
+            logbias: "latency"
+      - name: "bulk-pool"
+        type: "raidz3"
+        disks: 12
+        disk_type: "sas"
+        purpose: "backup_archive"
+        properties:
+          ashift: 12
+        datasets:
+          - name: "backups"
+            recordsize: "1M"
+            compression: "zstd-3"
+            sync: "standard"
+            logbias: "throughput"
+  
+  postinstall:
+    preset: "datacenter_compliance"
+    first_boot_wizard: false  # Automated deployment
+    auto_start: true
+    categories:
+      security:
+        priority: "critical"
+        tasks:
+          - "configure_ldap"
+          - "setup_2fa"
+          - "enable_auditd"
+          - "configure_selinux"
+          - "setup_ids"
+      compliance:
+        priority: "critical"
+        tasks:
+          - "enable_fips_mode"
+          - "configure_logging"
+          - "setup_log_forwarding"
+          - "enable_file_integrity"
+      monitoring:
+        priority: "high"
+        tasks:
+          - "install_node_exporter"
+          - "configure_prometheus"
+          - "setup_grafana"
+          - "configure_alertmanager"
+      backup:
+        priority: "high"
+        tasks:
+          - "configure_pbs"
+          - "setup_replication"
+          - "test_restore"
+
+# Enterprise features
+enterprise_features:
+  high_availability:
+    enabled: true
+    cluster_size: 3
+    quorum_device: "${QUORUM_IP}"
+  
+  security:
+    selinux: "enforcing"
+    fips_mode: true
+    audit_level: "maximum"
+    password_policy:
+      min_length: 14
+      complexity: "high"
+      rotation_days: 90
+  
+  compliance:
+    standards:
+      - "PCI-DSS"
+      - "HIPAA"
+      - "SOC2"
+    reporting:
+      frequency: "weekly"
+      destination: "${COMPLIANCE_SERVER}"
+
+# System optimizations for datacenter
+system_tweaks:
+  zfs:
+    arc_max_percent: 75  # More aggressive caching
+    l2arc_write_max: "32M"
+    l2arc_write_boost: "64M"
+    zfs_txg_timeout: 5
+    metaslab_debug_load: 0
+  kernel:
+    vm_swappiness: 1
+    transparent_hugepages: "never"
+    numa_balancing: 1
+  cpu:
+    governor: "performance"
+    c_states_max: 1  # Minimize latency
+  network:
+    tcp_congestion_control: "bbr"
+    net_core_rmem_max: 134217728
+    net_core_wmem_max: 134217728
+
+# Required packages
+additional_packages:
+  - "prometheus-node-exporter"
+  - "auditd"
+  - "aide"
+  - "fail2ban"
+  - "ufw"
+  - "chrony"
+  - "postfix"
+  - "rsyslog"
+  - "logrotate"
+  - "sudo"
+  - "tmux"

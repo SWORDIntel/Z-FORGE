@@ -1,0 +1,123 @@
+# GitHub Actions workflow for Z-FORGE testing
+name: Z-FORGE CI Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          debootstrap \
+          squashfs-tools \
+          xorriso \
+          isolinux \
+          syslinux-efi \
+          grub-pc-bin \
+          grub-efi-amd64-bin \
+          mtools \
+          dosfstools
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov pytest-mock pytest-timeout
+        pip install pyyaml requests
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/module_tests -v --cov=calamares/modules --cov-report=xml
+    
+    - name: Run integration tests
+      run: |
+        pytest tests/integration_tests -v --cov-append --cov=calamares/modules --cov-report=xml
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+    
+    - name: Lint Python code
+      run: |
+        pip install flake8
+        flake8 calamares/modules --max-line-length=120 --ignore=E501,W503
+        flake8 builder --max-line-length=120 --ignore=E501,W503
+    
+    - name: Check for security issues
+      run: |
+        pip install bandit
+        bandit -r calamares/modules -ll
+        bandit -r builder -ll
+
+  build-test:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Test ISO build process (dry run)
+      run: |
+        cd builder
+        python3 main.py --config modules/build_spec.yaml --dry-run
+    
+    - name: Validate Calamares modules
+      run: |
+        for module in calamares/modules/*/module.desc; do
+          echo "Validating $module"
+          # Check module descriptor syntax
+          python3 -c "
+import yaml
+with open('$module') as f:
+    data = yaml.safe_load(f)
+    assert 'type' in data
+    assert 'name' in data
+    assert 'interface' in data
+          "
+        done
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run Trivy security scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'

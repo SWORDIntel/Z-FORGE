@@ -1,0 +1,146 @@
+# Z-FORGE Homelab Configuration Preset
+# Optimized for home virtualization servers
+---
+name: "Homelab Server"
+description: "Configuration for home virtualization and media servers"
+
+modules:
+  networkconfig:
+    preset: "homelab_bridge"
+    interfaces:
+      primary:
+        type: "static"
+        bridge: true
+        bridge_name: "vmbr0"
+        mtu: 1500
+      secondary:
+        type: "dhcp"
+        bridge: false
+    dns:
+      servers:
+        - "1.1.1.1"
+        - "1.0.0.1"
+      search_domains:
+        - "home.local"
+  
+  hardwarehealth:
+    preset: "consumer_hardware"
+    monitoring:
+      temperature: true
+      smart: true
+      raid: false  # Most homelabs don't have RAID cards
+      power: false  # No IPMI
+    alerts:
+      email: ""  # User should fill this
+      cpu_temp_warning: 70
+      cpu_temp_critical: 80
+      disk_temp_warning: 45
+      disk_space_warning: 85
+    services:
+      - "lm-sensors"
+      - "smartmontools"
+      - "hddtemp"
+  
+  gpupassthrough:
+    preset: "gaming_vm"
+    settings:
+      enable_iommu: true
+      acs_override: false  # Only if needed
+      vfio_load_early: true
+    gpu_blacklist:
+      - "nouveau"
+      - "nvidia"
+      - "radeon"
+      - "amdgpu"
+    reset_methods:
+      - "flr"
+      - "bus"
+  
+  storagelayout:
+    preset: "homelab_storage"
+    template: "homelab_media_server"
+    pools:
+      - name: "rpool"
+        type: "mirror"
+        disks: 2
+        purpose: "system"
+        datasets:
+          - name: "ROOT"
+            mountpoint: "/"
+            quota: "50G"
+          - name: "home"
+            mountpoint: "/home"
+            quota: "100G"
+      - name: "tank"
+        type: "raidz1"
+        disks: 3
+        purpose: "storage"
+        datasets:
+          - name: "media"
+            recordsize: "1M"
+            compression: "off"
+            children:
+              - "movies"
+              - "tv"
+              - "music"
+              - "photos"
+          - name: "backups"
+            recordsize: "128K"
+            compression: "lz4"
+          - name: "vms"
+            recordsize: "64K"
+            compression: "lz4"
+  
+  postinstall:
+    preset: "homelab_checklist"
+    first_boot_wizard: true
+    auto_start: true
+    categories:
+      security:
+        priority: "high"
+        tasks:
+          - "change_root_password"
+          - "create_admin_user"
+          - "setup_firewall"
+      storage:
+        priority: "medium"
+        tasks:
+          - "create_media_datasets"
+          - "setup_snapshots"
+          - "configure_scrub"
+      network:
+        priority: "high"
+        tasks:
+          - "verify_bridge"
+          - "test_connectivity"
+      services:
+        priority: "medium"
+        tasks:
+          - "install_docker"
+          - "setup_portainer"
+          - "configure_samba"
+
+# System optimizations for homelab
+system_tweaks:
+  zfs:
+    arc_max_percent: 50  # Leave RAM for VMs
+    l2arc_write_max: "8M"
+    l2arc_write_boost: "16M"
+  kernel:
+    vm_swappiness: 10
+    transparent_hugepages: "never"
+  cpu:
+    governor: "ondemand"  # Balance performance/power
+
+# Recommended packages
+additional_packages:
+  - "docker.io"
+  - "docker-compose"
+  - "cockpit"
+  - "cockpit-machines"
+  - "samba"
+  - "nfs-kernel-server"
+  - "iperf3"
+  - "htop"
+  - "iotop"
+  - "ncdu"

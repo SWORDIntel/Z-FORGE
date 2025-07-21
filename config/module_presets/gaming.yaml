@@ -1,0 +1,203 @@
+# Z-FORGE Gaming Server Preset
+# Optimized for gaming VMs with GPU passthrough
+---
+name: "Gaming Server"
+description: "High-performance gaming VM host configuration"
+
+modules:
+  networkconfig:
+    preset: "gaming_performance"
+    interfaces:
+      primary:
+        type: "static"
+        bridge: true
+        bridge_name: "vmbr0"
+        mtu: 1500
+        offloading:
+          tso: true
+          gso: true
+          gro: true
+          lro: false  # Can cause issues with VMs
+    optimization:
+      interrupt_coalescing: "adaptive"
+      ring_buffers:
+        rx: 4096
+        tx: 4096
+  
+  hardwarehealth:
+    preset: "gaming_focused"
+    monitoring:
+      temperature: true
+      smart: true
+      raid: false
+      power: true  # Monitor GPU power
+    alerts:
+      cpu_temp_warning: 70
+      cpu_temp_critical: 80
+      gpu_temp_warning: 75
+      gpu_temp_critical: 85
+      disk_temp_warning: 45
+    services:
+      - "lm-sensors"
+      - "nvidia-smi"  # If NVIDIA
+      - "radeontop"   # If AMD
+  
+  gpupassthrough:
+    preset: "gaming_optimized"
+    settings:
+      enable_iommu: true
+      acs_override: false
+      vfio_load_early: true
+      allow_unsafe_interrupts: true  # For older hardware
+    performance:
+      cpu_pinning: true
+      numa_aware: true
+      huge_pages: true
+      msi_interrupts: true
+    gpu_config:
+      nvidia:
+        error_recovery: false  # Better performance
+        power_management: false
+        audio_passthrough: true
+      amd:
+        reset_workaround: true
+        audio_passthrough: true
+    looking_glass:
+      enabled: true
+      shm_size: "128M"
+      permissions: "0666"
+  
+  storagelayout:
+    preset: "gaming_storage"
+    template: "gaming_optimized"
+    pools:
+      - name: "rpool"
+        type: "mirror"
+        disks: 2
+        disk_type: "nvme"
+        purpose: "system"
+        datasets:
+          - name: "ROOT"
+            mountpoint: "/"
+            quota: "50G"
+      - name: "games"
+        type: "stripe"  # Maximum speed
+        disks: 2
+        disk_type: "nvme"
+        purpose: "game_storage"
+        properties:
+          ashift: 12
+          recordsize: "1M"  # Large files
+          compression: "off"  # Max performance
+          atime: "off"
+          sync: "disabled"  # YOLO
+        datasets:
+          - name: "vmdisks"
+            properties:
+              volblocksize: "64K"
+          - name: "iso"
+            properties:
+              recordsize: "1M"
+          - name: "gamedata"
+            properties:
+              recordsize: "1M"
+  
+  postinstall:
+    preset: "gaming_setup"
+    categories:
+      performance:
+        priority: "critical"
+        tasks:
+          - "configure_cpu_isolation"
+          - "setup_hugepages"
+          - "optimize_interrupts"
+          - "disable_mitigations"  # If acceptable
+      gaming:
+        priority: "high"
+        tasks:
+          - "install_looking_glass"
+          - "setup_scream_audio"
+          - "configure_evdev"
+          - "install_barrier"
+      monitoring:
+        priority: "medium"
+        tasks:
+          - "setup_grafana_gaming"
+          - "configure_gpu_monitoring"
+          - "setup_performance_alerts"
+
+# Gaming-specific optimizations
+gaming_optimizations:
+  cpu:
+    isolation: "2-15"  # Reserve cores for VM
+    governor: "performance"
+    disable_smt: false  # Keep hyperthreading
+    mitigations: "off"  # Trade security for speed
+  
+  memory:
+    hugepages:
+      size: "1G"
+      count: 32  # 32GB for VM
+      node: 0
+    transparent_hugepages: "never"
+    ksm: "disabled"  # No memory dedup
+  
+  gpu:
+    vbios_override: true
+    multifunction: true
+    x_vga: true
+    primary_gpu: false  # Keep host GPU
+  
+  audio:
+    backend: "scream"  # Low latency network audio
+    sample_rate: 48000
+    buffer_size: 128
+    periods: 2
+  
+  input:
+    evdev_passthrough: true
+    relative_mouse: false
+    absolute_pointer: true
+
+# VM template
+vm_template:
+  name: "Windows11-Gaming"
+  cpu:
+    type: "host-passthrough"
+    sockets: 1
+    cores: 8
+    threads: 2
+    pinning: "2-15"
+  memory:
+    size: "32G"
+    hugepages: true
+    ballooning: false
+    locked: true
+  devices:
+    gpu:
+      primary: true
+      romfile: "/usr/share/vgabios/gpu.rom"
+    usb:
+      passthrough: "whole_controller"
+      controller_id: "00:14.0"
+    audio:
+      type: "none"  # Use Scream
+  performance:
+    hyperv_enlightenments: true
+    tsc_timer: true
+    invtsc: true
+
+# Additional packages
+additional_packages:
+  - "libvirt-daemon"
+  - "qemu-kvm"
+  - "ovmf"
+  - "virt-manager"
+  - "looking-glass-client"
+  - "scream"
+  - "barrier"
+  - "cpu-checker"
+  - "msr-tools"
+  - "numactl"
+  - "hwloc"
+  - "irqbalance"
