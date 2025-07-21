@@ -218,9 +218,11 @@ class HardwareDatabase:
                     "arc_max_percent": 30,
                     "l2arc_write_max": "32M",
                     "zfs_txg_timeout": "5",
-                    "zfs_vdev_async_write_max_active": "10",
-                    "zfs_vdev_sync_write_max_active": "10",
-                    # Intel 750 optimizations
+                    # Intel 750 optimizations - increased concurrent I/O
+                    "zfs_vdev_async_write_min_active": "8",
+                    "zfs_vdev_async_write_max_active": "32",
+                    "zfs_vdev_sync_write_min_active": "16", 
+                    "zfs_vdev_sync_write_max_active": "32",
                     "zfs_vdev_queue_depth_pct": "300",
                     "zil_slog_bulk": "786432"
                 },

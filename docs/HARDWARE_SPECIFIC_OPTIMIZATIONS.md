@@ -42,9 +42,11 @@ zfs_arc_max = 30% of RAM
 l2arc_write_max = 32M
 zfs_txg_timeout = 5
 
-# Queue optimizations for Intel 750
-zfs_vdev_async_write_max_active = 10
-zfs_vdev_sync_write_max_active = 10
+# Queue optimizations for Intel 750 - increased concurrent I/O
+zfs_vdev_async_write_min_active = 8
+zfs_vdev_async_write_max_active = 32
+zfs_vdev_sync_write_min_active = 16
+zfs_vdev_sync_write_max_active = 32
 zfs_vdev_queue_depth_pct = 300
 zil_slog_bulk = 786432
 ```
@@ -72,12 +74,22 @@ nvme_core.default_ps_max_latency_us = 0
 echo 256 > /sys/block/nvme*/queue/nr_requests
 echo 256 > /sys/block/nvme*/queue/queue_depth
 
-# Enable IO polling
+# Enable IO polling (kernel 4.20+ can use poll_queues)
 echo 1 > /sys/module/nvme_core/parameters/io_poll
 echo 0 > /sys/module/nvme_core/parameters/io_poll_delay
+# For kernel 4.20+: modprobe nvme poll_queues=$(nproc)
 
 # No scheduler needed for NVMe
 echo none > /sys/block/nvme*/queue/scheduler
+
+# Read-ahead for sequential performance
+echo 2048 > /sys/block/nvme*/queue/read_ahead_kb
+
+# Disable IO stats to reduce overhead
+echo 0 > /sys/block/nvme*/queue/iostats
+
+# Disable power management
+echo 0 > /sys/class/nvme/nvme*/power/autonomous
 ```
 
 ### BIOS Settings (Recommended)

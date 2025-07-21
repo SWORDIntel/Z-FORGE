@@ -51,6 +51,34 @@ apply_intel_750_optimizations() {
     # Set IO timeout to 30 seconds (Intel 750 recommendation)
     echo 30 > /sys/module/nvme_core/parameters/io_timeout 2>/dev/null || true
     
+    # Check kernel version for poll_queues support (4.20+)
+    kernel_version=$(uname -r | cut -d. -f1,2)
+    if (( $(echo "$kernel_version >= 4.20" | bc -l) )); then
+        # Set poll queues to number of CPU cores
+        num_cores=$(nproc)
+        echo "[*] Setting poll_queues to $num_cores (kernel 4.20+ feature)"
+        modprobe -r nvme 2>/dev/null || true
+        modprobe nvme poll_queues=$num_cores
+    fi
+    
+    # Disable NVMe APST (Autonomous Power State Transitions)
+    for nvme_dev in /sys/class/nvme/nvme*; do
+        if [[ -f "$nvme_dev/power/autonomous" ]]; then
+            echo 0 > "$nvme_dev/power/autonomous" 2>/dev/null || true
+            echo "[+] Disabled APST for $(basename $nvme_dev)"
+        fi
+    done
+    
+    # Set CPU governor to performance
+    if which cpupower >/dev/null 2>&1; then
+        cpupower frequency-set -g performance 2>/dev/null || true
+    else
+        for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+            echo performance > "$gov" 2>/dev/null || true
+        done
+    fi
+    echo "[+] Set CPU governor to performance"
+    
     # Make settings persistent
     cat > /etc/modprobe.d/intel-750-nvme.conf << EOF
 # Intel 750 Series NVMe optimizations
@@ -58,6 +86,7 @@ options nvme_core io_poll=1
 options nvme_core io_poll_delay=0
 options nvme_core default_ps_max_latency_us=0
 options nvme_core io_timeout=30
+# For kernel 4.20+, add: options nvme poll_queues=$(nproc)
 EOF
     
     echo "[+] NVMe core parameters configured"
@@ -84,17 +113,17 @@ apply_device_optimizations() {
                     # Set scheduler to none (best for NVMe)
                     echo none > "$nvme/queue/scheduler" 2>/dev/null || true
                     
-                    # Set read-ahead to 0 (not needed for NVMe)
-                    echo 0 > "$nvme/queue/read_ahead_kb" 2>/dev/null || true
+                    # Set read-ahead to 2MB for balanced performance
+                    echo 2048 > "$nvme/queue/read_ahead_kb" 2>/dev/null || true
                     
                     # Disable rotational flag
                     echo 0 > "$nvme/queue/rotational" 2>/dev/null || true
                     
-                    # Set optimal IO stats
+                    # Set optimal IO stats (disabled to reduce overhead)
                     echo 0 > "$nvme/queue/iostats" 2>/dev/null || true
                     
-                    # Add to write cache if available
-                    echo write through > "$nvme/queue/write_cache" 2>/dev/null || true
+                    # Note: Intel 750 has built-in power loss protection
+                    # Write cache settings are handled internally by the drive
                     
                     echo "[+] Optimized $device"
                 fi
@@ -116,8 +145,11 @@ apply_zfs_optimizations() {
     # ZFS parameters optimized for Intel 750
     cat > /etc/modprobe.d/zfs-intel-750.conf << EOF
 # ZFS optimizations for Intel 750 Series
-options zfs zfs_vdev_async_write_max_active=10
-options zfs zfs_vdev_sync_write_max_active=10
+# Increased concurrent I/O operations for NVMe
+options zfs zfs_vdev_async_write_min_active=8
+options zfs zfs_vdev_async_write_max_active=32
+options zfs zfs_vdev_sync_write_min_active=16
+options zfs zfs_vdev_sync_write_max_active=32
 options zfs zfs_vdev_queue_depth_pct=300
 options zfs zil_slog_bulk=786432
 options zfs zfs_prefetch_disable=0
@@ -125,8 +157,10 @@ options zfs zfs_txg_timeout=5
 EOF
     
     # Apply runtime if ZFS is already loaded
-    echo 10 > /sys/module/zfs/parameters/zfs_vdev_async_write_max_active 2>/dev/null || true
-    echo 10 > /sys/module/zfs/parameters/zfs_vdev_sync_write_max_active 2>/dev/null || true
+    echo 8 > /sys/module/zfs/parameters/zfs_vdev_async_write_min_active 2>/dev/null || true
+    echo 32 > /sys/module/zfs/parameters/zfs_vdev_async_write_max_active 2>/dev/null || true
+    echo 16 > /sys/module/zfs/parameters/zfs_vdev_sync_write_min_active 2>/dev/null || true
+    echo 32 > /sys/module/zfs/parameters/zfs_vdev_sync_write_max_active 2>/dev/null || true
     echo 300 > /sys/module/zfs/parameters/zfs_vdev_queue_depth_pct 2>/dev/null || true
     echo 786432 > /sys/module/zfs/parameters/zil_slog_bulk 2>/dev/null || true
     echo 0 > /sys/module/zfs/parameters/zfs_prefetch_disable 2>/dev/null || true
