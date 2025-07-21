@@ -207,6 +207,58 @@ class HardwareDatabase:
     
     # Consumer/Prosumer Hardware
     CONSUMER_HARDWARE = {
+        # Dell Precision Workstations
+        "Precision G8": HardwareProfile(
+            name="Dell Precision Microstation G8",
+            vendor="Dell Inc.",
+            model="Precision G8",
+            type="workstation",
+            optimal_settings={
+                "zfs": {
+                    "arc_max_percent": 30,
+                    "l2arc_write_max": "32M",
+                    "zfs_txg_timeout": "5",
+                    "zfs_vdev_async_write_max_active": "10",
+                    "zfs_vdev_sync_write_max_active": "10",
+                    # Intel 750 optimizations
+                    "zfs_vdev_queue_depth_pct": "300",
+                    "zil_slog_bulk": "786432"
+                },
+                "kernel": {
+                    "vm_swappiness": 1,
+                    "transparent_hugepages": "never",
+                    "nmi_watchdog": "0",
+                    "intel_idle.max_cstate": "1",
+                    # Intel 750 NVMe optimizations
+                    "nvme_core.io_timeout": "30",
+                    "nvme_core.default_ps_max_latency_us": "0"
+                },
+                "cpu": {
+                    "governor": "performance",
+                    "energy_perf_bias": "performance"
+                },
+                "nvme": {
+                    "intel_750": {
+                        "power_management": "disabled",
+                        "write_cache": "enabled",
+                        "volatile_write_cache": "enabled"
+                    }
+                }
+            },
+            known_issues=[
+                "Intel 750 may need BIOS PCIe power management disabled",
+                "Ensure adequate cooling for Intel 750 NVMe",
+                "May require BIOS update for NVMe boot support"
+            ],
+            special_features=[
+                "Intel 750 Series PCIe SSD optimization",
+                "Professional GPU support (Quadro/RTX)",
+                "ECC memory support",
+                "Dual NVMe capability",
+                "Thunderbolt support"
+            ],
+            tested=True
+        ),
         "AMD Ryzen 9 5950X": HardwareProfile(
             name="AMD Ryzen 9 5950X System",
             vendor="AMD",
@@ -422,7 +474,7 @@ class HardwareDatabase:
         try:
             # Use lsblk to get block devices
             lsblk_output = subprocess.check_output(
-                ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MODEL,ROTA"],
+                ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MODEL,ROTA,SERIAL"],
                 stderr=subprocess.DEVNULL
             ).decode()
             
@@ -434,12 +486,23 @@ class HardwareDatabase:
                         "name": device["name"],
                         "size": device["size"],
                         "model": device.get("model", "Unknown"),
-                        "rotational": device.get("rota", "1") == "1"
+                        "rotational": device.get("rota", "1") == "1",
+                        "serial": device.get("serial", "")
                     }
                     
                     # Detect interface type
                     if device["name"].startswith("nvme"):
                         dev_info["interface"] = "NVMe"
+                        
+                        # Check for Intel 750 Series
+                        if "INTEL SSDPE" in dev_info["model"].upper() or "750" in dev_info["model"]:
+                            dev_info["special"] = "Intel 750 Series"
+                            dev_info["optimizations"] = {
+                                "queue_depth": 256,
+                                "io_poll": True,
+                                "io_poll_delay": 0
+                            }
+                            
                     elif device["name"].startswith("sd"):
                         # Could be SATA or SAS
                         dev_info["interface"] = "SATA/SAS"

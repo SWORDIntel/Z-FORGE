@@ -202,6 +202,39 @@ echo {zfs_settings['l2arc_write_max']} > /sys/module/zfs/parameters/l2arc_write_
 echo "options zfs l2arc_write_max={zfs_settings['l2arc_write_max']}" >> /etc/modprobe.d/zfs.conf
 """
         
+        # Additional ZFS settings for NVMe optimization
+        for param, value in zfs_settings.items():
+            if param not in ["arc_max_percent", "l2arc_write_max"]:
+                script_content += f"""
+# {param}
+echo {value} > /sys/module/zfs/parameters/{param} 2>/dev/null || true
+echo "options zfs {param}={value}" >> /etc/modprobe.d/zfs.conf
+"""
+        
+        # Check for Intel 750 Series SSD
+        if self.optimization_report.get("hardware", {}).get("storage"):
+            for disk in self.optimization_report["hardware"]["storage"]:
+                if disk.get("special") == "Intel 750 Series":
+                    script_content += """
+# Intel 750 Series NVMe optimizations
+echo "Detected Intel 750 Series SSD - applying specific optimizations"
+
+# Increase queue depth for Intel 750
+for nvme in /sys/block/nvme*/queue; do
+    echo 256 > $nvme/nr_requests
+    echo 256 > $nvme/queue_depth 2>/dev/null || true
+done
+
+# Enable IO polling for lower latency
+echo 1 > /sys/module/nvme_core/parameters/io_poll 2>/dev/null || true
+echo 0 > /sys/module/nvme_core/parameters/io_poll_delay 2>/dev/null || true
+
+# Set optimal scheduler for NVMe
+for nvme in /sys/block/nvme*; do
+    echo none > $nvme/queue/scheduler 2>/dev/null || true
+done
+"""
+        
         script_content += """
 echo "ZFS optimizations applied!"
 """

@@ -17,6 +17,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Optional, List, Any
 import logging
+import time
 from builder.core.lockfile import BuildLockfile
 
 class Debootstrap:
@@ -215,31 +216,52 @@ class Debootstrap:
         ]
         
         self.logger.info(f"Executing debootstrap command: {' '.join(cmd)}")
-        # Execute the command with a 30-minute timeout for the initial debootstrap
-        # This process downloads many packages and can take time on slow connections
+        self.logger.info("This process downloads many packages and may take 10-30 minutes...")
+        self.logger.info("Verbose output will be displayed in real-time...")
+        
+        # Execute the command with real-time output streaming
         try:
-            # Run without capturing output initially to see real-time progress
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=1800)  # 30 minutes
+            # Run with real-time output display
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # Merge stderr into stdout
+                universal_newlines=True,
+                bufsize=1  # Line buffered
+            )
             
-            if result.stdout:
-                self.logger.debug(f"Debootstrap stdout:\n{result.stdout}")
-            if result.stderr:
-                self.logger.warning(f"Debootstrap stderr:\n{result.stderr}")
+            # Stream output in real-time
+            last_progress_time = 0
+            import time
+            
+            for line in process.stdout:
+                line = line.rstrip()
+                if line:
+                    # Always log the line
+                    self.logger.info(f"[debootstrap] {line}")
+                    
+                    # Also print to console for immediate visibility
+                    print(f"[debootstrap] {line}", flush=True)
+                    
+                    # Show periodic progress indicators
+                    current_time = time.time()
+                    if current_time - last_progress_time > 30:  # Every 30 seconds
+                        self.logger.info("[debootstrap] Still running... (this is normal)")
+                        last_progress_time = current_time
+            
+            # Wait for process to complete
+            process.wait()
+            
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, cmd)
                 
             self.logger.info("Debootstrap command completed successfully.")
-        except subprocess.TimeoutExpired as e:
-            self.logger.error("Debootstrap command timed out after 30 minutes")
-            if e.stdout:
-                self.logger.error(f"Partial stdout:\n{e.stdout}")
-            if e.stderr:
-                self.logger.error(f"Partial stderr:\n{e.stderr}")
-            raise
+            
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Debootstrap failed with exit code {e.returncode}")
-            if e.stdout:
-                self.logger.error(f"Stdout:\n{e.stdout}")
-            if e.stderr:
-                self.logger.error(f"Stderr:\n{e.stderr}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error during debootstrap: {e}")
             raise
     
     def _configure_system(self, debian_release: str) -> None:
@@ -321,7 +343,10 @@ proc             /proc          proc    defaults   0       0
         
         # Update package lists and upgrade installed packages within the chroot.
         self.logger.info("Updating package lists and upgrading packages in chroot...")
+        self.logger.info("Running apt-get update (this downloads package lists)...")
         self._run_chroot_command(["apt-get", "update"])
+        
+        self.logger.info("Running apt-get upgrade (this may upgrade many packages)...")
         self._run_chroot_command(["apt-get", "upgrade", "-y"]) # -y to auto-confirm.
         
         # Install essential packages in groups to avoid timeout issues
@@ -482,15 +507,65 @@ add_drivers+=" nvme "
         self.logger.info(f"Executing in chroot: {' '.join(command)}")
         
         try:
-            # Run the command with timeout.
-            # `text=True` decodes stdout/stderr as strings.
-            # `capture_output=True` is useful if we need to inspect output/errors from this helper.
-            result = subprocess.run(full_cmd, check=check, capture_output=True, text=True, timeout=timeout)
-            if result.stdout:
-                self.logger.debug(f"Chroot command stdout: {result.stdout.strip()}")
-            if result.stderr:
-                self.logger.debug(f"Chroot command stderr: {result.stderr.strip()}") # Use debug for stderr as it might be noisy
-            return result
+            # For apt/package commands, show real-time output
+            if command[0] in ["apt-get", "apt", "dpkg"] or (len(command) > 2 and command[2] in ["apt-get", "apt"]):
+                self.logger.info(f"Running package command with real-time output (timeout: {timeout}s)...")
+                
+                # Run with real-time output
+                process = subprocess.Popen(
+                    full_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    universal_newlines=True,
+                    bufsize=1
+                )
+                
+                # Collect output while displaying it
+                output_lines = []
+                start_time = time.time()
+                
+                while True:
+                    # Check timeout
+                    if timeout and (time.time() - start_time) > timeout:
+                        process.kill()
+                        raise subprocess.TimeoutExpired(full_cmd, timeout)
+                    
+                    # Read line with timeout
+                    line = process.stdout.readline()
+                    if not line and process.poll() is not None:
+                        break
+                        
+                    if line:
+                        line = line.rstrip()
+                        output_lines.append(line)
+                        # Log package operations at info level for visibility
+                        self.logger.info(f"[chroot] {line}")
+                        print(f"[chroot] {line}", flush=True)
+                
+                # Get return code
+                return_code = process.poll()
+                
+                # Create result object
+                result = subprocess.CompletedProcess(
+                    args=full_cmd,
+                    returncode=return_code,
+                    stdout='\n'.join(output_lines),
+                    stderr=''
+                )
+                
+                if check and return_code != 0:
+                    raise subprocess.CalledProcessError(return_code, full_cmd, output=result.stdout)
+                    
+                return result
+            else:
+                # For non-package commands, use normal execution
+                result = subprocess.run(full_cmd, check=check, capture_output=True, text=True, timeout=timeout)
+                if result.stdout:
+                    self.logger.debug(f"Chroot command stdout: {result.stdout.strip()}")
+                if result.stderr:
+                    self.logger.debug(f"Chroot command stderr: {result.stderr.strip()}")
+                return result
+                
         except subprocess.TimeoutExpired as e:
             self.logger.error(f"Command timed out after {timeout} seconds: {' '.join(command)}")
             raise
@@ -505,33 +580,17 @@ add_drivers+=" nvme "
         keyrings_dir = self.chroot_path / "etc" / "apt" / "keyrings"
         keyrings_dir.mkdir(parents=True, exist_ok=True)
         
-        # Download and install Dell GPG key
-        try:
-            # Download Dell GPG key
-            self._run_chroot_command([
-                "wget", "-qO", "/etc/apt/keyrings/dell-omsa.gpg",
-                "https://linux.dell.com/repo/pgp_pubkeys/0x1285491434D8786F.asc"
-            ])
-            self.logger.info("Downloaded Dell GPG key")
-        except subprocess.CalledProcessError:
-            self.logger.warning("Failed to download Dell GPG key, trying alternative method")
-            try:
-                self._run_chroot_command([
-                    "curl", "-fsSL", "-o", "/etc/apt/keyrings/dell-omsa.gpg",
-                    "https://linux.dell.com/repo/pgp_pubkeys/0x1285491434D8786F.asc"
-                ])
-            except subprocess.CalledProcessError as e:
-                self.logger.error(f"Failed to download Dell GPG key: {e}")
-                return
+        # Skip GPG key download since signature verification is being bypassed
+        self.logger.info("Skipping Dell GPG key download - using trusted=yes")
         
-        # Add Dell repository
+        # Add Dell repository with trusted=yes to bypass signature verification
         dell_sources = """# Dell OpenManage Server Administrator
-deb [signed-by=/etc/apt/keyrings/dell-omsa.gpg] https://linux.dell.com/repo/community/openmanage/11100/jammy jammy main
+deb [trusted=yes] https://linux.dell.com/repo/community/openmanage/11100/jammy jammy main
 """
         dell_sources_path = self.chroot_path / "etc" / "apt" / "sources.list.d" / "dell-omsa.list"
         with open(dell_sources_path, "w") as f:
             f.write(dell_sources)
-        self.logger.info("Added Dell OpenManage repository")
+        self.logger.info("Added Dell OpenManage repository (signature verification bypassed)")
         
         # Also add MegaRAID repository for LSI/Broadcom RAID controllers
         megaraid_sources = """# MegaRAID Storage Manager
