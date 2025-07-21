@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+"""
+Storage Layout Templates Module for Calamares
+Pre-configured ZFS dataset layouts for different use cases
+"""
+
+import os
+import sys
+import json
+import subprocess
+import libcalamares
+from pathlib import Path
+
+sys.path.append(os.path.dirname(__file__))
+from storage_layout_gui import StorageLayoutWidget
+
+def pretty_name():
+    return "Storage Layout"
+
+def icon():
+    return "drive-harddisk"
+
+def run():
+    """Apply storage layout template"""
+    gs = libcalamares.globalstorage
+    layout_config = gs.value("storageLayoutConfig")
+    
+    if not layout_config or layout_config.get("template") == "none":
+        # No template selected
+        return None
+    
+    try:
+        apply_storage_layout(layout_config)
+        return None
+    except Exception as e:
+        return "Storage layout configuration failed", str(e)
+
+def apply_storage_layout(config):
+    """Apply the selected storage layout template"""
+    pool_name = libcalamares.globalstorage.value("zfsPoolName")
+    if not pool_name:
+        raise Exception("No ZFS pool configured")
+    
+    template = config.get("template")
+    datasets = get_template_datasets(template)
+    
+    # Create datasets with appropriate properties
+    for dataset in datasets:
+        create_dataset(pool_name, dataset)
+    
+    # Setup snapshot policies if requested
+    if config.get("snapshot_schedule"):
+        setup_snapshot_schedule(pool_name, template)
+    
+    # Set quotas if requested
+    if config.get("set_quotas"):
+        setup_quotas(pool_name, template)
+
+def get_template_datasets(template):
+    """Get dataset configuration for template"""
+    templates = {
+        "proxmox": [
+            {"name": "vm-disks", "props": {"recordsize": "64K", "compression": "lz4"}},
+            {"name": "containers", "props": {"recordsize": "128K", "compression": "zstd-3"}},
+            {"name": "templates", "props": {"recordsize": "1M", "compression": "off"}},
+            {"name": "backups", "props": {"recordsize": "1M", "compression": "zstd-6"}},
+            {"name": "shared", "props": {"recordsize": "128K", "compression": "lz4"}}
+        ],
+        "media": [
+            {"name": "media", "props": {"recordsize": "1M", "compression": "off"}},
+            {"name": "media/movies", "props": {"recordsize": "1M", "compression": "off"}},
+            {"name": "media/tv", "props": {"recordsize": "1M", "compression": "off"}},
+            {"name": "media/music", "props": {"recordsize": "128K", "compression": "zstd"}},
+            {"name": "media/photos", "props": {"recordsize": "128K", "compression": "zstd"}},
+            {"name": "downloads", "props": {"recordsize": "128K", "compression": "lz4"}},
+            {"name": "apps", "props": {"recordsize": "128K", "compression": "lz4"}},
+            {"name": "documents", "props": {"recordsize": "128K", "compression": "zstd-6"}}
+        ],
+        "database": [
+            {"name": "postgres", "props": {"recordsize": "8K", "compression": "lz4"}},
+            {"name": "postgres/data", "props": {"recordsize": "8K", "compression": "lz4", "logbias": "throughput"}},
+            {"name": "postgres/wal", "props": {"recordsize": "128K", "compression": "off", "sync": "always"}},
+            {"name": "mysql", "props": {"recordsize": "16K", "compression": "lz4"}},
+            {"name": "mysql/data", "props": {"recordsize": "16K", "compression": "lz4"}},
+            {"name": "mysql/logs", "props": {"recordsize": "128K", "compression": "zstd"}},
+            {"name": "mongodb", "props": {"recordsize": "16K", "compression": "lz4"}},
+            {"name": "redis", "props": {"recordsize": "8K", "compression": "lz4", "sync": "disabled"}}
+        ],
+        "development": [
+            {"name": "home", "props": {"recordsize": "128K", "compression": "lz4"}},
+            {"name": "projects", "props": {"recordsize": "128K", "compression": "lz4"}},
+            {"name": "docker", "props": {"recordsize": "128K", "compression": "zstd"}},
+            {"name": "vms", "props": {"recordsize": "64K", "compression": "lz4"}},
+            {"name": "snapshots", "props": {"recordsize": "128K", "compression": "zstd-6"}}
+        ]
+    }
+    
+    return templates.get(template, [])
+
+def create_dataset(pool_name, dataset_config):
+    """Create a ZFS dataset with properties"""
+    dataset_path = f"{pool_name}/{dataset_config['name']}"
+    
+    # Build zfs create command
+    cmd = ["zfs", "create"]
+    
+    # Add properties
+    for prop, value in dataset_config.get("props", {}).items():
+        cmd.extend(["-o", f"{prop}={value}"])
+    
+    cmd.append(dataset_path)
+    
+    # Execute command
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        libcalamares.utils.debug(f"Created dataset: {dataset_path}")
+    except subprocess.CalledProcessError as e:
+        libcalamares.utils.warning(f"Failed to create dataset {dataset_path}: {e}")
+
+def setup_snapshot_schedule(pool_name, template):
+    """Setup automatic snapshot schedules"""
+    # This would integrate with zfs-auto-snapshot or similar
+    # For now, create a basic cron configuration
+    
+    schedules = {
+        "proxmox": {
+            "vm-disks": "hourly",
+            "containers": "daily",
+            "shared": "weekly"
+        },
+        "media": {
+            "documents": "daily",
+            "photos": "weekly"
+        },
+        "database": {
+            "postgres/data": "hourly",
+            "mysql/data": "hourly"
+        },
+        "development": {
+            "projects": "hourly",
+            "home": "daily"
+        }
+    }
+    
+    template_schedules = schedules.get(template, {})
+    
+    # Write cron configuration
+    cron_content = "# ZFS Auto-snapshot schedule\n"
+    cron_content += "# Generated by Z-FORGE installer\n\n"
+    
+    for dataset, frequency in template_schedules.items():
+        if frequency == "hourly":
+            cron_content += f"0 * * * * root zfs snapshot {pool_name}/{dataset}@auto-$(date +\%Y\%m\%d-\%H\%M\%S)\n"
+        elif frequency == "daily":
+            cron_content += f"0 2 * * * root zfs snapshot {pool_name}/{dataset}@auto-$(date +\%Y\%m\%d-\%H\%M\%S)\n"
+        elif frequency == "weekly":
+            cron_content += f"0 2 * * 0 root zfs snapshot {pool_name}/{dataset}@auto-$(date +\%Y\%m\%d-\%H\%M\%S)\n"
+    
+    # Write to target system
+    root_mount_point = libcalamares.globalstorage.value("rootMountPoint")
+    cron_path = Path(root_mount_point) / "etc/cron.d/zfs-auto-snapshot"
+    cron_path.parent.mkdir(parents=True, exist_ok=True)
+    cron_path.write_text(cron_content)
+
+def setup_quotas(pool_name, template):
+    """Setup recommended quotas for datasets"""
+    # This would set quotas based on available space and template
+    # For now, just log the intention
+    libcalamares.utils.debug(f"Quota setup for {template} template would be configured here")
+
+class StorageLayoutViewStep:
+    """Calamares ViewStep for storage layout templates"""
+    
+    def __init__(self):
+        self.widget = None
+        self.gs = libcalamares.globalstorage
+    
+    def name(self):
+        return "storagelayout"
+    
+    def pretty_name(self):
+        return "Storage Layout"
+    
+    def icon(self):
+        return "drive-harddisk"
+    
+    def widget(self):
+        if self.widget is None:
+            pool_name = self.gs.value("zfsPoolName")
+            self.widget = StorageLayoutWidget(self.gs, pool_name)
+        return self.widget
+    
+    def next(self):
+        if self.widget:
+            config = self.widget.get_configuration()
+            self.gs.insert("storageLayoutConfig", config)
+        return None
+    
+    def back(self):
+        return None
+    
+    def jobs(self):
+        return []
+
+calamares_module = StorageLayoutViewStep

@@ -1,0 +1,7 @@
+# Module descriptor for Enhanced ZFS Configuration
+---
+type:       "python"
+name:       "zfsenhancedconfig"
+interface:  "python"
+requires:   []
+script:     "main.py"

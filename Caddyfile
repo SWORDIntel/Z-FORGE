@@ -1,0 +1,262 @@
+# ===== GLOBAL OPTIONS =====
+{
+    email {$EMAIL:admin@swordintelligence.airforce}
+    admin 0.0.0.0:2019
+    
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 100MB
+            roll_keep 5
+            roll_keep_for 720h
+        }
+        format json
+        level INFO
+    }
+    
+    # ACME DNS challenge for wildcard certs (optional)
+    # acme_dns cloudflare {env.CF_API_TOKEN}
+    
+    servers {
+        protocols h1 h2 h3
+        strict_sni_host on
+    }
+}
+
+# ===== SNIPPETS =====
+
+# Security headers
+(security_headers) {
+    header {
+        # Security headers
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss: https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        
+        # Remove server info
+        -Server
+        -X-Powered-By
+    }
+}
+
+# Proxy headers
+(proxy_headers) {
+    header_up Host {upstream_hostport}
+    header_up X-Real-IP {remote_host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+}
+
+# WebSocket support
+(websocket) {
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+}
+
+# ===== MAIN DOMAIN WITH XRAY =====
+{$DOMAIN:swordintelligence.airforce} {
+    import security_headers
+    encode gzip zstd
+    
+    # Xray WebSocket - VMess
+    @vmess_ws {
+        path /vmess
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    handle @vmess_ws {
+        reverse_proxy unix//dev/shm/vmess-ws.sock {
+            import proxy_headers
+            flush_interval -1
+        }
+    }
+    
+    # Xray WebSocket - VLESS
+    @vless_ws {
+        path /vless
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    handle @vless_ws {
+        reverse_proxy unix//dev/shm/vless-ws.sock {
+            import proxy_headers
+            flush_interval -1
+        }
+    }
+    
+    # Xray gRPC - VLESS
+    @vless_grpc {
+        protocol grpc
+        path /VLESSService/*
+    }
+    handle @vless_grpc {
+        reverse_proxy h2c://unix//dev/shm/vless-grpc.sock {
+            import proxy_headers
+            transport http {
+                versions h2c
+            }
+        }
+    }
+    
+    # Xray gRPC - VMess
+    @vmess_grpc {
+        protocol grpc
+        path /VMESSService/*
+    }
+    handle @vmess_grpc {
+        reverse_proxy h2c://unix//dev/shm/vmess-grpc.sock {
+            import proxy_headers
+            transport http {
+                versions h2c
+            }
+        }
+    }
+    
+    # Xray gRPC - Trojan
+    @trojan_grpc {
+        protocol grpc
+        path /TrojanService/*
+    }
+    handle @trojan_grpc {
+        reverse_proxy h2c://unix//dev/shm/trojan-grpc.sock {
+            import proxy_headers
+            transport http {
+                versions h2c
+            }
+        }
+    }
+    
+    # HTTPUpgrade transport
+    @httpupgrade {
+        path /upgrade
+        header Connection *Upgrade*
+        header Upgrade *
+    }
+    handle @httpupgrade {
+        reverse_proxy unix//dev/shm/httpupgrade.sock {
+            import proxy_headers
+            transport http {
+                read_timeout 300s
+                write_timeout 300s
+            }
+        }
+    }
+    
+    # SplitHTTP transport
+    @splithttp {
+        path /splithttp/*
+    }
+    handle @splithttp {
+        reverse_proxy unix//dev/shm/splithttp.sock {
+            import proxy_headers
+        }
+    }
+    
+    # Default: serve website
+    root * /srv
+    file_server
+    
+    # Health check endpoint
+    handle /health {
+        respond "OK" 200
+    }
+    
+    log {
+        output file /var/log/caddy/{$DOMAIN}.log {
+            roll_size 10MB
+            roll_keep 3
+        }
+        format json
+    }
+}
+
+# ===== PORTAINER (YOUR EXISTING INSTANCE) =====
+portainer.{$DOMAIN:swordintelligence.airforce} {
+    import security_headers
+    encode gzip zstd
+    
+    # Allow frames for Portainer
+    header {
+        -X-Frame-Options
+        X-Frame-Options "SAMEORIGIN"
+    }
+    
+    # WebSocket support for Portainer
+    import websocket
+    
+    reverse_proxy portainer:9000 {
+        import proxy_headers
+    }
+    
+    log {
+        output file /var/log/caddy/portainer.log {
+            roll_size 10MB
+            roll_keep 3
+        }
+        format json
+    }
+}
+
+# ===== XRAY API ENDPOINT =====
+api.{$DOMAIN:swordintelligence.airforce} {
+    import security_headers
+    encode gzip zstd
+    
+    @api {
+        path /xray/*
+    }
+    
+    handle @api {
+        uri strip_prefix /xray
+        reverse_proxy xray-core:10085 {
+            import proxy_headers
+            transport http {
+                dial_timeout 30s
+                response_header_timeout 30s
+            }
+        }
+    }
+    
+    # Default API response
+    handle {
+        respond `{"status": "online", "service": "SWORD Intelligence API"}` 200 {
+            header Content-Type "application/json"
+        }
+    }
+    
+    log {
+        output file /var/log/caddy/api.log {
+            roll_size 10MB
+            roll_keep 3
+        }
+        format json
+    }
+}
+
+# ===== CATCH-ALL SUBDOMAIN =====
+*.{$DOMAIN:swordintelligence.airforce} {
+    import security_headers
+    
+    respond "Service not found" 404 {
+        close
+    }
+    
+    log {
+        output file /var/log/caddy/wildcard.log {
+            roll_size 10MB
+            roll_keep 3
+        }
+        format json
+    }
+}
+
+# ===== HTTP->HTTPS REDIRECT =====
+http:// {
+    redir https://{host}{uri} permanent
+}

@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""
+Network Configuration GUI for Calamares
+"""
+
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, GLib
+import subprocess
+import json
+import ipaddress
+from typing import Dict, List
+
+class NetworkConfigWidget(Gtk.Box):
+    """Network configuration widget"""
+    
+    def __init__(self, globalstorage):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.gs = globalstorage
+        self.interfaces = {}
+        self.network_config = {
+            "interfaces": {},
+            "dns_servers": ["8.8.8.8", "8.8.4.4"]
+        }
+        
+        self.setup_ui()
+        self.detect_interfaces()
+        
+    def setup_ui(self):
+        """Build the UI"""
+        # Header
+        header = Gtk.Label()
+        header.set_markup("<b>Network Configuration</b>")
+        self.pack_start(header, False, False, 0)
+        
+        # Interface list
+        self.interface_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_min_content_height(300)
+        scroll.add(self.interface_box)
+        self.pack_start(scroll, True, True, 0)
+        
+        # DNS configuration
+        dns_frame = Gtk.Frame(label="DNS Servers")
+        dns_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        dns_box.set_margin_top(10)
+        dns_box.set_margin_bottom(10)
+        dns_box.set_margin_left(10)
+        dns_box.set_margin_right(10)
+        
+        self.dns1_entry = Gtk.Entry()
+        self.dns1_entry.set_text("8.8.8.8")
+        self.dns1_entry.set_placeholder_text("Primary DNS")
+        dns_box.pack_start(self.dns1_entry, False, False, 0)
+        
+        self.dns2_entry = Gtk.Entry()
+        self.dns2_entry.set_text("8.8.4.4")
+        self.dns2_entry.set_placeholder_text("Secondary DNS")
+        dns_box.pack_start(self.dns2_entry, False, False, 0)
+        
+        dns_frame.add(dns_box)
+        self.pack_start(dns_frame, False, False, 0)
+        
+        self.show_all()
+        
+    def detect_interfaces(self):
+        """Detect network interfaces"""
+        try:
+            output = subprocess.check_output(["ip", "link", "show"]).decode()
+            for line in output.split('\n'):
+                if ': ' in line and 'lo:' not in line:
+                    parts = line.split(': ')
+                    if len(parts) >= 2:
+                        iface_name = parts[1].split('@')[0]
+                        if iface_name and not iface_name.startswith('vir'):
+                            self.add_interface(iface_name)
+        except Exception as e:
+            print(f"Error detecting interfaces: {e}")
+            
+    def add_interface(self, iface_name):
+        """Add interface to configuration UI"""
+        frame = Gtk.Frame(label=f"Interface: {iface_name}")
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        box.set_margin_top(10)
+        box.set_margin_bottom(10)
+        box.set_margin_left(10)
+        box.set_margin_right(10)
+        
+        # DHCP/Static selection
+        dhcp_radio = Gtk.RadioButton.new_with_label(None, "DHCP")
+        static_radio = Gtk.RadioButton.new_with_label_from_widget(dhcp_radio, "Static IP")
+        
+        radio_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        radio_box.pack_start(dhcp_radio, False, False, 0)
+        radio_box.pack_start(static_radio, False, False, 0)
+        box.pack_start(radio_box, False, False, 0)
+        
+        # Static IP configuration
+        static_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        
+        # IP Address
+        ip_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        ip_label = Gtk.Label(label="IP Address:")
+        ip_label.set_size_request(100, -1)
+        ip_box.pack_start(ip_label, False, False, 0)
+        ip_entry = Gtk.Entry()
+        ip_entry.set_placeholder_text("192.168.1.100/24")
+        ip_box.pack_start(ip_entry, True, True, 0)
+        static_box.pack_start(ip_box, False, False, 0)
+        
+        # Gateway
+        gw_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        gw_label = Gtk.Label(label="Gateway:")
+        gw_label.set_size_request(100, -1)
+        gw_box.pack_start(gw_label, False, False, 0)
+        gw_entry = Gtk.Entry()
+        gw_entry.set_placeholder_text("192.168.1.1")
+        gw_box.pack_start(gw_entry, True, True, 0)
+        static_box.pack_start(gw_box, False, False, 0)
+        
+        # Bridge option
+        bridge_check = Gtk.CheckButton(label="Create bridge for VMs (vmbr0)")
+        static_box.pack_start(bridge_check, False, False, 0)
+        
+        box.pack_start(static_box, False, False, 0)
+        
+        # Store references
+        self.interfaces[iface_name] = {
+            "dhcp_radio": dhcp_radio,
+            "static_radio": static_radio,
+            "ip_entry": ip_entry,
+            "gw_entry": gw_entry,
+            "bridge_check": bridge_check,
+            "static_box": static_box
+        }
+        
+        # Connect signals
+        dhcp_radio.connect("toggled", self.on_dhcp_toggled, iface_name)
+        static_radio.connect("toggled", self.on_static_toggled, iface_name)
+        
+        frame.add(box)
+        self.interface_box.pack_start(frame, False, False, 0)
+        frame.show_all()
+        
+        # Set initial state
+        dhcp_radio.set_active(True)
+        static_box.set_sensitive(False)
+        
+    def on_dhcp_toggled(self, button, iface_name):
+        if button.get_active():
+            self.interfaces[iface_name]["static_box"].set_sensitive(False)
+            
+    def on_static_toggled(self, button, iface_name):
+        if button.get_active():
+            self.interfaces[iface_name]["static_box"].set_sensitive(True)
+            
+    def get_configuration(self) -> Dict:
+        """Get the network configuration"""
+        config = {
+            "interfaces": {},
+            "dns_servers": []
+        }
+        
+        # Get interface configurations
+        for iface_name, widgets in self.interfaces.items():
+            if widgets["dhcp_radio"].get_active():
+                config["interfaces"][iface_name] = {"type": "dhcp"}
+            else:
+                ip_text = widgets["ip_entry"].get_text()
+                gw_text = widgets["gw_entry"].get_text()
+                
+                if not ip_text:
+                    continue
+                    
+                try:
+                    # Parse IP address with CIDR
+                    ip_net = ipaddress.ip_network(ip_text, strict=False)
+                    ip_addr = ip_text.split('/')[0]
+                    netmask = str(ip_net.netmask)
+                    
+                    iface_config = {
+                        "type": "static",
+                        "address": ip_addr,
+                        "netmask": netmask,
+                        "gateway": gw_text
+                    }
+                    
+                    if widgets["bridge_check"].get_active():
+                        iface_config["bridge"] = True
+                        iface_config["bridge_name"] = "vmbr0"
+                        
+                    config["interfaces"][iface_name] = iface_config
+                    
+                except Exception as e:
+                    print(f"Invalid IP configuration: {e}")
+                    
+        # Get DNS servers
+        dns1 = self.dns1_entry.get_text()
+        dns2 = self.dns2_entry.get_text()
+        
+        if dns1:
+            config["dns_servers"].append(dns1)
+        if dns2:
+            config["dns_servers"].append(dns2)
+            
+        return config

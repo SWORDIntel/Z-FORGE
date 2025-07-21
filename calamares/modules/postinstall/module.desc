@@ -1,0 +1,7 @@
+# Post-Installation Checklist Module
+---
+type:       "python"
+name:       "postinstall"
+interface:  "python"
+requires:   []
+script:     "main.py"

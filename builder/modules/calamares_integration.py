@@ -144,7 +144,10 @@ class CalamaresIntegration:
             "konsole", # KDE's terminal
             "firefox-esr", "network-manager", "plasma-nm", # Network management with KDE applet
             "gparted", "vim", "nano", "htop", # Standard system utilities
-            "python3-pyqt5", "python3-yaml", "python3-jsonschema"
+            "python3-pyqt5", "python3-yaml", "python3-jsonschema",
+            # GTK dependencies for enhanced ZFS module
+            "python3-gi", "python3-gi-cairo", "gir1.2-gtk-3.0",
+            "gir1.2-pango-1.0", "python3-cairo"
         ]
         # Ensure no XFCE or LightDM packages are installed if they were in a previous version of this list
         # For example, by explicitly removing them or ensuring they are not in `packages_to_install`.
@@ -238,7 +241,7 @@ apt-get clean
                   # or as a very early PythonJob if it's purely backend. For simplicity in this sequence,
                   # we assume its data is available by the time 'telemetryconsent' or later modules need it.
                   # A more robust setup would have an 'init' sequence for such tasks.
-                    'show': ['welcome', 'telemetryconsent', 'locale', 'keyboard', 'zfsrootselect']
+                    'show': ['welcome', 'telemetryconsent', 'locale', 'keyboard', 'zfspooldetect', 'zfsenhancedconfig']
                 },
                 { # Second phase: Execution of tasks
                     'exec': [

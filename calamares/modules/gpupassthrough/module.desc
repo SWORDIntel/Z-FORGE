@@ -1,0 +1,7 @@
+# GPU Passthrough Configuration Module
+---
+type:       "python"
+name:       "gpupassthrough"
+interface:  "python"
+requires:   []
+script:     "main.py"

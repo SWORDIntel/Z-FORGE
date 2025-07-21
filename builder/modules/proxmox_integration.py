@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Optional
 import logging
+import os
 from builder.core.lockfile import BuildLockfile
 
 class ProxmoxIntegration:
@@ -18,6 +19,9 @@ class ProxmoxIntegration:
         self.workspace = workspace
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.proxmox_config = config.get('proxmox_config', {})
+        self.build_from_source = self.proxmox_config.get('build_from_source', False)
+        self.use_beta_iso = self.proxmox_config.get('use_beta_iso', False)
         
     def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[BuildLockfile] = None) -> Dict:
         """
@@ -32,17 +36,29 @@ class ProxmoxIntegration:
         try:
             chroot_path = self.workspace / "chroot"
             
-            # Add Proxmox repository keys
-            self._add_repository_keys(chroot_path)
-            
-            # Configure Proxmox repositories
-            self._setup_repositories(chroot_path)
-            
-            # Update package lists
-            self._update_package_lists(chroot_path)
-            
-            # Cache Proxmox packages (but don't install)
-            self._cache_packages(chroot_path)
+            if self.build_from_source:
+                # Build Proxmox from source
+                self.logger.info("Building Proxmox VE from source...")
+                self._build_from_source(chroot_path)
+            elif self.use_beta_iso:
+                # Extract packages from Proxmox VE 9.0 BETA ISO
+                self.logger.info("Using Proxmox VE 9.0 BETA ISO as base...")
+                self._extract_from_iso(chroot_path)
+            else:
+                # Standard APT repository approach
+                self.logger.info("Using Proxmox APT repositories...")
+                
+                # Add Proxmox repository keys
+                self._add_repository_keys(chroot_path)
+                
+                # Configure Proxmox repositories
+                self._setup_repositories(chroot_path)
+                
+                # Update package lists
+                self._update_package_lists(chroot_path)
+                
+                # Cache Proxmox packages (but don't install)
+                self._cache_packages(chroot_path)
             
             # Prepare installation scripts
             self._create_install_scripts(chroot_path)
@@ -171,3 +187,155 @@ echo "Proxmox VE installation complete!"
         script_path.parent.mkdir(parents=True, exist_ok=True)
         script_path.write_text(install_script)
         script_path.chmod(0o755)
+    
+    def _build_from_source(self, chroot_path: Path):
+        """Build Proxmox VE from source repositories"""
+        
+        # Create build directory
+        build_dir = self.workspace / "proxmox-build"
+        build_dir.mkdir(exist_ok=True)
+        
+        # List of core Proxmox repositories to clone
+        repos = [
+            "pve-common",
+            "pve-access-control", 
+            "pve-storage",
+            "pve-cluster",
+            "pve-manager",
+            "pve-kernel",
+            "pve-qemu",
+            "pve-container",
+            "pve-firewall",
+            "pve-ha-manager",
+            "proxmox-backup",
+            "proxmox-widget-toolkit"
+        ]
+        
+        # Clone repositories
+        for repo in repos:
+            repo_url = f"git://git.proxmox.com/{repo}.git"
+            repo_path = build_dir / repo
+            
+            if not repo_path.exists():
+                self.logger.info(f"Cloning {repo}...")
+                subprocess.run([
+                    "git", "clone", repo_url, str(repo_path)
+                ], check=True)
+        
+        # Install build dependencies in chroot
+        build_deps = [
+            "build-essential",
+            "debhelper",
+            "dh-systemd",
+            "libpve-common-perl",
+            "libpve-access-control",
+            "libpve-storage-perl",
+            "libpve-http-server-perl",
+            "libjson-perl",
+            "libanyevent-perl",
+            "libio-multiplex-perl",
+            "libnet-ssleay-perl",
+            "libcrypt-ssleay-perl",
+            "liblwp-protocol-https-perl",
+            "libfilesys-df-perl",
+            "libfile-readbackwards-perl",
+            "libfile-sync-perl",
+            "libnet-ldap-perl",
+            "libauthen-pam-perl",
+            "libtterm-readline-perl",
+            "libterm-readline-gnu-perl",
+            "libnet-dns-perl",
+            "libnet-ip-perl",
+            "libdigest-hmac-perl",
+            "libhtml-parser-perl",
+            "libxml-libxml-perl",
+            "libjson-xs-perl",
+            "libdbi-perl",
+            "libdbd-sqlite3-perl",
+            "libcrypt-openssl-rsa-perl",
+            "libcrypt-openssl-random-perl",
+            "libuuid-perl",
+            "libmime-base32-perl",
+            "liburi-perl",
+            "libwww-perl"
+        ]
+        
+        self.logger.info("Installing build dependencies...")
+        subprocess.run([
+            "chroot", str(chroot_path),
+            "apt-get", "install", "-y"
+        ] + build_deps, check=True)
+        
+        # Build each component
+        for repo in repos:
+            repo_path = build_dir / repo
+            if (repo_path / "Makefile").exists():
+                self.logger.info(f"Building {repo}...")
+                
+                # Copy to chroot for building
+                chroot_build_path = chroot_path / f"usr/src/{repo}"
+                subprocess.run([
+                    "cp", "-r", str(repo_path), str(chroot_build_path)
+                ], check=True)
+                
+                # Build in chroot
+                subprocess.run([
+                    "chroot", str(chroot_path),
+                    "bash", "-c", f"cd /usr/src/{repo} && make deb"
+                ], check=True)
+                
+                # Copy built packages to cache
+                cache_dir = chroot_path / "var/cache/zforge/proxmox"
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                
+                subprocess.run([
+                    "bash", "-c",
+                    f"cp {chroot_path}/usr/src/{repo}/*.deb {cache_dir}/"
+                ], check=True)
+    
+    def _extract_from_iso(self, chroot_path: Path):
+        """Extract packages from Proxmox VE 9.0 BETA ISO"""
+        
+        iso_url = "https://enterprise.proxmox.com/iso/proxmox-ve_9.0-BETA-1.iso"
+        iso_path = self.workspace / "proxmox-ve-9.0-beta.iso"
+        
+        # Download ISO if not present
+        if not iso_path.exists():
+            self.logger.info("Downloading Proxmox VE 9.0 BETA ISO...")
+            subprocess.run([
+                "wget", "-O", str(iso_path), iso_url
+            ], check=True)
+        
+        # Mount ISO
+        mount_point = self.workspace / "iso-mount"
+        mount_point.mkdir(exist_ok=True)
+        
+        subprocess.run([
+            "mount", "-o", "loop", str(iso_path), str(mount_point)
+        ], check=True)
+        
+        try:
+            # Extract packages from ISO
+            packages_dir = mount_point / "proxmox/packages"
+            if packages_dir.exists():
+                cache_dir = chroot_path / "var/cache/zforge/proxmox"
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                
+                self.logger.info("Copying packages from ISO...")
+                subprocess.run([
+                    "cp", "-r", f"{packages_dir}/*.deb", str(cache_dir)
+                ], check=True)
+            
+            # Also extract any configuration templates
+            templates_dir = mount_point / "proxmox/templates"
+            if templates_dir.exists():
+                config_dir = chroot_path / "usr/share/zforge/proxmox-config"
+                config_dir.mkdir(parents=True, exist_ok=True)
+                
+                subprocess.run([
+                    "cp", "-r", str(templates_dir), str(config_dir)
+                ], check=True)
+                
+        finally:
+            # Always unmount
+            subprocess.run(["umount", str(mount_point)], check=False)

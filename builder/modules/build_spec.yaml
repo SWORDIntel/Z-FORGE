@@ -9,6 +9,12 @@ builder_config:
 proxmox_config:
   version: latest
   minimal_install: true
+  # Choose installation method:
+  # - false/commented: Use APT repositories (default)
+  # - build_from_source: true - Build from git.proxmox.com
+  # - use_beta_iso: true - Extract from Proxmox VE 9.0 BETA ISO
+  build_from_source: false
+  use_beta_iso: false
   include_packages:
     - proxmox-ve
     - pve-kernel-6.8

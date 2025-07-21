@@ -1,0 +1,7 @@
+# Hardware Health Monitor Module
+---
+type:       "python"
+name:       "hardwarehealth"
+interface:  "python"
+requires:   []
+script:     "main.py"

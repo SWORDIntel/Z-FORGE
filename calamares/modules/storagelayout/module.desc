@@ -1,0 +1,7 @@
+# Storage Layout Templates Module
+---
+type:       "python"
+name:       "storagelayout"
+interface:  "python"
+requires:   []
+script:     "main.py"

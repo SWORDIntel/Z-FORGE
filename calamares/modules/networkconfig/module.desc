@@ -1,0 +1,7 @@
+# Network Configuration Module
+---
+type:       "python"
+name:       "networkconfig"
+interface:  "python"
+requires:   []
+script:     "main.py"
