@@ -424,6 +424,24 @@ proc             /proc          proc    defaults   0       0
         self.logger.debug("Attempting to remove initramfs-tools if present...")
         self._run_chroot_command(["apt-get", "remove", "-y", "initramfs-tools"], check=False)
         
+        # Create dpkg diversion to prevent dracut from running during installation
+        self.logger.info("Creating dpkg diversion to prevent dracut execution...")
+        
+        # Create a dummy dracut script
+        dummy_dracut = self.chroot_path / "usr/local/bin/dracut-dummy"
+        dummy_dracut.parent.mkdir(parents=True, exist_ok=True)
+        with open(dummy_dracut, 'w') as f:
+            f.write("#!/bin/sh\n# Dummy dracut during installation\nexit 0\n")
+        dummy_dracut.chmod(0o755)
+        
+        # Use dpkg-divert to redirect dracut
+        self._run_chroot_command([
+            "dpkg-divert", "--local", "--rename", "--add", "/usr/bin/dracut"
+        ], check=False)
+        self._run_chroot_command([
+            "ln", "-sf", "/usr/local/bin/dracut-dummy", "/usr/bin/dracut"
+        ], check=False)
+        
         # Install dracut and related packages.
         dracut_packages: List[str] = [
             "dracut",         # Core dracut utility
@@ -432,7 +450,16 @@ proc             /proc          proc    defaults   0       0
             "dracut-squash"   # Modules for squashfs, if live media uses it directly
         ]
         self.logger.info(f"Installing dracut packages: {', '.join(dracut_packages)}")
-        self._run_chroot_command(["apt-get", "install", "-y"] + dracut_packages)
+        
+        # Install with --no-install-recommends to minimize dependencies
+        self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends"] + dracut_packages)
+        
+        # Remove the diversion after installation
+        self.logger.info("Removing dpkg diversion...")
+        self._run_chroot_command(["rm", "-f", "/usr/bin/dracut"], check=False)
+        self._run_chroot_command([
+            "dpkg-divert", "--local", "--rename", "--remove", "/usr/bin/dracut"
+        ], check=False)
         
         # Create a base dracut configuration file for Z-Forge.
         # This configuration ensures ZFS, systemd, and NVMe support are included.
@@ -443,22 +470,28 @@ proc             /proc          proc    defaults   0       0
 compress="zstd"
 
 # Add dracut modules necessary for ZFS root and systemd.
-add_dracutmodules+=" zfs systemd "
+# Using += to add modules, and only if they exist
+add_dracutmodules+=" systemd "
 
-# Ensure ZFS filesystem type is recognized by dracut.
-filesystems+=" zfs "
+# ZFS will be added later when available
+# omit_dracutmodules+=" zfs "
 
-# Enable hostonly mode: creates a smaller initramfs tailored to the current hardware.
-# For a generic ISO, this might be set to "no", or specific drivers added.
-# However, 'hostonly="yes"' is often used even for ISOs if the kernel/drivers are generic enough.
-hostonly="yes"
+# Ensure ZFS filesystem type is recognized by dracut (when available).
+# filesystems+=" zfs "
+
+# Disable hostonly mode for initial installation
+# This will be changed to "yes" during actual system installation
+hostonly="no"
 
 # Kernel command line parameters to be embedded in the initramfs.
-# 'root=zfs:AUTO' tells the system to find the ZFS root pool automatically.
-kernel_cmdline="root=zfs:AUTO"
+# This will be updated during actual installation
+kernel_cmdline=""
 
 # Add any additional drivers needed, e.g., for NVMe drives.
-add_drivers+=" nvme "
+add_drivers+=" nvme ahci sd_mod "
+
+# Disable early microcode loading if not supported
+early_microcode="no"
 """
         
         dracut_conf_dir: Path = self.chroot_path / "etc/dracut.conf.d"
