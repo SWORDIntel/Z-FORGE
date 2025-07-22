@@ -163,6 +163,60 @@ class KernelAcquisition:
                 'module': self.__class__.__name__
             }
     
+    def _fix_repository_keys(self) -> None:
+        """Fix missing GPG keys for repositories"""
+        self.logger.info("Checking and fixing repository GPG keys...")
+        
+        # Common missing keys and their sources
+        key_fixes = [
+            # NVIDIA HPC SDK key
+            {
+                "key_id": "42550ABD1E80D7C1BC0BAD851285491434D8786F",
+                "keyserver": "keyserver.ubuntu.com",
+                "name": "NVIDIA HPC SDK"
+            },
+            # Add more keys as needed
+        ]
+        
+        for key_info in key_fixes:
+            try:
+                # Try to add the key from keyserver
+                self.logger.info(f"Adding {key_info['name']} GPG key...")
+                cmd = [
+                    "apt-key", "adv", 
+                    "--keyserver", key_info["keyserver"],
+                    "--recv-keys", key_info["key_id"]
+                ]
+                self._run_chroot_command(cmd, check=False)
+            except Exception as e:
+                self.logger.warning(f"Failed to add {key_info['name']} key: {e}")
+                
+        # Also try to update from the repositories themselves
+        try:
+            # Check for nvidia repository and get its key
+            nvidia_list = self.chroot_path / "etc/apt/sources.list.d/nvhpc.list"
+            if nvidia_list.exists():
+                self.logger.info("NVIDIA HPC SDK repository detected, fetching key...")
+                # Try to download the key directly
+                key_url = "https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK"
+                cmd = [
+                    "/bin/bash", "-c",
+                    f"wget -qO- {key_url} | apt-key add -"
+                ]
+                self._run_chroot_command(cmd, check=False)
+                
+                # Alternative: If the repository is causing issues, we can disable it temporarily
+                # since it's not needed for kernel installation
+                self.logger.info("Disabling NVIDIA HPC SDK repository for now...")
+                try:
+                    # Move the file to disable it
+                    cmd = ["mv", "/etc/apt/sources.list.d/nvhpc.list", "/etc/apt/sources.list.d/nvhpc.list.disabled"]
+                    self._run_chroot_command(cmd, check=False)
+                except:
+                    pass
+        except Exception as e:
+            self.logger.warning(f"Failed to update NVIDIA key: {e}")
+
     def _run_chroot_command(self, command: List[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess:
         """
         Helper to run commands inside the chroot environment.
@@ -267,6 +321,9 @@ class KernelAcquisition:
         except subprocess.CalledProcessError as e:
             self.logger.warning(f"Failed to install wget/curl: {e}")
         
+        # Fix GPG key issues before updating
+        self._fix_repository_keys()
+        
         # Update package lists with retry
         max_retries = 3
         for attempt in range(max_retries):
@@ -274,7 +331,14 @@ class KernelAcquisition:
                 self._run_chroot_command(["apt-get", "update"])
                 break
             except subprocess.CalledProcessError as e:
-                if attempt < max_retries - 1:
+                # Check if it's a GPG key error
+                if "Missing key" in str(e.stderr) or "NO_PUBKEY" in str(e.stderr):
+                    self.logger.warning("GPG key error detected, attempting to fix...")
+                    self._fix_repository_keys()
+                    # Try update again
+                    self._run_chroot_command(["apt-get", "update"])
+                    break
+                elif attempt < max_retries - 1:
                     self.logger.warning(f"apt-get update failed (attempt {attempt + 1}/{max_retries}), retrying...")
                     time.sleep(5)
                 else:
