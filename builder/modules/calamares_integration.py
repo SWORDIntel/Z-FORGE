@@ -13,6 +13,7 @@ It also sets up a minimal desktop environment (XFCE with LightDM) to run
 Calamares in the live ISO and creates a desktop launcher for it.
 """
 
+import re
 import subprocess
 import shutil
 from pathlib import Path

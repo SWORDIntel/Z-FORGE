@@ -232,70 +232,81 @@ menuentry "Shutdown" {{
             self.logger.error(error_msg)
             return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
 
-    self.logger.info("Creating bootable ISO image with xorriso...")
+        self.logger.info("Creating bootable ISO image with xorriso...")
 
-    iso_output_name = self.config.get('builder_config', {}).get('output_iso_name', 'zforge-live.iso')
-    final_iso_path = self.workspace / iso_output_name # Output ISO to the workspace for now
+        iso_output_name = self.config.get('builder_config', {}).get('output_iso_name', 'zforge-live.iso')
+        final_iso_path = self.workspace / iso_output_name # Output ISO to the workspace for now
 
-    # Ensure grubx64.efi is staged for UEFI boot
-    grub_efi_file_src_path_str = "/usr/lib/grub/x86_64-efi/grubx64.efi" # Path on HOST
-    grub_efi_file_src = Path(grub_efi_file_src_path_str)
-    staged_grub_efi_dst = self.iso_staging_path / "EFI" / "BOOT" / "BOOTX64.EFI" # Path in ISO staging
+        # Ensure grubx64.efi is staged for UEFI boot
+        # Look for GRUB EFI in the chroot first, then fall back to host
+        grub_efi_locations = [
+            self.chroot_path / "usr/lib/grub/x86_64-efi/grubx64.efi",
+            self.chroot_path / "boot/efi/EFI/BOOT/grubx64.efi",
+            Path("/usr/lib/grub/x86_64-efi/grubx64.efi"),  # Host fallback
+        ]
+        
+        grub_efi_file_src = None
+        for location in grub_efi_locations:
+            if location.exists():
+                grub_efi_file_src = location
+                break
+                
+        staged_grub_efi_dst = self.iso_staging_path / "EFI" / "BOOT" / "BOOTX64.EFI" # Path in ISO staging
 
-    if not grub_efi_file_src.exists():
-        error_msg = f"GRUB EFI file {grub_efi_file_src_path_str} not found on host. Cannot create UEFI bootable ISO."
-        self.logger.error(error_msg)
-        return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
-    try:
-        staged_grub_efi_dst.parent.mkdir(parents=True, exist_ok=True) # Ensure EFI/BOOT exists
-        shutil.copy2(grub_efi_file_src, staged_grub_efi_dst)
-        self.logger.info(f"Copied GRUB EFI file {grub_efi_file_src_path_str} to {staged_grub_efi_dst}")
-    except Exception as e:
-        error_msg = f"Failed to copy GRUB EFI file: {str(e)}"
-        self.logger.error(error_msg)
-        return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
+        if not grub_efi_file_src:
+            error_msg = "GRUB EFI file not found in any expected location. Cannot create UEFI bootable ISO."
+            self.logger.error(error_msg)
+            return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
+        try:
+            staged_grub_efi_dst.parent.mkdir(parents=True, exist_ok=True) # Ensure EFI/BOOT exists
+            shutil.copy2(grub_efi_file_src, staged_grub_efi_dst)
+            self.logger.info(f"Copied GRUB EFI file {grub_efi_file_src} to {staged_grub_efi_dst}")
+        except Exception as e:
+            error_msg = f"Failed to copy GRUB EFI file: {str(e)}"
+            self.logger.error(error_msg)
+            return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
 
-    xorriso_cmd = [
-        "sudo",
-        "xorriso",
-        "-as", "mkisofs",
-        "-o", str(final_iso_path),
-        "-iso-level", "3", # For Joliet/Rock Ridge extensions, long filenames
-        "-volid", "ZFORGE_LIVE", # Volume ID
+        xorriso_cmd = [
+            "sudo",
+            "xorriso",
+            "-as", "mkisofs",
+            "-o", str(final_iso_path),
+            "-iso-level", "3", # For Joliet/Rock Ridge extensions, long filenames
+            "-volid", "ZFORGE_LIVE", # Volume ID
 
-        # UEFI Boot Configuration:
-        # Specifies the EFI boot image. The file must be in the ISO at the given path.
-        # BOOTX64.EFI at /EFI/BOOT/ is the standard path for removable media.
-        "-eltorito-alt-boot",
-        "-e", "EFI/BOOT/BOOTX64.EFI", # Path to EFI boot image *on the ISO*
-        "-no-emul-boot",
+            # UEFI Boot Configuration:
+            # Specifies the EFI boot image. The file must be in the ISO at the given path.
+            # BOOTX64.EFI at /EFI/BOOT/ is the standard path for removable media.
+            "-eltorito-alt-boot",
+            "-e", "EFI/BOOT/BOOTX64.EFI", # Path to EFI boot image *on the ISO*
+            "-no-emul-boot",
 
-        # Add all files from the staging directory to the ISO root
-        # This means contents of self.iso_staging_path will be at the root of the ISO.
-        str(self.iso_staging_path)
-    ]
+            # Add all files from the staging directory to the ISO root
+            # This means contents of self.iso_staging_path will be at the root of the ISO.
+            str(self.iso_staging_path)
+        ]
 
-    self.logger.info(f"Running xorriso: {' '.join(xorriso_cmd)}")
+        self.logger.info(f"Running xorriso: {' '.join(xorriso_cmd)}")
 
-    try:
-        process = subprocess.run(xorriso_cmd, check=True, capture_output=True, text=True)
-        self.logger.info(f"xorriso stdout:\n{process.stdout}")
-        # xorriso often uses stderr for progress/info and not just errors.
-        self.logger.info(f"xorriso stderr:\n{process.stderr}")
-        self.logger.info(f"ISO image created successfully at {final_iso_path}")
+        try:
+            process = subprocess.run(xorriso_cmd, check=True, capture_output=True, text=True)
+            self.logger.info(f"xorriso stdout:\n{process.stdout}")
+            # xorriso often uses stderr for progress/info and not just errors.
+            self.logger.info(f"xorriso stderr:\n{process.stderr}")
+            self.logger.info(f"ISO image created successfully at {final_iso_path}")
 
-        return {'status': 'success', 'iso_path': str(final_iso_path), 'module': self.__class__.__name__}
+            return {'status': 'success', 'iso_path': str(final_iso_path), 'module': self.__class__.__name__}
 
-    except subprocess.CalledProcessError as e:
-        error_msg = f"xorriso failed with return code {e.returncode}.\nCommand: {' '.join(e.cmd)}\nStdout:\n{e.stdout}\nStderr:\n{e.stderr}"
-        self.logger.error(error_msg)
-        if final_iso_path.exists():
-            try:
-                final_iso_path.unlink()
-            except Exception as del_e:
-                self.logger.error(f"Additionally, failed to delete partial ISO {final_iso_path}: {del_e}")
-        return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
-    except FileNotFoundError: # Should be caught by initial tool check for xorriso
-        error_msg = "xorriso command not found. This should have been caught by earlier checks."
-        self.logger.error(error_msg)
-        return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
+        except subprocess.CalledProcessError as e:
+            error_msg = f"xorriso failed with return code {e.returncode}.\nCommand: {' '.join(e.cmd)}\nStdout:\n{e.stdout}\nStderr:\n{e.stderr}"
+            self.logger.error(error_msg)
+            if final_iso_path.exists():
+                try:
+                    final_iso_path.unlink()
+                except Exception as del_e:
+                    self.logger.error(f"Additionally, failed to delete partial ISO {final_iso_path}: {del_e}")
+            return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
+        except FileNotFoundError: # Should be caught by initial tool check for xorriso
+            error_msg = "xorriso command not found. This should have been caught by earlier checks."
+            self.logger.error(error_msg)
+            return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}

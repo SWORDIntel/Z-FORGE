@@ -147,6 +147,9 @@ add_dracutmodules+=" dracut-systemd fs-lib shutdown "
 # ZFS support
 add_dracutmodules+=" zfs "
 
+# Custom Z-Forge modules
+add_dracutmodules+=" 90zforge-toram "
+
 # Exclude problematic modules
 omit_dracutmodules+=" bluetooth nfs "
 
