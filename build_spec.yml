@@ -42,7 +42,7 @@ proxmox_config:
 
 zfs_config:
   version: latest
-  build_from_source: true
+  build_from_source: false  # Changed to false to use APT packages (avoids build errors)
   enable_encryption: true
   default_compression: dynamic  # Minimum zstd-3, optimized based on system
   # R730xd has more RAM, can use larger ARC
