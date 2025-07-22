@@ -9,7 +9,7 @@ import subprocess
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 import logging
 try:
     import requests
@@ -31,7 +31,7 @@ class OpenCoreNVME:
         self.opencore_dir = self.workspace / "opencore"
         self.opencore_dir.mkdir(parents=True, exist_ok=True)
         
-    def execute(self, config: Dict) -> Dict:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[Any] = None) -> Dict:
         """
         Install and configure OpenCore for NVMe boot support
         

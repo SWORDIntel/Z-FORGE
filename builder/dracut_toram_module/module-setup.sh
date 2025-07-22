@@ -1,22 +1,29 @@
 #!/bin/bash
+# module-setup.sh for 90zforge-toram
 
-# Called by dracut
+# called by dracut
 check() {
-    # Require tools like grep, findmnt, losetup, etc.
-    # dmsquash ensures squashfs tools are available.
-    require_binaries grep findmnt losetup umount switch_root mount cp blockdev awk || return 1
+    # We need dmsquash-live for live ISO support
+    require_binaries mksquashfs unsquashfs || return 1
     return 0
 }
 
-# Called by dracut
+# called by dracut
 depends() {
-    # Depends on network, base, kernel-modules, dmsquash (for live squashfs)
-    echo "base kernel-modules dmsquash"
-    return 0
+    # We depend on dmsquash-live for squashfs support
+    echo dmsquash-live systemd
 }
 
-# Called by dracut
+# called by dracut
 install() {
-    # Install the hook script that does the actual work
-    inst_hook cmdline 30 "\$moddir/zforge-toram-hook.sh"
+    # Install our toram hook
+    inst_hook pre-pivot 90 "$moddir/zforge-toram-hook.sh"
+    
+    # Install required binaries
+    inst_multiple dd free awk grep
+}
+
+installkernel() {
+    # Include squashfs and loop modules
+    hostonly='' instmods squashfs loop
 }

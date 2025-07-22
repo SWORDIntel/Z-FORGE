@@ -7,12 +7,15 @@ Orchestrates the Z-Forge build process
 """
 
 import sys
+import os
 import json
 import logging
 import importlib
 import importlib.util
 import traceback
 import re
+import subprocess
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -25,9 +28,38 @@ def _camel_to_snake(name: str) -> str:
     """Converts a CamelCase string to snake_case."""
     if not name:
         return ""
-    # Insert an underscore before any uppercase letter that is not at the start of the string.
-    name = re.sub(r'(?<!^)(?=[A-Z])', '_', name)
-    return name.lower()
+    
+    # Handle special cases for common acronyms
+    acronym_replacements = {
+        'ZFS': 'zfs',
+        'ISO': 'iso',
+        'KDE': 'kde',
+        'GRUB': 'grub',
+        'NVME': 'nvme',
+        'API': 'api',
+        'UUID': 'uuid',
+        'DKMS': 'dkms',
+        'RAID': 'raid'
+    }
+    
+    # Replace known acronyms first
+    for acronym, replacement in acronym_replacements.items():
+        if acronym in name:
+            # Replace acronym at start of string
+            if name.startswith(acronym):
+                name = replacement + name[len(acronym):]
+            # Replace acronym in middle/end with underscore prefix
+            else:
+                name = name.replace(acronym, f'_{replacement}')
+    
+    # Handle remaining CamelCase
+    # Insert underscore before uppercase letters that follow lowercase letters
+    name = re.sub(r'([a-z])([A-Z])', r'\1_\2', name)
+    
+    # Clean up any double underscores
+    name = re.sub(r'__+', '_', name)
+    
+    return name.lower().strip('_')
 
 
 class ZForgeBuilder:
@@ -40,11 +72,40 @@ class ZForgeBuilder:
         """Initialize builder with configuration"""
         self.config = BuildConfig(config_path)
         builder_config = self.config.get('builder_config', {})
-        workspace_path = builder_config.get('workspace_path',
-                                           '/tmp/zforge_workspace')
+        # Get workspace path from env var, config, or default
+        workspace_path = os.environ.get('ZFORGE_WORKSPACE',
+                                       builder_config.get('workspace_path',
+                                                        '/tmp/zforge_workspace'))
         self.workspace = Path(workspace_path)
+        self._validate_workspace()
         self._setup_logging()
         self.modules_path = Path(__file__).parent.parent / "modules"
+    
+    def _validate_workspace(self):
+        """Validate workspace path is suitable for build"""
+        # Check if parent directory exists
+        parent = self.workspace.parent
+        if not parent.exists():
+            raise ValueError(f"Workspace parent directory {parent} does not exist")
+        
+        # Check if we can write to parent
+        if not os.access(parent, os.W_OK):
+            raise ValueError(f"No write permission for workspace parent {parent}")
+        
+        # Check if filesystem is mounted with noexec
+        try:
+            mount_info = subprocess.check_output(['mount'], text=True)
+            for line in mount_info.splitlines():
+                if str(parent) in line and 'noexec' in line:
+                    raise ValueError(f"Workspace parent {parent} is mounted with noexec")
+        except subprocess.CalledProcessError:
+            pass  # Ignore if mount command fails
+        
+        # Check available space (require at least 20GB)
+        stat = shutil.disk_usage(parent)
+        free_gb = stat.free / (1024**3)
+        if free_gb < 20:
+            raise ValueError(f"Insufficient space in {parent}: {free_gb:.1f}GB free, need 20GB")
 
     def _setup_logging(self):
         """Configure comprehensive logging"""

@@ -9,7 +9,7 @@ import subprocess
 import secrets
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 import logging
 
 class ZFSEncryption:
@@ -23,12 +23,13 @@ class ZFSEncryption:
         self.key_directory = self.workspace / "keys"
         self.key_directory.mkdir(parents=True, exist_ok=True)
         
-    def execute(self, config: Dict) -> Dict:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[Any] = None) -> Dict:
         """
         Configure ZFS encryption support
         
         Args:
-            config: Configuration dictionary with encryption settings
+            resume_data: Resume data dictionary
+            lockfile: Lock file object
             
         Returns:
             Status dictionary
@@ -36,7 +37,7 @@ class ZFSEncryption:
         try:
             self.logger.info("Configuring ZFS encryption support...")
             
-            encryption_config = config.get('encryption_config', {})
+            encryption_config = self.config.get('encryption_config', {})
             enable_encryption = encryption_config.get('enable', True)
             key_format = encryption_config.get('key_format', 'raw')  # raw or passphrase
             cipher = encryption_config.get('cipher', 'aes-256-gcm')

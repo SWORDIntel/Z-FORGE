@@ -19,7 +19,7 @@ class NonInteractiveFixes:
         self.logger = logging.getLogger(__name__)
         self.chroot_path = workspace / "chroot"
         
-    def execute(self, config: Optional[Dict] = None) -> Dict:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[Any] = None) -> Dict:
         """Apply all non-interactive fixes"""
         try:
             self.logger.info("Applying non-interactive installation fixes...")

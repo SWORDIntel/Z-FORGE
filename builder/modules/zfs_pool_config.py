@@ -8,7 +8,7 @@ import os
 import subprocess
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 import logging
 
 class ZFSPoolConfig:
@@ -20,12 +20,13 @@ class ZFSPoolConfig:
         self.logger = logging.getLogger(__name__)
         self.pool_configs = []
         
-    def execute(self, config: Dict) -> Dict:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[Any] = None) -> Dict:
         """
         Configure multiple ZFS pools based on configuration
         
         Args:
-            config: Configuration dictionary with pool definitions
+            resume_data: Resume data dictionary
+            lockfile: Lock file object
             
         Returns:
             Status dictionary
@@ -34,7 +35,7 @@ class ZFSPoolConfig:
             self.logger.info("Configuring ZFS pools...")
             
             # Get pool configurations
-            pool_config = config.get('zfs_pool_config', {})
+            pool_config = self.config.get('zfs_pool_config', {})
             
             # Configure OS pool (root pool)
             os_pool = pool_config.get('os_pool', {

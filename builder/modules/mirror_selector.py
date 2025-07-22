@@ -72,7 +72,7 @@ class MirrorSelector:
                 'status': 'success',
                 'debian_mirrors': fastest_debian,
                 'proxmox_mirrors': proxmox_results,
-                'config_updated': self._update_configs(fastest_debian[0] if fastest_debian else None)
+                'config_updated': self._update_configs(fastest_debian[0][0] if fastest_debian else None)
             }
             
         except Exception as e:

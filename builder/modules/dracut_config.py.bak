@@ -9,7 +9,7 @@ Ensures dracut is properly installed and configured for ZFS
 import subprocess
 import shutil
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 import logging
 from builder.core.lockfile import BuildLockfile
 
@@ -41,9 +41,6 @@ class DracutConfig:
             
             # Configure dracut
             self._configure_dracut()
-            
-            # Install custom toram module
-            self._install_toram_module()
             
             # Generate initramfs with dracut
             self._generate_initramfs()
@@ -78,8 +75,6 @@ class DracutConfig:
             if result.returncode != 0:
                 # Not mounted, mount it
                 self.logger.debug(f"Mounting {fs_type} at {mount_point}")
-                # Ensure mount point exists
-                mount_point.mkdir(parents=True, exist_ok=True)
                 mount_cmd = ["sudo", "mount", "-t", fs_type, fs_type, str(mount_point)]
                 subprocess.run(mount_cmd, check=True)
     
@@ -88,67 +83,53 @@ class DracutConfig:
         
         self.logger.info("Removing initramfs-tools...")
         
-        cmd = [
-            "chroot", str(self.chroot_path),
-            "apt-get", "remove", "-y", "initramfs-tools", "initramfs-tools-core"
-        ]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            self.logger.info("initramfs-tools removed successfully")
-        else:
-            self.logger.info("initramfs-tools not installed or already removed")
+        subprocess.run([
+            "sudo", "chroot", str(self.chroot_path),
+            "apt-get", "remove", "-y", "initramfs-tools"
+        ], check=False)  # Don't fail if initramfs-tools isn't installed
     
     def _install_dracut(self):
-        """Install dracut and required packages"""
+        """Install dracut packages"""
         
         self.logger.info("Installing dracut packages...")
         
-        packages = [
+        subprocess.run([
+            "sudo", "chroot", str(self.chroot_path),
+            "apt-get", "install", "-y",
             "dracut",
             "dracut-core",
             "dracut-network",
-            "dracut-squash",
-            "binutils",  # For lsinitrd
-            "pigz"       # For parallel compression
-        ]
-        
-        cmd = [
-            "chroot", str(self.chroot_path),
-            "apt-get", "install", "-y", "--no-install-recommends"
-        ] + packages
-        
-        subprocess.run(cmd, check=True)
-        
-        self.logger.info("Dracut packages installed successfully")
+            "dracut-squash"
+        ], check=True)
     
     def _configure_dracut(self):
-        """Configure dracut for ZFS boot"""
+        """Configure dracut"""
         
         self.logger.info("Configuring dracut...")
         
         # Create main dracut configuration
         dracut_conf = """# Z-Forge dracut configuration
 
-# Compression (zstd offers good balance)
+# Compression method
 compress="zstd"
 
-# Don't include host-specific files by default
-hostonly="no"
-
-# Add essential modules
-add_dracutmodules+=" base systemd systemd-initrd kernel-modules rootfs-block terminfo udev-rules "
-add_dracutmodules+=" dracut-systemd fs-lib shutdown "
-
-# ZFS support
+# Include extra modules for ZFS support
 add_dracutmodules+=" zfs "
 
-# Include any additional drivers needed for NVMe
-add_drivers+=" nvme nvme-core nvme-tcp nvme-rdma nvme-fc nvme-fabrics "
+# Include necessary filesystem modules
+filesystems+=" zfs "
 
-# Dell PowerEdge R730xd specific drivers
-add_drivers+=" megaraid_sas mpt3sas "
+# Include systemd support
+add_dracutmodules+=" systemd "
+
+# Enable hostonly mode for better performance
+hostonly="yes"
+
+# Add kernel command line parameters
+kernel_cmdline="root=zfs:AUTO"
+
+# Include any additional drivers needed for NVMe
+add_drivers+=" nvme "
 """
         
         dracut_conf_path = self.chroot_path / "etc/dracut.conf.d/zforge.conf"
@@ -178,71 +159,58 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
                 "bash", "-c", "zgenhostid $(hexdump -n 4 -e '\"0x%08x\"' /dev/urandom)"
             ], check=True)
 
-        self.logger.info("Dracut configuration completed")
+        # Custom dracut modules disabled - source files don't exist
+        # self.logger.info("Installing custom Z-Forge Dracut modules (toram)...")
+        # custom_module_name = "90zforge-toram"
+        # host_custom_module_src_dir = Path("builder/dracut_toram_module")
+        # if not host_custom_module_src_dir.is_dir():
+        #     error_msg = f"Custom Dracut module source directory not found: {host_custom_module_src_dir.resolve()}"
+        #     self.logger.error(error_msg)
+        #     raise FileNotFoundError(error_msg)
 
-    def _install_toram_module(self):
-        """Install custom toram dracut module"""
-        
-        self.logger.info("Installing custom Z-Forge toram dracut module...")
-        
-        # Define module name and paths
-        custom_module_name = "90zforge-toram"
-        host_custom_module_src_dir = Path(__file__).parent.parent / "dracut_toram_module"
         chroot_dracut_module_dir = self.chroot_path / "usr/lib/dracut/modules.d" / custom_module_name
-        
-        # Check if source directory exists
-        if not host_custom_module_src_dir.is_dir():
-            self.logger.warning(f"Custom dracut module source not found at {host_custom_module_src_dir}, skipping toram support")
-            return
-        
-        # Create module directory in chroot
-        self.logger.info(f"Creating dracut module directory: {chroot_dracut_module_dir}")
+
+        self.logger.info(f"Creating Dracut module directory in chroot: {chroot_dracut_module_dir}")
         chroot_dracut_module_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Copy module files
+
         module_setup_src = host_custom_module_src_dir / "module-setup.sh"
         hook_script_src = host_custom_module_src_dir / "zforge-toram-hook.sh"
-        
+
         module_setup_dst = chroot_dracut_module_dir / "module-setup.sh"
         hook_script_dst = chroot_dracut_module_dir / "zforge-toram-hook.sh"
-        
+
         if not module_setup_src.exists() or not hook_script_src.exists():
-            self.logger.warning("Custom dracut module scripts not found, skipping toram support")
-            return
-        
-        # Copy files
-        self.logger.info(f"Copying module-setup.sh to chroot")
+            error_msg = "Custom Dracut module script files not found in source."
+            self.logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+
+        self.logger.info(f"Copying {module_setup_src} to {module_setup_dst}")
         shutil.copy2(module_setup_src, module_setup_dst)
-        self.logger.info(f"Copying zforge-toram-hook.sh to chroot")
+        self.logger.info(f"Copying {hook_script_src} to {hook_script_dst}")
         shutil.copy2(hook_script_src, hook_script_dst)
-        
+
         # Set execute permissions
         chmod_path_setup = "/" + str(module_setup_dst.relative_to(self.chroot_path))
         chmod_path_hook = "/" + str(hook_script_dst.relative_to(self.chroot_path))
-        
+
         subprocess.run(["sudo", "chroot", str(self.chroot_path), "chmod", "+x", chmod_path_setup], check=True)
         subprocess.run(["sudo", "chroot", str(self.chroot_path), "chmod", "+x", chmod_path_hook], check=True)
-        self.logger.info("Set execute permissions for custom dracut module scripts")
-        
-        # Add module to dracut configuration
-        dracut_conf_path = self.chroot_path / "etc/dracut.conf.d/zforge.conf"
-        
-        # Read existing content
+        self.logger.info(f"Set execute permissions for custom Dracut module scripts in chroot.")
+
+        dracut_zforge_conf_path = self.chroot_path / "etc/dracut.conf.d/zforge.conf"
+
         existing_content = ""
-        if dracut_conf_path.exists():
-            with open(dracut_conf_path, 'r') as f:
+        if dracut_zforge_conf_path.exists():
+            with open(dracut_zforge_conf_path, "r") as f:
                 existing_content = f.read()
-        
-        # Add module if not already present
+
         if f'add_dracutmodules+=" {custom_module_name} "' not in existing_content:
-            self.logger.info(f"Adding '{custom_module_name}' to dracut modules list")
-            with open(dracut_conf_path, 'a') as f:
-                f.write(f'\n# Enable toram support\nadd_dracutmodules+=" {custom_module_name} "\n')
+            self.logger.info(f"Adding '{custom_module_name}' to Dracut modules in {dracut_zforge_conf_path}")
+            with open(dracut_zforge_conf_path, "a") as f:
+                f.write(f'\nadd_dracutmodules+=" {custom_module_name} "\n')
         else:
-            self.logger.info(f"'{custom_module_name}' already in dracut modules list")
-        
-        self.logger.info("Custom toram module installed successfully")
-    
+            self.logger.info(f"'{custom_module_name}' already present in Dracut modules list.")
+
     def _generate_initramfs(self):
         """Generate initramfs with dracut"""
         
@@ -265,39 +233,30 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         if not kernel_version:
             raise Exception("No kernel modules found")
         
-        self.logger.info(f"Generating initramfs for kernel {kernel_version}")
+        self.logger.info(f"Regenerating initramfs for kernel {kernel_version}")
         
         # Generate initramfs
-        cmd = [
+        subprocess.run([
             "sudo", "chroot", str(self.chroot_path),
             "dracut", "-f", f"/boot/initramfs-{kernel_version}.img", kernel_version,
-            "--force", "--no-hostonly"  # Don't use hostonly in chroot
-        ]
+            "--force", "--verbose"
+        ], check=True)
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            self.logger.error(f"Dracut output: {result.stdout}")
-            self.logger.error(f"Dracut errors: {result.stderr}")
-            raise Exception(f"Failed to generate initramfs: {result.stderr}")
-        
-        # Verify initramfs was created
-        initramfs_path = self.chroot_path / f"boot/initramfs-{kernel_version}.img"
-        if not initramfs_path.exists():
-            raise Exception(f"Initramfs not found at {initramfs_path}")
-        
-        self.logger.info(f"Initramfs generated successfully at {initramfs_path}")
-        
-        return kernel_version
+        # Create symbolic link for compatibility
+        subprocess.run([
+            "sudo", "chroot", str(self.chroot_path),
+            "ln", "-sf", f"initramfs-{kernel_version}.img", f"/boot/initrd.img-{kernel_version}"
+        ], check=True)
     
     def _get_dracut_version(self):
         """Get installed dracut version"""
         
-        cmd = ["chroot", str(self.chroot_path), "dracut", "--version"]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(
+            ["sudo", "chroot", str(self.chroot_path), "dracut", "--version"],
+            capture_output=True,
+            text=True
+        )
         
         if result.returncode == 0:
             return result.stdout.strip()
-        else:
-            return "unknown"
+        return "unknown"

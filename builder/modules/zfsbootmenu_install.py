@@ -9,7 +9,7 @@ import subprocess
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import logging
 
 class ZFSBootMenuInstall:
@@ -27,12 +27,13 @@ class ZFSBootMenuInstall:
         self.download_dir = self.workspace / "zfsbootmenu"
         self.download_dir.mkdir(parents=True, exist_ok=True)
         
-    def execute(self, config: Dict) -> Dict:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[Any] = None) -> Dict:
         """
         Install ZFSBootMenu
         
         Args:
-            config: Configuration dictionary
+            resume_data: Resume data dictionary
+            lockfile: Lock file object
             
         Returns:
             Status dictionary
@@ -40,7 +41,7 @@ class ZFSBootMenuInstall:
         try:
             self.logger.info("Installing ZFSBootMenu...")
             
-            zbm_config = config.get('zfsbootmenu_config', {})
+            zbm_config = self.config.get('zfsbootmenu_config', {})
             version = zbm_config.get('version', self.ZFSBOOTMENU_VERSION)
             install_recovery = zbm_config.get('install_recovery', True)
             
