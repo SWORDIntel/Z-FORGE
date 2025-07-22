@@ -111,7 +111,10 @@ class DracutConfig:
             "dracut-network",
             "dracut-squash",
             "binutils",  # For lsinitrd
-            "pigz"       # For parallel compression
+            "pigz",      # For parallel compression
+            "squashfs-tools",  # For mksquashfs/unsquashfs needed by dmsquash-live
+            "dmsetup",   # Device mapper tools
+            "kpartx"     # For partition mapping
         ]
         
         cmd = [
@@ -144,11 +147,17 @@ add_dracutmodules+=" dracut-systemd fs-lib shutdown "
 # ZFS support
 add_dracutmodules+=" zfs "
 
+# Exclude problematic modules
+omit_dracutmodules+=" bluetooth nfs "
+
 # Include any additional drivers needed for NVMe
 add_drivers+=" nvme nvme-core nvme-tcp nvme-rdma nvme-fc nvme-fabrics "
 
 # Dell PowerEdge R730xd specific drivers
 add_drivers+=" megaraid_sas mpt3sas "
+
+# Include squashfs support for live boot
+filesystems+=" squashfs "
 """
         
         dracut_conf_path = self.chroot_path / "etc/dracut.conf.d/zforge.conf"
@@ -188,7 +197,25 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         # Define module name and paths
         custom_module_name = "90zforge-toram"
         host_custom_module_src_dir = Path(__file__).parent.parent / "dracut_toram_module"
-        chroot_dracut_module_dir = self.chroot_path / "usr/lib/dracut/modules.d" / custom_module_name
+        
+        # Check both possible dracut module directories
+        possible_dirs = [
+            self.chroot_path / "usr/lib/dracut/modules.d",
+            self.chroot_path / "lib/dracut/modules.d"
+        ]
+        
+        # Find the correct dracut modules directory
+        dracut_modules_dir = None
+        for dir_path in possible_dirs:
+            if dir_path.exists():
+                dracut_modules_dir = dir_path
+                break
+                
+        if not dracut_modules_dir:
+            self.logger.error("Could not find dracut modules directory")
+            return
+            
+        chroot_dracut_module_dir = dracut_modules_dir / custom_module_name
         
         # Check if source directory exists
         if not host_custom_module_src_dir.is_dir():
@@ -224,23 +251,13 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         subprocess.run(["sudo", "chroot", str(self.chroot_path), "chmod", "+x", chmod_path_hook], check=True)
         self.logger.info("Set execute permissions for custom dracut module scripts")
         
-        # Add module to dracut configuration
-        dracut_conf_path = self.chroot_path / "etc/dracut.conf.d/zforge.conf"
+        # Verify the module is properly installed
+        check_cmd = ["chroot", str(self.chroot_path), "ls", "-la", 
+                     "/" + str(chroot_dracut_module_dir.relative_to(self.chroot_path))]
+        result = subprocess.run(check_cmd, capture_output=True, text=True)
+        self.logger.info(f"Module directory contents: {result.stdout}")
         
-        # Read existing content
-        existing_content = ""
-        if dracut_conf_path.exists():
-            with open(dracut_conf_path, 'r') as f:
-                existing_content = f.read()
-        
-        # Add module if not already present
-        if f'add_dracutmodules+=" {custom_module_name} "' not in existing_content:
-            self.logger.info(f"Adding '{custom_module_name}' to dracut modules list")
-            with open(dracut_conf_path, 'a') as f:
-                f.write(f'\n# Enable toram support\nadd_dracutmodules+=" {custom_module_name} "\n')
-        else:
-            self.logger.info(f"'{custom_module_name}' already in dracut modules list")
-        
+        # Don't add to config here - it's already added in _configure_dracut
         self.logger.info("Custom toram module installed successfully")
     
     def _generate_initramfs(self):
@@ -267,11 +284,18 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         
         self.logger.info(f"Generating initramfs for kernel {kernel_version}")
         
-        # Generate initramfs
+        # First, list available dracut modules to debug
+        self.logger.info("Listing available dracut modules...")
+        list_cmd = ["sudo", "chroot", str(self.chroot_path), "dracut", "--list-modules"]
+        list_result = subprocess.run(list_cmd, capture_output=True, text=True)
+        self.logger.debug(f"Available modules: {list_result.stdout}")
+        
+        # Generate initramfs - with verbose output for debugging
         cmd = [
             "sudo", "chroot", str(self.chroot_path),
-            "dracut", "-f", f"/boot/initramfs-{kernel_version}.img", kernel_version,
-            "--force", "--no-hostonly"  # Don't use hostonly in chroot
+            "dracut", "-f", "--verbose",
+            f"/boot/initramfs-{kernel_version}.img", kernel_version,
+            "--no-hostonly"  # Don't use hostonly in chroot
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -279,7 +303,20 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         if result.returncode != 0:
             self.logger.error(f"Dracut output: {result.stdout}")
             self.logger.error(f"Dracut errors: {result.stderr}")
-            raise Exception(f"Failed to generate initramfs: {result.stderr}")
+            
+            # Try without the custom toram module if it fails
+            self.logger.warning("Trying without custom toram module...")
+            cmd_fallback = [
+                "sudo", "chroot", str(self.chroot_path),
+                "dracut", "-f",
+                "--omit", "90zforge-toram",
+                f"/boot/initramfs-{kernel_version}.img", kernel_version,
+                "--no-hostonly"
+            ]
+            result = subprocess.run(cmd_fallback, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                raise Exception(f"Failed to generate initramfs: {result.stderr}")
         
         # Verify initramfs was created
         initramfs_path = self.chroot_path / f"boot/initramfs-{kernel_version}.img"

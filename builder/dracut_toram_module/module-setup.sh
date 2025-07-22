@@ -3,15 +3,15 @@
 
 # called by dracut
 check() {
-    # We need dmsquash-live for live ISO support
-    require_binaries mksquashfs unsquashfs || return 1
+    # Check for required binaries
+    require_binaries dd free awk grep || return 1
     return 0
 }
 
 # called by dracut
 depends() {
-    # We depend on dmsquash-live for squashfs support
-    echo dmsquash-live systemd
+    # Basic dependencies - removed dmsquash-live as it's not available in Debian
+    echo systemd
 }
 
 # called by dracut
@@ -20,10 +20,13 @@ install() {
     inst_hook pre-pivot 90 "$moddir/zforge-toram-hook.sh"
     
     # Install required binaries
-    inst_multiple dd free awk grep
+    inst_multiple dd free awk grep mount umount
+    
+    # Install filesystem tools
+    inst_multiple fsck mkfs.ext4 mkfs.vfat || true
 }
 
 installkernel() {
-    # Include squashfs and loop modules
-    hostonly='' instmods squashfs loop
+    # Include necessary modules
+    hostonly='' instmods squashfs loop overlay tmpfs
 }
