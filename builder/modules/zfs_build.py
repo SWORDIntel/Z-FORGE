@@ -308,9 +308,10 @@ class ZFSBuild:
             "alien", "fakeroot", "uuid-dev", "libattr1-dev", "libblkid-dev",
             "libelf-dev", "libudev-dev", "libssl-dev", "zlib1g-dev", "libaio-dev",
             "libattr1-dev", "python3", "python3-dev", "python3-setuptools", "python3-cffi",
-            "libffi-dev", "linux-headers-amd64", # Generic headers, specific headers installed by KernelAcquisition
+            "libffi-dev", 
             "dkms", "git", "pkg-config",  # git for autogen.sh, pkg-config for configure
-            "gcc", "g++", "make", "binutils"  # Ensure compilers are installed (removed ccache)
+            "gcc", "g++", "make", "binutils",  # Ensure compilers are installed
+            "dpkg-dev"  # Needed for some build configurations
         ]
         # The command to install dependencies. -y confirms automatically.
         cmd = ["apt-get", "update"]
@@ -324,6 +325,60 @@ class ZFSBuild:
         if test_result.returncode != 0:
             self.logger.error("GCC not working properly in chroot")
             raise Exception("Failed to install working C compiler")
+        
+        # Test compile a simple program to ensure the toolchain works
+        self.logger.info("Testing compiler with simple program...")
+        test_c_content = """
+#include <stdio.h>
+int main() {
+    printf("Compiler test successful\\n");
+    return 0;
+}
+"""
+        test_c_path = self.chroot_path / "tmp" / "test_compile.c"
+        with open(test_c_path, 'w') as f:
+            f.write(test_c_content)
+        
+        # Try to compile the test program
+        compile_test = self._run_chroot_command(
+            ["gcc", "-o", "/tmp/test_compile", "/tmp/test_compile.c"],
+            check=False
+        )
+        
+        if compile_test.returncode != 0:
+            self.logger.error(f"Compiler test failed: {compile_test.stderr}")
+            # Install additional packages that might be missing
+            self.logger.info("Installing additional compiler dependencies...")
+            extra_deps = ["libc6-dev", "linux-libc-dev", "gcc-multilib"]
+            self._run_chroot_command(["apt-get", "install", "-y"] + extra_deps, check=False)
+        else:
+            self.logger.info("Compiler test successful")
+            # Clean up test files
+            self._run_chroot_command(["rm", "-f", "/tmp/test_compile", "/tmp/test_compile.c"], check=False)
+        
+        # Install kernel headers for the installed kernel
+        self.logger.info("Installing kernel headers...")
+        kernel_version_cmd = ["/bin/bash", "-c", "ls -1 /lib/modules | grep -v '\.old$' | sort -V | tail -1"]
+        kernel_result = self._run_chroot_command(kernel_version_cmd, check=False)
+        
+        if kernel_result.returncode == 0 and kernel_result.stdout.strip():
+            kernel_version = kernel_result.stdout.strip()
+            self.logger.info(f"Installing headers for kernel {kernel_version}")
+            
+            # Try to install specific kernel headers
+            headers_pkg = f"linux-headers-{kernel_version}"
+            headers_install = self._run_chroot_command(
+                ["apt-get", "install", "-y", headers_pkg], 
+                check=False
+            )
+            
+            if headers_install.returncode != 0:
+                # Try generic headers
+                self.logger.warning(f"Could not install {headers_pkg}, trying generic headers")
+                self._run_chroot_command(
+                    ["apt-get", "install", "-y", "linux-headers-amd64"], 
+                    check=False
+                )
         
         self.logger.info("ZFS build dependencies installed.")
 
@@ -371,10 +426,14 @@ class ZFSBuild:
         # We will run these commands inside the chroot.
 
         # Run autogen.sh - this is usually needed when building from a git checkout
-        self._run_chroot_command(["./autogen.sh"], cwd=zfs_source_dir_in_chroot)
+        self.logger.info("Running autogen.sh...")
+        autogen_result = self._run_chroot_command(["./autogen.sh"], cwd=zfs_source_dir_in_chroot, check=False)
+        if autogen_result.returncode != 0:
+            self.logger.error(f"autogen.sh failed: {autogen_result.stderr}")
+            raise Exception("Failed to run autogen.sh")
         
-        # Disable ccache for ZFS build as it can cause configure issues
-        env_vars = "CC=gcc CXX=g++ "
+        # Set up environment variables to ensure proper compilation
+        env_vars = "CC=/usr/bin/gcc CXX=/usr/bin/g++ LD=/usr/bin/ld AR=/usr/bin/ar "
 
         # Configure build options. Different ZFS versions support different options.
         # Start with basic options that should work across versions
@@ -395,15 +454,26 @@ class ZFSBuild:
         if "--with-config=" in help_output:
             configure_opts.append("--with-config=user,kernel")  # Build both user and kernel components
             
-        # Find kernel headers path
-        kernel_headers_check = self._run_chroot_command(["ls", "-d", "/lib/modules/*/build"], check=False)
+        # Find kernel headers path - need to handle this more carefully
+        self.logger.info("Looking for kernel headers...")
+        kernel_check_cmd = ["/bin/bash", "-c", "ls -d /lib/modules/*/build 2>/dev/null | head -1"]
+        kernel_headers_check = self._run_chroot_command(kernel_check_cmd, check=False)
+        
         if kernel_headers_check.returncode == 0 and kernel_headers_check.stdout.strip():
-            kernel_path = kernel_headers_check.stdout.strip().split('\n')[0]
+            kernel_path = kernel_headers_check.stdout.strip()
             self.logger.info(f"Found kernel headers at: {kernel_path}")
-            if "--with-linux=" in help_output:
-                configure_opts.append(f"--with-linux={kernel_path}")
-            if "--with-linux-obj=" in help_output:
-                configure_opts.append(f"--with-linux-obj={kernel_path}")
+            
+            # Check if the kernel headers actually exist and are valid
+            kernel_check = self._run_chroot_command(["test", "-d", kernel_path], check=False)
+            if kernel_check.returncode == 0:
+                if "--with-linux=" in help_output:
+                    configure_opts.append(f"--with-linux={kernel_path}")
+                if "--with-linux-obj=" in help_output:
+                    configure_opts.append(f"--with-linux-obj={kernel_path}")
+            else:
+                self.logger.warning(f"Kernel headers path {kernel_path} not accessible")
+        else:
+            self.logger.warning("No kernel headers found - this may cause build issues")
         
         if "--enable-systemd" in help_output:
             configure_opts.append("--enable-systemd")
@@ -422,24 +492,66 @@ class ZFSBuild:
         # Log the final configure command
         self.logger.info(f"Running configure with options: {' '.join(configure_opts)}")
         
-        # Run configure with explicit CC and CXX to avoid ccache issues
-        configure_cmd = ["/bin/bash", "-c", f"{env_vars}./configure {' '.join(configure_opts)}"]
-        result = self._run_chroot_command(configure_cmd, cwd=zfs_source_dir_in_chroot, check=False)
+        # Create a script to run configure with proper environment
+        configure_script_content = f"""#!/bin/bash
+set -e
+export CC=/usr/bin/gcc
+export CXX=/usr/bin/g++
+export LD=/usr/bin/ld
+export AR=/usr/bin/ar
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+
+# Ensure we're in the right directory
+cd {zfs_source_dir_in_chroot}
+
+# Run configure with options
+./configure {' '.join(configure_opts)} 2>&1
+"""
+        
+        # Write the script to the chroot
+        script_path = self.chroot_path / "tmp" / "configure_zfs.sh"
+        with open(script_path, 'w') as f:
+            f.write(configure_script_content)
+        
+        # Make it executable
+        self._run_chroot_command(["chmod", "+x", "/tmp/configure_zfs.sh"])
+        
+        # Run the configure script
+        self.logger.info("Running configure script...")
+        result = self._run_chroot_command(["/tmp/configure_zfs.sh"], check=False)
         
         if result.returncode != 0:
-            self.logger.error(f"Configure failed. Stdout: {result.stdout}")
-            self.logger.error(f"Configure failed. Stderr: {result.stderr}")
+            self.logger.error(f"Configure failed. Output: {result.stdout}")
+            self.logger.error(f"Configure errors: {result.stderr}")
+            
+            # Check if config.log exists and show relevant parts
+            config_log_check = self._run_chroot_command(
+                ["test", "-f", f"{zfs_source_dir_in_chroot}/config.log"], 
+                check=False
+            )
+            
+            if config_log_check.returncode == 0:
+                self.logger.info("Checking config.log for details...")
+                log_tail = self._run_chroot_command(
+                    ["tail", "-50", f"{zfs_source_dir_in_chroot}/config.log"],
+                    check=False
+                )
+                if log_tail.returncode == 0:
+                    self.logger.error(f"config.log tail:\n{log_tail.stdout}")
             
             # Try a minimal configure as fallback
             self.logger.warning("Trying minimal configure options...")
-            minimal_opts = [
-                "--prefix=/usr",
-                "--sysconfdir=/etc",
-                "--sbindir=/usr/sbin",
-                "--with-config=user,kernel"
-            ]
-            minimal_cmd = ["/bin/bash", "-c", f"{env_vars}./configure {' '.join(minimal_opts)}"]
-            self._run_chroot_command(minimal_cmd, cwd=zfs_source_dir_in_chroot)
+            minimal_script = f"""#!/bin/bash
+set -e
+export CC=/usr/bin/gcc
+export CXX=/usr/bin/g++
+cd {zfs_source_dir_in_chroot}
+./configure --prefix=/usr --sysconfdir=/etc --sbindir=/usr/sbin --with-config=user,kernel 2>&1
+"""
+            with open(script_path, 'w') as f:
+                f.write(minimal_script)
+            
+            self._run_chroot_command(["/tmp/configure_zfs.sh"])
 
         # Get number of processors for 'make -j'
         nproc = os.cpu_count()
