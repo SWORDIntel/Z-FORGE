@@ -10,7 +10,7 @@ import multiprocessing
 import psutil
 import logging
 from pathlib import Path
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Any
 
 class ZFSCompressionOptimizer:
     """Analyzes system and selects optimal ZFS compression settings"""
