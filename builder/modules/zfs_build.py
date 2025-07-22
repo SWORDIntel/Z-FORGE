@@ -53,16 +53,27 @@ class ZFSBuild:
         """Install ZFS from APT as fallback if building from source fails."""
         self.logger.info("Installing ZFS from APT repositories...")
         
-        # Install ZFS packages
+        # First ensure dracut is installed (not initramfs-tools)
+        self.logger.info("Ensuring dracut is installed...")
+        self._run_chroot_command(["apt-get", "remove", "-y", "initramfs-tools", "initramfs-tools-core"], check=False)
+        self._run_chroot_command(["apt-get", "install", "-y", "dracut", "dracut-core"], check=False)
+        
+        # Install ZFS packages - only dracut-compatible ones
         zfs_packages = [
             "zfsutils-linux",
             "zfs-dkms",
-            "zfs-initramfs",
-            "zfs-dracut"
+            "zfs-dracut"  # NOT zfs-initramfs as it conflicts with dracut
         ]
         
         cmd = ["apt-get", "install", "-y"] + zfs_packages
-        self._run_chroot_command(cmd)
+        result = self._run_chroot_command(cmd, check=False)
+        
+        if result.returncode != 0:
+            self.logger.error(f"Failed to install ZFS packages: {result.stderr}")
+            # Try without zfs-dracut if it fails
+            self.logger.warning("Trying without zfs-dracut...")
+            basic_packages = ["zfsutils-linux", "zfs-dkms"]
+            self._run_chroot_command(["apt-get", "install", "-y"] + basic_packages)
         
         # Get installed version
         version_result = self._run_chroot_command(["zfs", "version"], check=False)
