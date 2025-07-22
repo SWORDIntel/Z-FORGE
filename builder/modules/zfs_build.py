@@ -215,7 +215,7 @@ class ZFSBuild:
 
     def _run_chroot_command(self, command: List[str], cwd: Optional[Path] = None, check: bool = True, env: Optional[Dict[str, str]] = None) -> subprocess.CompletedProcess:
         """Helper to run commands inside the chroot."""
-        base_cmd = ["chroot", str(self.chroot_path)]
+        base_cmd = ["sudo", "chroot", str(self.chroot_path)]
         if env: # if environment variables are provided, use env in chroot
             env_setup = [f"{k}={v}" for k,v in env.items()]
             base_cmd.extend(["env", "-i"] + env_setup) # -i for clean environment
@@ -369,7 +369,7 @@ int main() {
         
         # Install kernel headers for the installed kernel
         self.logger.info("Installing kernel headers...")
-        kernel_version_cmd = ["/bin/bash", "-c", "ls -1 /lib/modules | grep -v '\.old$' | sort -V | tail -1"]
+        kernel_version_cmd = ["/bin/bash", "-c", "ls -1 /lib/modules | grep -v '\\.old$' | sort -V | tail -1"]
         kernel_result = self._run_chroot_command(kernel_version_cmd, check=False)
         
         if kernel_result.returncode == 0 and kernel_result.stdout.strip():

@@ -17,7 +17,7 @@ class AutoInstallDeps:
     def __init__(self, workspace: Path, config: Dict):
         self.workspace = workspace
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         
         # Package mapping for different tools
         self.package_map = {
@@ -157,7 +157,8 @@ class AutoInstallDeps:
                     ['sudo', 'apt-get', 'install', '-y', package],
                     check=True,
                     capture_output=True,
-                    text=True
+                    text=True,
+                    timeout=300
                 )
                 installed.append(package)
                 self.logger.info(f"Successfully installed {package}")

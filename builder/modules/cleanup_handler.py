@@ -25,7 +25,7 @@ class CleanupHandler:
     def __init__(self, workspace: Path, config: Dict):
         self.workspace = workspace
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.mounted_paths: Set[Path] = set()
         self.loop_devices: Set[str] = set()
         self.temp_files: Set[Path] = set()
@@ -82,10 +82,11 @@ class CleanupHandler:
             result = subprocess.run(
                 ['findmnt', '-rno', 'TARGET'],
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=30
             )
             system_mounts = set(result.stdout.strip().split('\n'))
-        except:
+        except (subprocess.SubprocessError, OSError):
             system_mounts = set()
         
         # Add any mounts under workspace
@@ -105,7 +106,8 @@ class CleanupHandler:
                     subprocess.run(
                         ['sudo', 'umount', '-l', str(mount_path)],
                         check=True,
-                        capture_output=True
+                        capture_output=True,
+                        timeout=30
                     )
                     unmounted.append(str(mount_path))
                 except subprocess.CalledProcessError:
@@ -114,10 +116,11 @@ class CleanupHandler:
                         subprocess.run(
                             ['sudo', 'umount', '-f', str(mount_path)],
                             check=False,
-                            capture_output=True
+                            capture_output=True,
+                            timeout=30
                         )
                         unmounted.append(str(mount_path))
-                    except:
+                    except subprocess.SubprocessError:
                         self.logger.warning(f"Failed to unmount {mount_path}")
                         
         return unmounted
@@ -131,13 +134,14 @@ class CleanupHandler:
             result = subprocess.run(
                 ['losetup', '-j', str(self.workspace)],
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=30
             )
             for line in result.stdout.strip().split('\n'):
                 if line:
                     device = line.split(':')[0]
                     self.loop_devices.add(device)
-        except:
+        except (subprocess.SubprocessError, OSError):
             pass
         
         for device in self.loop_devices:
@@ -146,10 +150,11 @@ class CleanupHandler:
                 subprocess.run(
                     ['sudo', 'losetup', '-d', device],
                     check=True,
-                    capture_output=True
+                    capture_output=True,
+                    timeout=30
                 )
                 detached.append(device)
-            except:
+            except subprocess.SubprocessError:
                 self.logger.warning(f"Failed to detach {device}")
                 
         return detached
@@ -221,7 +226,7 @@ class CleanupHandler:
                             check=True
                         )
                     removed.append(str(temp_file))
-            except:
+            except (subprocess.SubprocessError, OSError):
                 self.logger.warning(f"Failed to remove {temp_file}")
                 
         return removed
@@ -234,7 +239,7 @@ class CleanupHandler:
                 capture_output=True
             )
             return result.returncode == 0
-        except:
+        except (subprocess.SubprocessError, OSError):
             return False
     
     def _emergency_cleanup(self):
@@ -242,7 +247,7 @@ class CleanupHandler:
         try:
             self.logger.warning("Running emergency cleanup...")
             self.execute()
-        except:
+        except (subprocess.SubprocessError, OSError):
             pass
     
     def _signal_handler(self, signum, frame):

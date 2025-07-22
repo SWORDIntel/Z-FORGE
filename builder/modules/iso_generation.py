@@ -79,7 +79,7 @@ class ISOGeneration:
         try:
             # Using subprocess.run directly. Ensure errors are caught.
             # For potentially long operations, consider logging stdout/stderr periodically or on completion.
-            process = subprocess.run(mksquashfs_cmd, check=True, capture_output=True, text=True)
+            process = subprocess.run(mksquashfs_cmd, check=True, capture_output=True, text=True, timeout=600)
             self.logger.info(f"mksquashfs stdout:\n{process.stdout}")
             if process.stderr: # mksquashfs often outputs stats to stderr
                 self.logger.info(f"mksquashfs stderr:\n{process.stderr}")
@@ -289,7 +289,7 @@ menuentry "Shutdown" {{
         self.logger.info(f"Running xorriso: {' '.join(xorriso_cmd)}")
 
         try:
-            process = subprocess.run(xorriso_cmd, check=True, capture_output=True, text=True)
+            process = subprocess.run(xorriso_cmd, check=True, capture_output=True, text=True, timeout=600)
             self.logger.info(f"xorriso stdout:\n{process.stdout}")
             # xorriso often uses stderr for progress/info and not just errors.
             self.logger.info(f"xorriso stderr:\n{process.stderr}")

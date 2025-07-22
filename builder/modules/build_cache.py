@@ -21,7 +21,7 @@ class BuildCache:
     def __init__(self, workspace: Path, config: Dict):
         self.workspace = workspace
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         
         # Cache directory (outside workspace so it survives cleanup)
         self.cache_dir = Path.home() / ".cache" / "zforge"
@@ -225,7 +225,8 @@ class BuildCache:
             try:
                 with open(self.cache_manifest, 'r') as f:
                     self.manifest = json.load(f)
-            except:
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                self.logger.debug(f"Failed to read cache manifest: {e}")
                 self.manifest = {}
         else:
             self.manifest = {}
@@ -249,7 +250,8 @@ class BuildCache:
                         cache_file.unlink()
                     del self.manifest[key]
                     cleaned += 1
-            except:
+            except Exception as e:
+                self.logger.debug(f"Failed to clean cache entry {key}: {e}")
                 pass
         
         # Check total size

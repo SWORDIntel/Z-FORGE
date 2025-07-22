@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Optional
 from builder.core.lockfile import BuildLockfile
 
-class BootloaderSetup:
+class BootloaderSupport:
     """
     Configures bootloader to load an encrypted ZFS root using zfsbootmenu or OpenCore chainloading
     with native ZFS full-disk encryption (no LUKS).
@@ -26,25 +26,29 @@ class BootloaderSetup:
         self.workspace = workspace
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
-        logging.basicConfig(level=logging.INFO,
-                            format="%(asctime)s %(levelname)s %(message)s")
 
     def _run(self, cmd):
         try:
             self.logger.debug(f"Running: {' '.join(cmd)}")
-            subprocess.run(cmd, check=True)
+            subprocess.run(cmd, check=True, timeout=30)
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Bootloader command failed: {e}")
-            sys.exit(1)
+            raise
 
     def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[BuildLockfile] = None) -> Dict:
-        self.logger.info("=== BootloaderSetup start ===")
+        self.logger.info("=== BootloaderSupport start ===")
         resume = resume_data or {}
         result = {"completed_steps": []}
 
         # Step 1: Mount EFI partition
         if "mount_efi" not in resume:
-            efi_dev = self.config["efi_partition"]
+            efi_dev = self.config.get("efi_partition")
+            if not efi_dev:
+                return {
+                    'status': 'error',
+                    'error': "efi_partition not specified in config",
+                    'module': self.__class__.__name__
+                }
             mount_pt = self.config.get("efi_mountpoint", "/boot/efi")
             os.makedirs(mount_pt, exist_ok=True)
             self._run(["mount", efi_dev, mount_pt])
@@ -53,7 +57,13 @@ class BootloaderSetup:
 
         loader = self.config.get("loader", "zfsbootmenu").lower()
         framebuffer = self.config.get("framebuffer", "")
-        zpool = self.config["zfs_pool"]
+        zpool = self.config.get("zfs_pool")
+        if not zpool:
+            return {
+                'status': 'error',
+                'error': "zfs_pool not specified in config",
+                'module': self.__class__.__name__
+            }
 
         # Build kernel options for native ZFS encryption unlock
         kernel_opts = []
@@ -66,7 +76,21 @@ class BootloaderSetup:
         if loader == "zfsbootmenu":
             if "install_zbm" not in resume:
                 # Install zfsbootmenu EFI binary
-                src = "/usr/bin/zfsbootmenu.efi"
+                # Check in chroot first, then fall back to host
+                src = None
+                chroot_src = self.workspace / "chroot" / "usr/bin/zfsbootmenu.efi"
+                host_src = Path("/usr/bin/zfsbootmenu.efi")
+                
+                if chroot_src.exists():
+                    src = str(chroot_src)
+                elif host_src.exists():
+                    src = str(host_src)
+                else:
+                    return {
+                        'status': 'error',
+                        'error': "zfsbootmenu.efi not found in chroot or host",
+                        'module': self.__class__.__name__
+                    }
                 dst = Path(self.config.get("efi_mountpoint", "/boot/efi")) / "EFI" / "zfsbootmenu" / "zfsbootmenu.efi"
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dst)
@@ -116,7 +140,10 @@ class BootloaderSetup:
 
         else:
             self.logger.error(f"Unsupported loader specified: {loader}")
-            sys.exit(1)
+            raise
 
-        self.logger.info("=== BootloaderSetup complete ===")
-        return result
+        self.logger.info("=== BootloaderSupport complete ===")
+        return {
+            'status': 'success',
+            **result
+        }

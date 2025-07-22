@@ -11,7 +11,13 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
-import psutil
+
+# Try to import psutil, but make it optional
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
 
 class BuildOptimizer:
     """Optimize build process for the build machine's hardware"""
@@ -19,7 +25,7 @@ class BuildOptimizer:
     def __init__(self, workspace: Path, config: Dict):
         self.workspace = workspace
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.optimizations = {}
         
     def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[Any] = None) -> Dict:
@@ -106,14 +112,46 @@ class BuildOptimizer:
     
     def _detect_memory(self) -> Dict:
         """Detect memory configuration"""
-        mem = psutil.virtual_memory()
-        swap = psutil.swap_memory()
-        
-        return {
-            'total_gb': mem.total / (1024**3),
-            'available_gb': mem.available / (1024**3),
-            'swap_gb': swap.total / (1024**3)
-        }
+        if HAS_PSUTIL:
+            mem = psutil.virtual_memory()
+            swap = psutil.swap_memory()
+            
+            return {
+                'total_gb': mem.total / (1024**3),
+                'available_gb': mem.available / (1024**3),
+                'swap_gb': swap.total / (1024**3)
+            }
+        else:
+            # Fallback to reading from /proc/meminfo
+            try:
+                meminfo = {}
+                with open('/proc/meminfo', 'r') as f:
+                    for line in f:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            key = parts[0].rstrip(':')
+                            value = int(parts[1])
+                            if len(parts) >= 3 and parts[2] == 'kB':
+                                value *= 1024  # Convert to bytes
+                            meminfo[key] = value
+                
+                total = meminfo.get('MemTotal', 0) / (1024**3)
+                available = meminfo.get('MemAvailable', meminfo.get('MemFree', 0)) / (1024**3)
+                swap = meminfo.get('SwapTotal', 0) / (1024**3)
+                
+                return {
+                    'total_gb': total,
+                    'available_gb': available,
+                    'swap_gb': swap
+                }
+            except Exception as e:
+                self.logger.warning(f"Could not detect memory: {e}")
+                # Return conservative defaults
+                return {
+                    'total_gb': 4.0,
+                    'available_gb': 2.0,
+                    'swap_gb': 0.0
+                }
     
     def _detect_storage(self) -> Dict:
         """Detect storage type and performance"""
@@ -155,14 +193,16 @@ class BuildOptimizer:
             result = subprocess.run(
                 ['systemd-detect-virt'],
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=30
             )
             
             if result.returncode == 0 and result.stdout.strip() != 'none':
                 virt_info['is_vm'] = True
                 virt_info['type'] = result.stdout.strip()
                 
-        except:
+        except (subprocess.SubprocessError, OSError) as e:
+            self.logger.debug(f"Virtualization detection error: {e}")
             pass
         
         return virt_info
@@ -256,7 +296,7 @@ class BuildOptimizer:
         self.optimizations['compiler_flags'] = cflags
         
         # Use ccache if available
-        if subprocess.run(['which', 'ccache'], capture_output=True).returncode == 0:
+        if subprocess.run(['which', 'ccache'], capture_output=True, timeout=30).returncode == 0:
             os.environ['CC'] = 'ccache gcc'
             os.environ['CXX'] = 'ccache g++'
             self.optimizations['ccache'] = True
@@ -277,7 +317,8 @@ class BuildOptimizer:
                     with open(dev_file, 'r') as f:
                         if f.read().strip() == f"{major}:{minor}":
                             return device.name
-        except:
+        except (OSError, IOError) as e:
+            self.logger.debug(f"Device detection error: {e}")
             pass
         
         return None
