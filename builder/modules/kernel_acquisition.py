@@ -283,18 +283,22 @@ class KernelAcquisition:
         # Split package installation into groups to isolate failures
         # Base packages first
         base_packages = ["linux-base"]
-        # Install kernel headers before DKMS (required for module compilation)
+        # Install kernel headers FIRST (required for module compilation)
         kernel_packages = ["linux-headers-amd64", "linux-image-amd64"]
-        # Then DKMS and dracut
+        # Then build tools and DKMS
+        build_packages = ["build-essential", "linux-headers-generic"]
         dkms_packages = ["dkms"]
-        dracut_packages = ["dracut", "dracut-core"] # initramfs-tools is intentionally omitted here
-        # Finally ZFS packages (requires DKMS and kernel headers)
+        # Then dracut with dependencies (dracut-zfs not available in Debian, we'll create the module)
+        dracut_packages = ["dracut", "dracut-core", "dracut-network", "zstd", "kmod", "libkmod2"] # initramfs-tools is intentionally omitted here
+        # ZFS packages (requires DKMS and kernel headers)
         zfs_packages = ["zfsutils-linux", "zfs-dkms"]
+        # ZFSBootMenu dependencies (zfsbootmenu itself will be installed separately)
+        zfsbootmenu_packages = ["perl", "fzf", "mbuffer", "efibootmgr", "kexec-tools"]
         
-        package_groups_to_install = [base_packages, kernel_packages, dkms_packages, dracut_packages, zfs_packages]
+        package_groups_to_install = [base_packages, kernel_packages, build_packages, dkms_packages, dracut_packages, zfs_packages, zfsbootmenu_packages]
 
         if zfs_encryption_enabled:
-            crypt_packages = ["cryptsetup", "keyutils", "libpam-zfs"]
+            crypt_packages = ["cryptsetup", "cryptsetup-initramfs", "keyutils", "libpam-zfs"]
             package_groups_to_install.append(crypt_packages)
 
         # For source builds, we need additional packages
@@ -323,6 +327,29 @@ class KernelAcquisition:
                 # Decide if we should raise, or continue as per patch instruction "Continue with next group"
                 self.logger.warning(f"Continuing with the next package group despite previous error.")
                 # If a critical group like dkms or zfs-dkms fails, subsequent steps might also fail.
+        
+        # Ensure dracut is preferred over initramfs-tools
+        self.logger.info("Ensuring dracut is the default initramfs generator...")
+        try:
+            # Remove initramfs-tools if it was installed as a dependency
+            self._run_chroot_command(["apt-get", "remove", "--purge", "-y", "initramfs-tools", "initramfs-tools-core"], check=False)
+            # Mark dracut as manually installed to prevent removal
+            self._run_chroot_command(["apt-mark", "manual", "dracut", "dracut-core"], check=False)
+            # Create kernel hook to use dracut
+            kernel_postinst = """#!/bin/sh
+# Use dracut instead of initramfs-tools
+set -e
+version="$1"
+[ -z "${version}" ] && exit 0
+dracut --force "/boot/initrd.img-${version}" "${version}"
+"""
+            hook_path = self.chroot_path / "etc" / "kernel" / "postinst.d" / "dracut"
+            hook_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(hook_path, 'w') as f:
+                f.write(kernel_postinst)
+            os.chmod(hook_path, 0o755)
+        except Exception as e:
+            self.logger.warning(f"Failed to configure dracut preference: {e}")
                 # The original patch implies just logging and continuing.
         
         # Ensure /boot is properly mounted if it's a separate partition
@@ -426,10 +453,12 @@ class KernelAcquisition:
         
         # Find the actual installed kernel version
         ls_result = self._run_chroot_command(["ls", "-1", "/lib/modules"])
-        installed_versions = ls_result.stdout.strip().split('\n')
+        installed_versions = [v.strip() for v in ls_result.stdout.strip().split('\n') if v.strip()]
         
         if not installed_versions:
             raise ValueError("No kernel versions found in /lib/modules after installation")
+        
+        self.logger.info(f"Found kernel versions in /lib/modules: {installed_versions}")
         
         # Sort versions to find the highest or best match
         # For Debian-style version strings (e.g., 6.1.0-13-amd64), this naive sort is not accurate
@@ -609,6 +638,9 @@ CONFIG_ZLIB_DEFLATE=y
         ])
         
         # Build ZFS module for the kernel
+        # Mount required filesystems for DKMS
+        self._mount_pseudo_filesystems()
+        
         try:
             self._run_chroot_command([
                 "dkms", "autoinstall", "-k", kernel_version
@@ -620,6 +652,9 @@ CONFIG_ZLIB_DEFLATE=y
             self._run_chroot_command([
                 "dkms", "install", "zfs/2.2.0", "-k", kernel_version
             ], check=False)  # Don't fail if this doesn't work
+        finally:
+            # Always unmount the filesystems
+            self._unmount_pseudo_filesystems()
             
         # Verify ZFS module was installed
         self.logger.info("Verifying ZFS module installation...")
@@ -677,10 +712,14 @@ CONFIG_ZLIB_DEFLATE=y
         if not chroot_vmlinuz_path.exists():
             raise FileNotFoundError(f"Kernel image {vmlinuz_path} not found in chroot")
 
-        # Create custom dracut.conf.d file for ZFS
-        dracut_conf = """# ZFS dracut configuration
-add_dracutmodules+=" zfs "
-omit_dracutmodules+=" btrfs "
+        # Create custom dracut.conf.d file for ZFS and ZFSBootMenu
+        dracut_conf = """# ZFS dracut configuration for ZFSBootMenu
+add_dracutmodules+=" kernel-modules base rootfs-block zfs "
+omit_dracutmodules+=" btrfs resume usrmount network-legacy "
+filesystems+=" zfs "
+hostonly="no"
+compress="zstd"
+kernel_only="yes"
 """
         
         # Add encryption support if needed
@@ -697,17 +736,239 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool /lib/udev/zvol_id /lib/udev/vdev_id
         with open(conf_path, "w") as f:
             f.write(dracut_conf)
 
-        # Build dracut command
-        dracut_cmd = [
-            "dracut",
-            "--force",  # Overwrite if exists
-            "--verbose",  # More detailed output
-            "--kver", kernel_version,  # Explicit kernel version
-            str(initrd_path)  # Output file path
-        ]
+        # Ensure /boot directory exists in chroot
+        boot_dir = self.chroot_path / "boot"
+        boot_dir.mkdir(parents=True, exist_ok=True)
         
-        # Run dracut command
-        self._run_chroot_command(dracut_cmd)
+        # Check if kernel modules exist
+        kernel_modules_path = self.chroot_path / "lib" / "modules" / kernel_version
+        if not kernel_modules_path.exists():
+            self.logger.error(f"Kernel modules directory does not exist: {kernel_modules_path}")
+            self.logger.error("Cannot proceed without kernel modules")
+            
+            # List available kernel versions
+            modules_dir = self.chroot_path / "lib" / "modules"
+            if modules_dir.exists():
+                available_versions = [d.name for d in modules_dir.iterdir() if d.is_dir()]
+                self.logger.info(f"Available kernel versions: {available_versions}")
+                
+                # If we have exactly one version, use it
+                if len(available_versions) == 1:
+                    kernel_version = available_versions[0]
+                    self.logger.info(f"Using available kernel version: {kernel_version}")
+                    kernel_modules_path = modules_dir / kernel_version
+                else:
+                    raise FileNotFoundError(f"Kernel modules not found for {kernel_version}")
+            else:
+                raise FileNotFoundError("No kernel modules directory found")
+        
+        # Mount required filesystems for dracut
+        self._mount_pseudo_filesystems()
+        
+        try:
+            # Ensure ZFS kernel modules are built first
+            self.logger.info("Ensuring ZFS kernel modules are built...")
+            try:
+                # Check DKMS status
+                dkms_result = self._run_chroot_command(["dkms", "status"], check=False)
+                if dkms_result.returncode != 0:
+                    self.logger.warning("DKMS status check failed, attempting to build ZFS modules manually")
+                    
+                    # Try to build ZFS modules explicitly
+                    try:
+                        # Add ZFS to DKMS if not already added
+                        self._run_chroot_command(["dkms", "add", "-m", "zfs", "-v", "2.2.0"], check=False)
+                        
+                        # Build ZFS modules for the kernel
+                        self.logger.info(f"Building ZFS DKMS modules for kernel: {kernel_version}")
+                        self._run_chroot_command([
+                            "dkms", "build", "-m", "zfs", "-v", "2.2.0", "-k", kernel_version
+                        ], check=False)
+                        
+                        # Install ZFS modules
+                        self.logger.info(f"Installing ZFS DKMS modules for kernel: {kernel_version}")
+                        self._run_chroot_command([
+                            "dkms", "install", "-m", "zfs", "-v", "2.2.0", "-k", kernel_version
+                        ], check=False)
+                        
+                        self.logger.info("ZFS DKMS modules build attempted")
+                    except subprocess.CalledProcessError as e:
+                        self.logger.warning(f"Failed to build ZFS DKMS modules: {e}")
+                        # Continue anyway, dracut might work without them
+                        
+            except subprocess.CalledProcessError:
+                self.logger.warning("Failed to check DKMS status")
+            
+            # Build dracut command
+            # First check if we need to create the ZFS dracut module
+            self._ensure_dracut_zfs_module()
+            
+            # For kernels with special characters, we need special handling
+            # The issue is that dracut has problems with '+' in kernel versions
+            if '+' in kernel_version:
+                self.logger.info(f"Kernel version contains '+' character: {kernel_version}")
+                # Verify the modules directory exists with this exact name
+                modules_check = self.chroot_path / "lib" / "modules" / kernel_version
+                if not modules_check.exists():
+                    self.logger.error(f"Modules directory does not exist: {modules_check}")
+                    # Try to find the actual directory name
+                    modules_parent = self.chroot_path / "lib" / "modules"
+                    actual_dirs = list(modules_parent.glob("*"))
+                    self.logger.info(f"Actual module directories: {[d.name for d in actual_dirs]}")
+                    
+                # Create a wrapper script for dracut with the problematic kernel version
+                wrapper_script = f"""#!/bin/bash
+# Dracut wrapper to handle kernel version with special characters
+set -e
+
+KVER="{kernel_version}"
+OUTPUT="{initrd_path}"
+
+echo "Running dracut for kernel version: $KVER"
+
+# Export the kernel version for dracut
+export KERNEL_VERSION="$KVER"
+
+# Create a temporary symlink without special characters if needed
+if [[ "$KVER" == *"+"* ]]; then
+    SAFE_KVER=$(echo "$KVER" | tr '+' '_')
+    if [ ! -e "/lib/modules/$SAFE_KVER" ]; then
+        ln -sf "/lib/modules/$KVER" "/lib/modules/$SAFE_KVER" || true
+    fi
+    
+    # Try with safe version first
+    dracut --force --verbose --kver "$SAFE_KVER" "$OUTPUT" || \\
+    dracut --force --verbose --kver "$KVER" "$OUTPUT" || \\
+    dracut --force --verbose "$OUTPUT"
+    
+    # Clean up symlink
+    rm -f "/lib/modules/$SAFE_KVER"
+else
+    dracut --force --verbose --kver "$KVER" "$OUTPUT"
+fi
+
+# Verify the output was created
+if [ -f "$OUTPUT" ]; then
+    echo "Successfully created initramfs at $OUTPUT"
+    exit 0
+else
+    echo "Failed to create initramfs"
+    exit 1
+fi
+"""
+                wrapper_path = self.chroot_path / "tmp" / "dracut_wrapper.sh"
+                with open(wrapper_path, 'w') as f:
+                    f.write(wrapper_script)
+                os.chmod(wrapper_path, 0o755)
+                
+                # Use the wrapper script
+                dracut_cmd = ["bash", "/tmp/dracut_wrapper.sh"]
+            else:
+                # Standard dracut command for normal kernel versions
+                dracut_cmd = [
+                    "dracut",
+                    "--force",  # Overwrite if exists
+                    "--verbose",  # More detailed output
+                    "--kver", kernel_version,  # Explicit kernel version
+                    str(initrd_path)  # Output file path
+                ]
+            
+            # Run dracut command
+            try:
+                self.logger.info(f"Running dracut for kernel {kernel_version}")
+                if '+' in kernel_version:
+                    self.logger.info("Using wrapper script for special character handling")
+                else:
+                    self.logger.info(f"Dracut command: {' '.join(dracut_cmd)}")
+                
+                # Also log the kernel modules directory contents
+                try:
+                    ls_result = self._run_chroot_command(["ls", "-la", f"/lib/modules/{kernel_version}/"], check=False)
+                    if ls_result.returncode == 0:
+                        self.logger.info(f"Kernel modules directory contents:\n{ls_result.stdout}")
+                except:
+                    pass
+                
+                self._run_chroot_command(dracut_cmd)
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"Dracut failed with exit code {e.returncode}")
+                self.logger.error(f"Dracut stdout: {e.stdout}")
+                self.logger.error(f"Dracut stderr: {e.stderr}")
+                
+                # Try alternative approaches
+                self.logger.info("Trying alternative dracut approaches...")
+                
+                # First try: dracut without version (builds for current kernel)
+                try:
+                    alt_dracut_cmd = [
+                        "dracut",
+                        "--force",
+                        "--verbose",
+                        str(initrd_path)
+                    ]
+                    self._run_chroot_command(alt_dracut_cmd)
+                    self.logger.info("Dracut succeeded without explicit kernel version")
+                    return vmlinuz_path, initrd_path
+                except subprocess.CalledProcessError:
+                    pass
+                
+                # Second try: escape the kernel version differently
+                try:
+                    if '+' in kernel_version:
+                        # Try with escaped version
+                        escaped_version = kernel_version.replace('+', '\\+')
+                        alt_dracut_cmd2 = [
+                            "dracut",
+                            "--force",
+                            "--verbose",
+                            "--kver", escaped_version,
+                            str(initrd_path)
+                        ]
+                        self._run_chroot_command(alt_dracut_cmd2)
+                        self.logger.info(f"Dracut succeeded with escaped kernel version: {escaped_version}")
+                        return vmlinuz_path, initrd_path
+                except subprocess.CalledProcessError:
+                    pass
+                
+                # Third try: use shell to run dracut
+                try:
+                    shell_cmd = f"dracut --force --verbose --kver '{kernel_version}' {initrd_path}"
+                    self._run_chroot_command(["bash", "-c", shell_cmd])
+                    self.logger.info("Dracut succeeded using shell command")
+                    return vmlinuz_path, initrd_path
+                except subprocess.CalledProcessError:
+                    pass
+                
+                # If all else fails, try to find and use the first available kernel
+                try:
+                    modules_dir = self.chroot_path / "lib" / "modules"
+                    available_kernels = [d.name for d in modules_dir.iterdir() if d.is_dir()]
+                    if available_kernels:
+                        fallback_kernel = available_kernels[0]
+                        self.logger.warning(f"Using fallback kernel version: {fallback_kernel}")
+                        fallback_initrd = Path("/boot") / f"initrd.img-{fallback_kernel}"
+                        fallback_cmd = [
+                            "dracut",
+                            "--force",
+                            "--verbose",
+                            "--kver", fallback_kernel,
+                            str(fallback_initrd)
+                        ]
+                        self._run_chroot_command(fallback_cmd)
+                        self.logger.info(f"Dracut succeeded with fallback kernel: {fallback_kernel}")
+                        # Update the paths
+                        initrd_path = fallback_initrd
+                        vmlinuz_path = Path("/boot") / f"vmlinuz-{fallback_kernel}"
+                        return vmlinuz_path, initrd_path
+                except subprocess.CalledProcessError:
+                    pass
+                
+                # Re-raise original error if all attempts failed
+                self.logger.error("All dracut attempts failed")
+                raise e
+        finally:
+            # Always unmount the filesystems
+            self._unmount_pseudo_filesystems()
 
         # Verify the initramfs was created
         chroot_initrd_path = self.chroot_path / initrd_path.relative_to("/")
@@ -716,3 +977,136 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool /lib/udev/zvol_id /lib/udev/vdev_id
 
         self.logger.info(f"Successfully generated dracut initramfs with ZFS support at {initrd_path}")
         return vmlinuz_path, initrd_path
+    
+    def _mount_pseudo_filesystems(self):
+        """Mount required pseudo filesystems for chroot operations."""
+        mounts = [
+            ("proc", "proc", self.chroot_path / "proc"),
+            ("sysfs", "sys", self.chroot_path / "sys"),
+            ("devtmpfs", "udev", self.chroot_path / "dev"),
+            ("devpts", "devpts", self.chroot_path / "dev/pts")
+        ]
+        
+        for fs_type, source, target in mounts:
+            if not target.exists():
+                target.mkdir(parents=True, exist_ok=True)
+            
+            # Check if already mounted
+            mount_check = subprocess.run(
+                ["mountpoint", "-q", str(target)],
+                capture_output=True
+            )
+            
+            if mount_check.returncode != 0:
+                self.logger.debug(f"Mounting {source} to {target}")
+                subprocess.run(
+                    ["mount", "-t", fs_type, source, str(target)],
+                    check=True
+                )
+    
+    def _ensure_dracut_zfs_module(self):
+        """Ensure dracut has a ZFS module, create one if missing"""
+        self.logger.info("Checking for dracut ZFS module...")
+        
+        dracut_modules_dir = self.chroot_path / "usr" / "lib" / "dracut" / "modules.d"
+        if not dracut_modules_dir.exists():
+            self.logger.error(f"Dracut modules directory not found: {dracut_modules_dir}")
+            return
+            
+        # Look for existing ZFS module
+        zfs_module_found = False
+        for mod_dir in dracut_modules_dir.iterdir():
+            if mod_dir.is_dir() and 'zfs' in mod_dir.name:
+                self.logger.info(f"Found existing ZFS dracut module: {mod_dir.name}")
+                zfs_module_found = True
+                break
+        
+        if not zfs_module_found:
+            # Create a basic ZFS dracut module
+            self.logger.info("Creating basic ZFS dracut module...")
+            zfs_module_dir = dracut_modules_dir / "90zfs"
+            zfs_module_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create module-setup.sh
+            module_setup = '''#!/bin/bash
+# ZFS support for dracut
+
+check() {
+    # Include ZFS module
+    which zpool >/dev/null 2>&1 || return 1
+    return 0
+}
+
+depends() {
+    echo udev-rules
+    return 0
+}
+
+installkernel() {
+    instmods zfs
+}
+
+install() {
+    inst_multiple zfs zpool zdb mount.zfs zgenhostid arc_summary arcstat || true
+    inst_hook cmdline 95 "$moddir/parse-zfs.sh"
+    inst_hook mount 98 "$moddir/mount-zfs.sh"
+}
+'''
+            module_setup_path = zfs_module_dir / "module-setup.sh"
+            with open(module_setup_path, 'w') as f:
+                f.write(module_setup)
+            os.chmod(module_setup_path, 0o755)
+            
+            # Create parse-zfs.sh
+            parse_zfs = '''#!/bin/sh
+case "${root}" in
+    zfs:*|ZFS:*|zfs=*)
+        root="${root#zfs:}"
+        root="${root#ZFS:}"
+        root="${root#zfs=}"
+        rootfstype="zfs"
+        rootok=1
+        wait_for_zfs=1
+        ;;
+esac
+'''
+            parse_zfs_path = zfs_module_dir / "parse-zfs.sh"
+            with open(parse_zfs_path, 'w') as f:
+                f.write(parse_zfs)
+            os.chmod(parse_zfs_path, 0o755)
+            
+            # Create mount-zfs.sh
+            mount_zfs = '''#!/bin/sh
+[ "${wait_for_zfs}" = "1" ] || return 0
+
+# Import all zpools
+zpool import -a -N
+
+# Mount root filesystem
+mount -t zfs "${root}" "${NEWROOT}" || return 1
+'''
+            mount_zfs_path = zfs_module_dir / "mount-zfs.sh"
+            with open(mount_zfs_path, 'w') as f:
+                f.write(mount_zfs)
+            os.chmod(mount_zfs_path, 0o755)
+            
+            self.logger.info("Created basic ZFS dracut module")
+    
+    def _unmount_pseudo_filesystems(self):
+        """Unmount pseudo filesystems in reverse order."""
+        mounts = [
+            self.chroot_path / "dev/pts",
+            self.chroot_path / "dev",
+            self.chroot_path / "sys",
+            self.chroot_path / "proc"
+        ]
+        
+        for target in mounts:
+            mount_check = subprocess.run(
+                ["mountpoint", "-q", str(target)],
+                capture_output=True
+            )
+            
+            if mount_check.returncode == 0:
+                self.logger.debug(f"Unmounting {target}")
+                subprocess.run(["umount", str(target)], check=False)

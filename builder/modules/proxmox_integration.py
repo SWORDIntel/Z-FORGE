@@ -88,11 +88,15 @@ class ProxmoxIntegration:
             "wget", "-O", str(key_path), key_url
         ], check=True)
         
-        # Import key
-        subprocess.run([
-            "chroot", str(chroot_path),
-            "apt-key", "add", "/tmp/proxmox-release.gpg"
-        ], check=True)
+        # Import key (requires mounted filesystems)
+        self._mount_pseudo_filesystems(chroot_path)
+        try:
+            subprocess.run([
+                "chroot", str(chroot_path),
+                "apt-key", "add", "/tmp/proxmox-release.gpg"
+            ], check=True)
+        finally:
+            self._unmount_pseudo_filesystems(chroot_path)
         
     def _setup_repositories(self, chroot_path: Path):
         """Configure Proxmox APT repositories"""
@@ -133,16 +137,20 @@ deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription
         cache_dir = chroot_path / "var/cache/zforge/proxmox"
         cache_dir.mkdir(parents=True, exist_ok=True)
         
-        # Download packages without installing
+        # Download packages without installing (requires mounted filesystems)
         download_cmd = f"""
         apt-get update
         apt-get download -o Dir::Cache::archives={cache_dir} {' '.join(packages)}
         """
         
-        subprocess.run([
-            "chroot", str(chroot_path),
-            "bash", "-c", download_cmd
-        ], check=True)
+        self._mount_pseudo_filesystems(chroot_path)
+        try:
+            subprocess.run([
+                "chroot", str(chroot_path),
+                "bash", "-c", download_cmd
+            ], check=True)
+        finally:
+            self._unmount_pseudo_filesystems(chroot_path)
         
     def _create_install_scripts(self, chroot_path: Path):
         """Create Proxmox installation scripts for Calamares"""
@@ -261,10 +269,14 @@ echo "Proxmox VE installation complete!"
         ]
         
         self.logger.info("Installing build dependencies...")
-        subprocess.run([
-            "chroot", str(chroot_path),
-            "apt-get", "install", "-y"
-        ] + build_deps, check=True)
+        self._mount_pseudo_filesystems(chroot_path)
+        try:
+            subprocess.run([
+                "chroot", str(chroot_path),
+                "apt-get", "install", "-y"
+            ] + build_deps, check=True)
+        finally:
+            self._unmount_pseudo_filesystems(chroot_path)
         
         # Build each component
         for repo in repos:
@@ -339,3 +351,48 @@ echo "Proxmox VE installation complete!"
         finally:
             # Always unmount
             subprocess.run(["umount", str(mount_point)], check=False)
+    
+    def _mount_pseudo_filesystems(self, chroot_path: Path):
+        """Mount required pseudo filesystems for chroot operations."""
+        mounts = [
+            ("proc", "proc", chroot_path / "proc"),
+            ("sysfs", "sys", chroot_path / "sys"),
+            ("devtmpfs", "udev", chroot_path / "dev"),
+            ("devpts", "devpts", chroot_path / "dev/pts")
+        ]
+        
+        for fs_type, source, target in mounts:
+            if not target.exists():
+                target.mkdir(parents=True, exist_ok=True)
+            
+            # Check if already mounted
+            mount_check = subprocess.run(
+                ["mountpoint", "-q", str(target)],
+                capture_output=True
+            )
+            
+            if mount_check.returncode != 0:
+                self.logger.debug(f"Mounting {source} to {target}")
+                subprocess.run(
+                    ["mount", "-t", fs_type, source, str(target)],
+                    check=True
+                )
+    
+    def _unmount_pseudo_filesystems(self, chroot_path: Path):
+        """Unmount pseudo filesystems in reverse order."""
+        mounts = [
+            chroot_path / "dev/pts",
+            chroot_path / "dev",
+            chroot_path / "sys",
+            chroot_path / "proc"
+        ]
+        
+        for target in mounts:
+            mount_check = subprocess.run(
+                ["mountpoint", "-q", str(target)],
+                capture_output=True
+            )
+            
+            if mount_check.returncode == 0:
+                self.logger.debug(f"Unmounting {target}")
+                subprocess.run(["umount", str(target)], check=False)

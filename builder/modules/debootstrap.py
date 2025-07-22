@@ -116,8 +116,9 @@ class Debootstrap:
             # Step 4: Install and configure dracut.
             self._install_dracut()
             
-            # Step 5: Unmount chroot filesystems
-            self._unmount_chroot_filesystems()
+            # Step 5: Leave filesystems mounted for subsequent modules
+            # Note: The final cleanup module will handle unmounting
+            self.logger.info("Leaving pseudo-filesystems mounted for subsequent modules")
             
             self.logger.info(f"Debootstrap completed successfully for Debian {debian_release}.")
             
@@ -204,6 +205,13 @@ class Debootstrap:
         # debian_release: The target Debian version.
         # self.chroot_path: The target directory for the chroot.
         # http://deb.debian.org/debian: The Debian mirror URL.
+        # Get mirror from config or use default
+        debian_mirror = self.config.get('mirror_overrides', {}).get(
+            'debian', 
+            "http://deb.debian.org/debian"
+        )
+        self.logger.info(f"Using Debian mirror: {debian_mirror}")
+        
         cmd: List[str] = [
             "sudo",
             "debootstrap",
@@ -212,7 +220,7 @@ class Debootstrap:
             f"--include={','.join(include_packages)}",
             debian_release,
             str(self.chroot_path),
-            "http://deb.debian.org/debian" # Using a standard Debian mirror
+            debian_mirror
         ]
         
         self.logger.info(f"Executing debootstrap command: {' '.join(cmd)}")
@@ -374,15 +382,23 @@ proc             /proc          proc    defaults   0       0
             self.logger.warning(f"Failed to install some basic packages: {e}")
         
         # Group 2: Python packages
+        # Note: python3-distutils is deprecated in Debian Trixie, use python3-setuptools instead
         python_packages = [
             "python3",          # Python interpreter
-            "python3-distutils" # For Python package building/installation
+            "python3-setuptools", # For Python package building/installation (replaces distutils)
+            "python3-pip"       # Package installer
         ]
         self.logger.info(f"Installing Python packages: {', '.join(python_packages)}")
         try:
             self._run_chroot_command(["apt-get", "install", "-y"] + python_packages)
         except subprocess.CalledProcessError as e:
-            self.logger.warning(f"Failed to install Python packages: {e}")
+            # Fallback without setuptools if it fails
+            self.logger.warning(f"Failed to install full Python stack: {e}")
+            self.logger.info("Trying minimal Python installation...")
+            try:
+                self._run_chroot_command(["apt-get", "install", "-y", "python3"])
+            except subprocess.CalledProcessError as e2:
+                self.logger.warning(f"Failed to install minimal Python: {e2}")
         
         # Group 3: Build tools (this is the largest group)
         build_packages = [
@@ -452,7 +468,12 @@ proc             /proc          proc    defaults   0       0
         self.logger.info(f"Installing dracut packages: {', '.join(dracut_packages)}")
         
         # Install with --no-install-recommends to minimize dependencies
-        self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends"] + dracut_packages)
+        try:
+            self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends"] + dracut_packages)
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to install dracut packages from APT: {e}")
+            self.logger.info("Attempting to build dracut from source...")
+            self._build_dracut_from_source()
         
         # Remove the diversion after installation
         self.logger.info("Removing dpkg diversion...")
@@ -501,6 +522,72 @@ early_microcode="no"
             f.write(dracut_conf_content)
         self.logger.info(f"Dracut configuration written to {dracut_conf_file}")
         self.logger.info("Dracut installation and basic configuration completed.")
+    
+    def _build_dracut_from_source(self) -> None:
+        """
+        Build dracut from source when packages are not available.
+        Downloads the latest stable version and compiles it.
+        """
+        self.logger.info("Building dracut from source...")
+        
+        # Install build dependencies
+        build_deps = [
+            "git", "make", "gcc", "pkg-config", "asciidoc",
+            "libkmod-dev", "libudev-dev", "libblkid-dev",
+            "xsltproc", "docbook-xsl", "docbook-xml", "wget"
+        ]
+        
+        self.logger.info("Installing build dependencies for dracut...")
+        try:
+            self._run_chroot_command(["apt-get", "install", "-y"] + build_deps)
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Some build dependencies may be missing: {e}")
+        
+        # Create build directory
+        build_dir = self.chroot_path / "tmp" / "dracut-build"
+        build_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Download dracut source
+        self.logger.info("Downloading dracut source code...")
+        dracut_url = "https://github.com/dracutdevs/dracut/archive/refs/tags/060.tar.gz"
+        
+        # Download using wget in chroot
+        self._run_chroot_command([
+            "wget", "-O", "/tmp/dracut-build/dracut.tar.gz", dracut_url
+        ])
+        
+        # Extract source
+        self.logger.info("Extracting dracut source...")
+        self._run_chroot_command([
+            "tar", "-xzf", "/tmp/dracut-build/dracut.tar.gz",
+            "-C", "/tmp/dracut-build", "--strip-components=1"
+        ])
+        
+        # Configure and build
+        self.logger.info("Configuring dracut build...")
+        self._run_chroot_command([
+            "sh", "-c", "cd /tmp/dracut-build && ./configure --prefix=/usr --sysconfdir=/etc"
+        ])
+        
+        self.logger.info("Building dracut (this may take a while)...")
+        self._run_chroot_command([
+            "sh", "-c", "cd /tmp/dracut-build && make -j$(nproc)"
+        ])
+        
+        self.logger.info("Installing dracut...")
+        self._run_chroot_command([
+            "sh", "-c", "cd /tmp/dracut-build && make install"
+        ])
+        
+        # Create dracut modules directory if it doesn't exist
+        dracut_modules_dir = self.chroot_path / "usr" / "lib" / "dracut" / "modules.d"
+        dracut_modules_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Clean up build directory
+        self.logger.info("Cleaning up build directory...")
+        self._run_chroot_command(["rm", "-rf", "/tmp/dracut-build"])
+        
+        self.logger.info("Dracut built and installed from source successfully")
     
     def _run_chroot_command(self, command: List[str], check: bool = True, timeout: Optional[int] = None) -> subprocess.CompletedProcess:
         """

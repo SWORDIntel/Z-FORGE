@@ -505,8 +505,8 @@ class HardwareDatabase:
                 if speed_match:
                     mem_info["speed_mhz"] = int(speed_match.group(1))
                     
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Error parsing dmidecode output: {e}")
                 
         except Exception as e:
             logger.warning(f"Could not detect memory info: {e}")

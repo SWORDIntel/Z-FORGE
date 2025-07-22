@@ -142,14 +142,21 @@ class ZFSBuild:
         full_cmd = base_cmd + command
 
         # Determine current working directory for the chroot command
-        chroot_cwd_str = str(cwd) if cwd else None
-        if chroot_cwd_str and str(self.chroot_path) in chroot_cwd_str: # Ensure cwd is inside chroot
-             actual_cwd_for_chroot = Path(chroot_cwd_str).relative_to(self.chroot_path)
-             if not str(actual_cwd_for_chroot).startswith("/"):
-                 actual_cwd_for_chroot = Path("/") / actual_cwd_for_chroot
-        else: # if cwd is None or not within chroot_path, default to / inside chroot
-            actual_cwd_for_chroot = Path("/")
-
+        if cwd:
+            # cwd should be a path as seen from inside the chroot (e.g., /usr/src/zfs_build_source)
+            # If it's already an absolute path starting with /, use it directly
+            if isinstance(cwd, Path):
+                cwd_str = str(cwd)
+            else:
+                cwd_str = cwd
+                
+            # Ensure it starts with /
+            if not cwd_str.startswith("/"):
+                cwd_str = "/" + cwd_str
+                
+            actual_cwd_for_chroot = cwd_str
+        else:
+            actual_cwd_for_chroot = "/"
 
         self.logger.info(f"Executing in chroot (cwd: {actual_cwd_for_chroot}): {' '.join(command)}")
 
@@ -157,8 +164,10 @@ class ZFSBuild:
         # then the command *inside* chroot effectively runs from `actual_cwd_for_chroot`.
         # This is tricky with subprocess.run directly. A common way is to do `chroot /path/to/chroot /bin/bash -c 'cd /new/cwd && command'`
         # For simplicity, if cwd is used, we'll use bash -c to handle it.
-        if cwd: # If a specific cwd *inside* the chroot is needed
-            bash_command = f"cd \"{actual_cwd_for_chroot}\" && {' '.join(command)}"
+        if cwd and actual_cwd_for_chroot != "/": # If a specific cwd *inside* the chroot is needed
+            # Properly quote the command arguments
+            quoted_command = ' '.join([f'"{arg}"' if ' ' in arg else arg for arg in command])
+            bash_command = f"cd {actual_cwd_for_chroot} && {quoted_command}"
             # Modify full_cmd to use bash -c
             full_cmd = base_cmd + ["/bin/bash", "-c", bash_command]
             self.logger.debug(f"Effective chroot bash command: {bash_command}")
@@ -209,6 +218,19 @@ class ZFSBuild:
     def _install_build_dependencies(self) -> None:
         """Install ZFS build dependencies into the chroot environment."""
         self.logger.info("Installing ZFS build dependencies in chroot...")
+        
+        # First, ensure locale is properly configured to avoid warnings
+        self.logger.info("Configuring locale...")
+        locale_commands = [
+            ["apt-get", "update"],
+            ["apt-get", "install", "-y", "locales"],
+            ["sed", "-i", "s/# en_US.UTF-8/en_US.UTF-8/", "/etc/locale.gen"],
+            ["locale-gen"],
+            ["update-locale", "LANG=en_US.UTF-8"]
+        ]
+        for cmd in locale_commands:
+            self._run_chroot_command(cmd, check=False)
+        
         # Common dependencies for building ZFS. This list might need updates based on ZFS version.
         # Includes DKMS for kernel module management.
         deps = [
@@ -217,7 +239,7 @@ class ZFSBuild:
             "libelf-dev", "libudev-dev", "libssl-dev", "zlib1g-dev", "libaio-dev",
             "libattr1-dev", "python3", "python3-dev", "python3-setuptools", "python3-cffi",
             "libffi-dev", "linux-headers-amd64", # Generic headers, specific headers installed by KernelAcquisition
-            "dkms"
+            "dkms", "git", "pkg-config"  # git for autogen.sh, pkg-config for configure
         ]
         # The command to install dependencies. -y confirms automatically.
         cmd = ["apt-get", "update"]
@@ -386,11 +408,15 @@ install_items+=" /usr/sbin/zfs /usr/sbin/zpool "
             "zfs-import.target",       # Target that pulls in zfs-import-cache
         ]
 
-        # Enable these services using systemctl (which works on symlinks even in chroot)
-        for service in services_to_enable:
-            # systemctl enable creates symlinks; it doesn't start the service.
-            self._run_chroot_command(["systemctl", "enable", service], check=False) # check=False as some might not be present depending on build options
-            self.logger.info(f"Enabled ZFS service (or attempted to): {service}")
+        # Enable these services using systemctl (requires mounted filesystems)
+        self._mount_pseudo_filesystems()
+        try:
+            for service in services_to_enable:
+                # systemctl enable creates symlinks; it doesn't start the service.
+                self._run_chroot_command(["systemctl", "enable", service], check=False) # check=False as some might not be present depending on build options
+                self.logger.info(f"Enabled ZFS service (or attempted to): {service}")
+        finally:
+            self._unmount_pseudo_filesystems()
 
         # Create /etc/zfs/zpool.cache if it doesn't exist (it's optional for dracut but good for services)
         # This file is populated when pools are imported.
@@ -401,6 +427,51 @@ install_items+=" /usr/sbin/zfs /usr/sbin/zpool "
             self.logger.info(f"Created empty zpool.cache at {zpool_cache_path}")
 
         self.logger.info("ZFS systemd services setup completed.")
+    
+    def _mount_pseudo_filesystems(self):
+        """Mount required pseudo filesystems for chroot operations."""
+        mounts = [
+            ("proc", "proc", self.chroot_path / "proc"),
+            ("sysfs", "sys", self.chroot_path / "sys"),
+            ("devtmpfs", "udev", self.chroot_path / "dev"),
+            ("devpts", "devpts", self.chroot_path / "dev/pts")
+        ]
+        
+        for fs_type, source, target in mounts:
+            if not target.exists():
+                target.mkdir(parents=True, exist_ok=True)
+            
+            # Check if already mounted
+            mount_check = subprocess.run(
+                ["mountpoint", "-q", str(target)],
+                capture_output=True
+            )
+            
+            if mount_check.returncode != 0:
+                self.logger.debug(f"Mounting {source} to {target}")
+                subprocess.run(
+                    ["mount", "-t", fs_type, source, str(target)],
+                    check=True
+                )
+    
+    def _unmount_pseudo_filesystems(self):
+        """Unmount pseudo filesystems in reverse order."""
+        mounts = [
+            self.chroot_path / "dev/pts",
+            self.chroot_path / "dev",
+            self.chroot_path / "sys",
+            self.chroot_path / "proc"
+        ]
+        
+        for target in mounts:
+            mount_check = subprocess.run(
+                ["mountpoint", "-q", str(target)],
+                capture_output=True
+            )
+            
+            if mount_check.returncode == 0:
+                self.logger.debug(f"Unmounting {target}")
+                subprocess.run(["umount", str(target)], check=False)
 
 # Example of how this might be used (outside the class, for testing or integration)
 if __name__ == '__main__':
@@ -435,4 +506,4 @@ if __name__ == '__main__':
     # zfs_builder = ZFSBuild(workspace=mock_workspace, config=mock_config)
     # result = zfs_builder.execute()
     # print(f"ZFS Build execution result: {result}")
-    print("Conceptual test structure. Full execution requires a prepared chroot and build environment."))
+    print("Conceptual test structure. Full execution requires a prepared chroot and build environment.")

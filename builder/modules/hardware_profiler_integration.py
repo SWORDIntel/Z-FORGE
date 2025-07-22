@@ -290,7 +290,7 @@ For issues or questions, visit: https://github.com/your-org/z-forge
         man_dir = self.chroot_path / "usr/share/man/man1"
         man_dir.mkdir(parents=True, exist_ok=True)
         
-        man_content = """.TH ZFORGE-PROFILER 1 "2025-07-21" "Z-FORGE" "Z-FORGE Manual"
+        man_content = r""".TH ZFORGE-PROFILER 1 "2025-07-21" "Z-FORGE" "Z-FORGE Manual"
 .SH NAME
 zforge-profiler \- Profile system hardware for custom ISO builds
 .SH SYNOPSIS

@@ -147,7 +147,10 @@ class CalamaresIntegration:
             "python3-pyqt5", "python3-yaml", "python3-jsonschema",
             # GTK dependencies for enhanced ZFS module
             "python3-gi", "python3-gi-cairo", "gir1.2-gtk-3.0",
-            "gir1.2-pango-1.0", "python3-cairo"
+            "gir1.2-pango-1.0", "python3-cairo",
+            # QML dependencies for telemetry consent module
+            "qml-module-qtquick2", "qml-module-qtquick-controls2",
+            "qml-module-qtquick-layouts", "qml-module-qtquick-window2"
         ]
         # Ensure no XFCE or LightDM packages are installed if they were in a previous version of this list
         # For example, by explicitly removing them or ensuring they are not in `packages_to_install`.

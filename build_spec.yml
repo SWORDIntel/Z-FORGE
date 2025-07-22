@@ -44,12 +44,19 @@ zfs_config:
   version: latest
   build_from_source: true
   enable_encryption: true
-  default_compression: lz4
+  default_compression: dynamic  # Minimum zstd-3, optimized based on system
   # R730xd has more RAM, can use larger ARC
   arc_max_size: "16G"  # Updated based on user feedback
   # Server optimizations
   prefetch_disable: false  # Enable prefetch for better read perf
   zio_delay_max: 5000
+
+# ZFS Native Encryption Configuration
+encryption_config:
+  enable: true
+  key_format: raw  # raw or passphrase
+  cipher: aes-256-gcm  # aes-128-gcm, aes-192-gcm, or aes-256-gcm
+  boot_unlock_method: keyfile  # keyfile or passphrase
 
 bootloader_config:
   primary: zfsbootmenu
@@ -63,6 +70,43 @@ bootloader_config:
   nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)"
   # Use UEFI mode for R730xd
   uefi_mode: true
+
+# OpenCore Configuration for NVMe Boot Support
+opencore_config:
+  install_device: /dev/sda  # Secondary device for OpenCore installation
+  system_type: dell_r730xd  # System-specific configuration
+  enable_nvme_boot: true
+  chainload_zfsbootmenu: true
+
+# ZFS Pool Configuration - Multiple pools with different RAID levels
+zfs_pool_config:
+  # OS Pool - typically mirror for redundancy
+  os_pool:
+    name: rpool
+    type: mirror  # mirror, raidz, raidz2, raidz3, stripe
+    encryption: true
+    compression: dynamic  # Will be optimized (minimum zstd-3)
+    ashift: 12
+    
+  # Storage pools - can have multiple with different purposes
+  storage_pools:
+    - name: tank
+      type: raidz2  # Good balance of capacity and redundancy
+      purpose: vm_storage  # vm_storage, backup, media, database, general
+      mountpoint: /tank
+      encryption: false  # Optional per pool
+      compression: dynamic  # Will be optimized (minimum zstd-3)
+      ashift: 12
+      recordsize: 128K  # Tuned for VM storage
+      
+    - name: backup
+      type: raidz3  # Maximum redundancy for backups
+      purpose: backup
+      mountpoint: /backup
+      encryption: true
+      compression: dynamic  # Will be optimized (minimum zstd-3)  # Better compression for backups
+      ashift: 12
+      recordsize: 1M  # Large records for backup files
 
 dracut_config:
   modules:
@@ -119,10 +163,28 @@ post_install_scripts:
   - config/r730xd/r730xd_nvme_tune.sh
 
 modules:
+  # Phase 0: Pre-Build Optimization and Verification
+  - name: SystemPrerequisites
+    enabled: true
+  - name: AutoInstallDeps
+    enabled: true
+  - name: MirrorSelector
+    enabled: true
+  - name: BuildCache
+    enabled: true
+  - name: BuildOptimizer
+    enabled: true
+  - name: ModuleVerifier
+    enabled: true
+  - name: ProgressMonitor
+    enabled: true
+    
   # Phase 1: Base System Setup
   - name: WorkspaceSetup
     enabled: true
   - name: Debootstrap
+    enabled: true
+  - name: NonInteractiveFixes
     enabled: true
     
   # Phase 2: Kernel and Core Modules
@@ -130,9 +192,15 @@ modules:
     enabled: true
   - name: ZFSBuild
     enabled: true
+  - name: ZFSPoolConfig
+    enabled: true
+  - name: ZFSCompressionOptimizer
+    enabled: true
     
   # Phase 3: Boot Infrastructure  
   - name: DracutConfig
+    enabled: true
+  - name: ZFSBootMenuInstall
     enabled: true
   - name: BootloaderSetup
     enabled: true
@@ -142,7 +210,9 @@ modules:
     enabled: true
   - name: SecurityHardening
     enabled: true
-  - name: EncryptionSupport
+  - name: ZFSEncryption
+    enabled: true
+  - name: OpenCoreNVME
     enabled: true
     
   # Phase 5: Live Environment
@@ -151,12 +221,16 @@ modules:
   - name: CalamaresIntegration
     enabled: true
   - name: KDEThemeConfig
-    enabled: false  # Optional - enable if KDE is installed
+    enabled: true  # Enable KDE theme configuration
   - name: DellR730xdOptimize
     enabled: false  # Module not yet implemented
     
   # Phase 6: ISO Generation
   - name: ISOGeneration
+    enabled: true
+    
+  # Phase 7: Final Cleanup
+  - name: CleanupHandler
     enabled: true
 
 # Custom ISO Build Versioning

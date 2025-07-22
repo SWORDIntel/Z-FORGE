@@ -225,8 +225,22 @@ iface lo inet loopback
 
         self.logger.info("Generating initramfs...")
 
-        # Update initramfs
-        subprocess.run(
-            ["chroot", self.chroot_path, "update-initramfs", "-u", "-k", "all"],
-            check=True
-        )
+        # Update initramfs - use dracut if available, otherwise update-initramfs
+        try:
+            # Check if dracut is available
+            subprocess.run(
+                ["chroot", self.chroot_path, "which", "dracut"],
+                check=True,
+                capture_output=True
+            )
+            # Use dracut
+            subprocess.run(
+                ["chroot", self.chroot_path, "dracut", "-f", "--regenerate-all"],
+                check=True
+            )
+        except subprocess.CalledProcessError:
+            # Fall back to update-initramfs
+            subprocess.run(
+                ["chroot", self.chroot_path, "update-initramfs", "-u", "-k", "all"],
+                check=True
+            )
