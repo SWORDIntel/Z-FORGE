@@ -84,14 +84,30 @@ class LiveEnvironment:
             'lvm2',
             'mdadm',
             'kde-standard',  # Added KDE standard packages
-            'sddm'           # Added SDDM display manager
+            'sddm',          # Added SDDM display manager
+            # Essential system utilities for dracut
+            'btrfs-progs',   # Btrfs filesystem support
+            'kbd',           # Keyboard utilities (loadkeys, setfont)
+            'systemd-timesyncd',  # Time synchronization
+            'systemd-resolved',   # DNS resolution
+            'systemd-boot',       # systemd-boot and systemd-repart
+            'nvme-cli',           # NVMe utilities
+            'open-iscsi',         # iSCSI support
+            'nfs-common',         # NFS support
+            'cifs-utils',         # SMB/CIFS support
+            'multipath-tools',    # Multipath I/O
+            'tpm2-tools',         # TPM 2.0 support
+            'pcsc-lite',          # Smart card support
+            'rng-tools',          # Hardware RNG daemon
+            'util-linux'          # Various system utilities
         ]
 
         install_cmd = f"apt-get install -y --no-install-recommends {' '.join(packages)}" # Added --no-install-recommends
 
         subprocess.run(
             ["chroot", str(self.chroot_path), "bash", "-c", install_cmd],
-            check=True
+            check=True,
+            timeout=600  # 10 minutes for package installation
         )
 
     def _configure_live_system(self):

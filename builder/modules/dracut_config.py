@@ -122,7 +122,7 @@ class DracutConfig:
             "apt-get", "install", "-y", "--no-install-recommends"
         ] + packages
         
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True, timeout=300)  # 5 minutes for package installation
         
         self.logger.info("Dracut packages installed successfully")
     
