@@ -49,6 +49,28 @@ class ZFSBuild:
         self.zfs_repo_url: str = "https://github.com/openzfs/zfs.git"
         self.chroot_path: Path = self.workspace / "chroot"
         
+    def _install_zfs_from_apt(self) -> str:
+        """Install ZFS from APT as fallback if building from source fails."""
+        self.logger.info("Installing ZFS from APT repositories...")
+        
+        # Install ZFS packages
+        zfs_packages = [
+            "zfsutils-linux",
+            "zfs-dkms",
+            "zfs-initramfs",
+            "zfs-dracut"
+        ]
+        
+        cmd = ["apt-get", "install", "-y"] + zfs_packages
+        self._run_chroot_command(cmd)
+        
+        # Get installed version
+        version_result = self._run_chroot_command(["zfs", "version"], check=False)
+        if version_result.returncode == 0:
+            version_line = version_result.stdout.strip().split('\n')[0]
+            return version_line.split()[-1] if version_line else "unknown"
+        return "unknown"
+    
     def execute(self, resume_data: Optional[Dict[str, Any]] = None, lockfile: Optional[BuildLockfile] = None) -> Dict[str, Any]:
         """
         Execute the ZFS build and installation process.
@@ -74,6 +96,30 @@ class ZFSBuild:
         try:
             # Determine the ZFS version to build.
             zfs_config: Dict[str, Any] = self.config.get('zfs_config', {})
+            build_from_source = zfs_config.get('build_from_source', True)
+            
+            if not build_from_source:
+                # Install from APT directly
+                self.logger.info("Installing ZFS from APT repositories (build_from_source=false)")
+                zfs_version = self._install_zfs_from_apt()
+                
+                # Set up dracut for ZFS support
+                self._setup_dracut_for_zfs()
+                
+                # Set up ZFS services
+                self._setup_zfs_services()
+                
+                return {
+                    'status': 'success',
+                    'zfs_version': zfs_version,
+                    'features': {
+                        'encryption': True,
+                        'compression': zfs_config.get('default_compression', 'lz4'),
+                        'dkms': True
+                    }
+                }
+            
+            # Build from source
             target_zfs_version: str
             if zfs_config.get('version') == 'latest':
                 target_zfs_version = self._get_latest_zfs_release_tag()
@@ -86,36 +132,60 @@ class ZFSBuild:
 
             self.logger.info(f"Target ZFS version for build: {target_zfs_version}")
 
-            # Step 1: Install ZFS build dependencies within the chroot.
-            self._install_build_dependencies()
-            
-            # Step 2: Clone ZFS repository and checkout the target version.
-            zfs_source_dir: Path = self._clone_zfs_repository(target_zfs_version)
-            
-            # Step 3: Build and install ZFS from source.
-            self._build_and_install_zfs(zfs_source_dir)
-            
-            # Step 4: Configure DKMS for ZFS. (Often handled by ZFS install script, but verify)
-            self._configure_dkms_for_zfs() # This might be more of a verification step.
-            
-            # Step 5: Set up dracut for ZFS support in initramfs.
-            self._setup_dracut_for_zfs()
-            
-            # Step 6: Set up ZFS services (e.g., zfs-import-cache, zfs-mount).
-            self._setup_zfs_services()
-            
-            self.logger.info(f"ZFS version {target_zfs_version} built and installed successfully.")
-            
-            # Return status and information about the built ZFS.
-            return {
-                'status': 'success',
-                'zfs_version': target_zfs_version,
-                'features': { # These are typically default/enabled with OpenZFS
-                    'encryption': zfs_config.get('enable_encryption', True), # Reflects config intent
-                    'compression': zfs_config.get('default_compression', 'lz4'), # Reflects config intent
-                    'dkms': True # Assumed if build is successful
+            try:
+                # Step 1: Install ZFS build dependencies within the chroot.
+                self._install_build_dependencies()
+                
+                # Step 2: Clone ZFS repository and checkout the target version.
+                zfs_source_dir: Path = self._clone_zfs_repository(target_zfs_version)
+                
+                # Step 3: Build and install ZFS from source.
+                self._build_and_install_zfs(zfs_source_dir)
+                
+                # Step 4: Configure DKMS for ZFS. (Often handled by ZFS install script, but verify)
+                self._configure_dkms_for_zfs() # This might be more of a verification step.
+                
+                # Step 5: Set up dracut for ZFS support in initramfs.
+                self._setup_dracut_for_zfs()
+                
+                # Step 6: Set up ZFS services (e.g., zfs-import-cache, zfs-mount).
+                self._setup_zfs_services()
+                
+                self.logger.info(f"ZFS version {target_zfs_version} built and installed successfully.")
+                
+                # Return status and information about the built ZFS.
+                return {
+                    'status': 'success',
+                    'zfs_version': target_zfs_version,
+                    'features': { # These are typically default/enabled with OpenZFS
+                        'encryption': zfs_config.get('enable_encryption', True), # Reflects config intent
+                        'compression': zfs_config.get('default_compression', 'lz4'), # Reflects config intent
+                        'dkms': True # Assumed if build is successful
+                    }
                 }
-            }
+            except Exception as build_error:
+                self.logger.error(f"Failed to build ZFS from source: {build_error}")
+                self.logger.warning("Falling back to APT installation...")
+                
+                # Fallback to APT installation
+                zfs_version = self._install_zfs_from_apt()
+                
+                # Set up dracut for ZFS support
+                self._setup_dracut_for_zfs()
+                
+                # Set up ZFS services
+                self._setup_zfs_services()
+                
+                return {
+                    'status': 'success',
+                    'zfs_version': zfs_version,
+                    'features': {
+                        'encryption': True,
+                        'compression': zfs_config.get('default_compression', 'lz4'),
+                        'dkms': True
+                    },
+                    'note': 'Installed from APT due to build failure'
+                }
             
         except subprocess.CalledProcessError as e:
             self.logger.error(f"A command failed during ZFS build: {e.cmd}, Return Code: {e.returncode}, Output: {e.output}, Stderr: {e.stderr}")
@@ -239,13 +309,22 @@ class ZFSBuild:
             "libelf-dev", "libudev-dev", "libssl-dev", "zlib1g-dev", "libaio-dev",
             "libattr1-dev", "python3", "python3-dev", "python3-setuptools", "python3-cffi",
             "libffi-dev", "linux-headers-amd64", # Generic headers, specific headers installed by KernelAcquisition
-            "dkms", "git", "pkg-config"  # git for autogen.sh, pkg-config for configure
+            "dkms", "git", "pkg-config",  # git for autogen.sh, pkg-config for configure
+            "gcc", "g++", "make", "binutils"  # Ensure compilers are installed (removed ccache)
         ]
         # The command to install dependencies. -y confirms automatically.
         cmd = ["apt-get", "update"]
         self._run_chroot_command(cmd)
         cmd = ["apt-get", "install", "-y"] + deps
         self._run_chroot_command(cmd)
+        
+        # Verify gcc is working
+        self.logger.info("Verifying compiler installation...")
+        test_result = self._run_chroot_command(["gcc", "--version"], check=False)
+        if test_result.returncode != 0:
+            self.logger.error("GCC not working properly in chroot")
+            raise Exception("Failed to install working C compiler")
+        
         self.logger.info("ZFS build dependencies installed.")
 
     def _clone_zfs_repository(self, zfs_version_tag: str) -> Path:
@@ -293,24 +372,74 @@ class ZFSBuild:
 
         # Run autogen.sh - this is usually needed when building from a git checkout
         self._run_chroot_command(["./autogen.sh"], cwd=zfs_source_dir_in_chroot)
+        
+        # Disable ccache for ZFS build as it can cause configure issues
+        env_vars = "CC=gcc CXX=g++ "
 
-        # Configure build options. Enable DKMS, systemd integration.
-        # --with-linux and --with-linux-obj should point to kernel source/headers if not standard.
-        # Assuming kernel headers are in their standard location accessible within chroot.
+        # Configure build options. Different ZFS versions support different options.
+        # Start with basic options that should work across versions
         configure_opts = [
             "--prefix=/usr",
             "--sysconfdir=/etc",
             "--sbindir=/usr/sbin",
             "--libdir=/usr/lib/x86_64-linux-gnu", # Debian specific lib dir
             "--libexecdir=/usr/lib/x86_64-linux-gnu/zfs",
-            "--with-config=kernel", # Build kernel modules
-            "--enable-dkms",        # Enable DKMS support
-            "--with-dkmsdir=/usr/src/zfs_built", # specify a different name to avoid conflict with packaged zfs-dkms
-            "--with-systemd",       # Enable systemd integration
-            "--with-dracut",        # Enable dracut integration
-            # Add other options as needed from self.config
         ]
-        self._run_chroot_command(["./configure"] + configure_opts, cwd=zfs_source_dir_in_chroot)
+        
+        # First, let's check what configure options are available
+        self.logger.info("Checking available configure options...")
+        help_result = self._run_chroot_command(["./configure", "--help"], cwd=zfs_source_dir_in_chroot, check=False)
+        help_output = help_result.stdout
+        
+        # Check if specific options are supported and add them
+        if "--with-config=" in help_output:
+            configure_opts.append("--with-config=user,kernel")  # Build both user and kernel components
+            
+        # Find kernel headers path
+        kernel_headers_check = self._run_chroot_command(["ls", "-d", "/lib/modules/*/build"], check=False)
+        if kernel_headers_check.returncode == 0 and kernel_headers_check.stdout.strip():
+            kernel_path = kernel_headers_check.stdout.strip().split('\n')[0]
+            self.logger.info(f"Found kernel headers at: {kernel_path}")
+            if "--with-linux=" in help_output:
+                configure_opts.append(f"--with-linux={kernel_path}")
+            if "--with-linux-obj=" in help_output:
+                configure_opts.append(f"--with-linux-obj={kernel_path}")
+        
+        if "--enable-systemd" in help_output:
+            configure_opts.append("--enable-systemd")
+        elif "--with-systemd" in help_output:
+            configure_opts.append("--with-systemd")
+            
+        if "--with-dracutdir" in help_output:
+            configure_opts.append("--with-dracutdir=/usr/lib/dracut")
+        elif "--with-dracut" in help_output:
+            configure_opts.append("--with-dracut")
+            
+        # DKMS configuration - check available options
+        if "--with-dkms" in help_output:
+            configure_opts.append("--with-dkms")
+        
+        # Log the final configure command
+        self.logger.info(f"Running configure with options: {' '.join(configure_opts)}")
+        
+        # Run configure with explicit CC and CXX to avoid ccache issues
+        configure_cmd = ["/bin/bash", "-c", f"{env_vars}./configure {' '.join(configure_opts)}"]
+        result = self._run_chroot_command(configure_cmd, cwd=zfs_source_dir_in_chroot, check=False)
+        
+        if result.returncode != 0:
+            self.logger.error(f"Configure failed. Stdout: {result.stdout}")
+            self.logger.error(f"Configure failed. Stderr: {result.stderr}")
+            
+            # Try a minimal configure as fallback
+            self.logger.warning("Trying minimal configure options...")
+            minimal_opts = [
+                "--prefix=/usr",
+                "--sysconfdir=/etc",
+                "--sbindir=/usr/sbin",
+                "--with-config=user,kernel"
+            ]
+            minimal_cmd = ["/bin/bash", "-c", f"{env_vars}./configure {' '.join(minimal_opts)}"]
+            self._run_chroot_command(minimal_cmd, cwd=zfs_source_dir_in_chroot)
 
         # Get number of processors for 'make -j'
         nproc = os.cpu_count()
