@@ -107,16 +107,51 @@ class LiveEnvironment:
             'util-linux',         # Various system utilities
             'isc-dhcp-client',    # DHCP client for network-legacy
             'dmraid',             # Device-mapper RAID support
-            'kmod'                # Kernel module utilities
+            'kmod',               # Kernel module utilities
+            'dbus-broker',        # High-performance D-Bus message broker
+            'systemd-coredump',   # Core dump management
+            'biosdevname',        # Consistent network device naming
+            'fcoe-utils',         # Fibre Channel over Ethernet
+            'lldpad',             # Link Layer Discovery Protocol daemon
+            'erofs-utils'         # Enhanced Read-Only File System tools
         ]
 
-        install_cmd = f"apt-get install -y --no-install-recommends {' '.join(packages)}" # Added --no-install-recommends
-
-        subprocess.run(
+        # Install packages in batches to handle potential failures
+        self.logger.info(f"Installing {len(packages)} packages for live environment...")
+        
+        # First try to install all packages
+        install_cmd = f"apt-get install -y --no-install-recommends {' '.join(packages)}"
+        
+        result = subprocess.run(
             ["chroot", str(self.chroot_path), "bash", "-c", install_cmd],
-            check=True,
+            capture_output=True,
+            text=True,
             timeout=600  # 10 minutes for package installation
         )
+        
+        if result.returncode != 0:
+            # If it fails, try installing packages one by one to identify which ones are missing
+            self.logger.warning("Batch installation failed, trying individual packages...")
+            failed_packages = []
+            
+            for package in packages:
+                try:
+                    subprocess.run(
+                        ["chroot", str(self.chroot_path), "apt-get", "install", "-y", "--no-install-recommends", package],
+                        check=True,
+                        capture_output=True,
+                        timeout=60
+                    )
+                    self.logger.debug(f"Successfully installed: {package}")
+                except subprocess.CalledProcessError:
+                    self.logger.warning(f"Failed to install: {package}")
+                    failed_packages.append(package)
+            
+            if failed_packages:
+                self.logger.warning(f"Could not install {len(failed_packages)} packages: {', '.join(failed_packages)}")
+                self.logger.info("Continuing with available packages...")
+        else:
+            self.logger.info("All packages installed successfully")
 
     def _configure_live_system(self):
         """Configure live system settings"""
