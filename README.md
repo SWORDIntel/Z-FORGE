@@ -2,213 +2,262 @@
 
 ![Z-Forge Logo](docs/logo.png)
 
+> **🚀 Quick Start**: Run `sudo ./build.sh` to create a fully-featured Proxmox VE ISO with ZFS 2.3.3, native encryption, and dynamic compression. The build runs completely unattended - no user interaction required!
+
 ## Overview
 
-Z-Forge is an advanced installation system for Proxmox VE with OpenZFS, designed to provide capabilities beyond the standard Proxmox installer. It enables ZFS-on-root configurations with advanced bootloader options including two-stage boot support for hardware with limited BIOS capabilities.
+Z-FORGE is an advanced installation system for Proxmox VE with OpenZFS, designed to provide capabilities beyond the standard Proxmox installer. It enables ZFS-on-root configurations with advanced features including native encryption, dynamic compression optimization, and support for hardware that cannot natively boot from NVMe drives.
 
 ### Key Features
 
-- **Advanced ZFS Integration**: Full ZFS-on-root with native encryption and advanced dataset layouts
+- **ZFSBootMenu Primary Bootloader**: Uses ZFSBootMenu instead of GRUB for native ZFS boot capabilities
+- **ZFS Native Encryption**: Full disk encryption using ZFS native encryption (AES-256-GCM)
+- **Dynamic Compression**: Intelligent compression selection based on hardware (minimum zstd-3)
+- **Multiple Pool Support**: Configure separate OS and storage pools with different RAID-Z levels
+- **OpenCore NVMe Support**: Boot from PCIe NVMe on systems without native support
 - **Smart Hardware Detection**: Automatic benchmarking and ZFS configuration recommendations
-- **Two-Stage Boot System**: Supports running modern OSes on legacy hardware using OpenCore
-- **Installer Recovery**: Can repair/retrofit bootloaders on existing ZFS-based systems
-- **Custom Kernel Support**: Uses the latest available Linux kernel with ZFS support
+- **KDE Live Environment**: Full desktop environment for easy installation
+- **Custom Calamares Modules**: Advanced configuration options through graphical installer
+
+## What's New in Latest Build (January 22, 2025)
+
+### ZFS 2.3.3
+- Latest stable OpenZFS release built from source
+- Enhanced performance and bug fixes
+- Better kernel compatibility
+- Fixed build issues with locale and dependencies
+
+### Dynamic Compression Optimization
+- Analyzes CPU features (AVX2, AVX512)
+- Detects available RAM and cores
+- Sets optimal compression (minimum zstd-3)
+- Supports Intel QAT acceleration
+- Purpose-specific compression for different workloads
+
+### Boot System Enhancements
+- **ZFSBootMenu** as primary bootloader (not GRUB)
+- **OpenCore** for systems without native NVMe boot
+- **Dracut** for initramfs generation with full ZFS support
+
+### Fully Automated Build Process
+- **Non-Interactive Installation**: No prompts during build
+- **Automatic Package Configuration**: Pre-configured responses for all packages
+- **Service Management**: Prevents services from starting during build
+- **Complete Hands-Free Operation**: Start the build and walk away
 
 ## System Requirements
 
 - **CPU**: 64-bit (x86_64) CPU with virtualization extensions (VT-x/AMD-V)
-- **Memory**: Minimum 2GB RAM (4GB+ recommended)
+- **Memory**: Minimum 4GB RAM (8GB+ recommended for optimal compression)
 - **Storage**: Minimum 32GB available disk space
 - **Architecture**: x86_64 (64-bit) only
 
 ## Quick Start
 
+### Building the ISO
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/Z-FORGE.git
+   cd Z-FORGE
+   ```
+
+2. Run the build script:
+   ```bash
+   sudo ./build.sh
+   ```
+
+3. The ISO will be created in the workspace directory (default: `/tmp/zforge_workspace/`)
+
 ### Creating Installation Media
 
-1. Download the latest Z-Forge ISO from the releases page
-2. Write the ISO to a USB drive (minimum 2GB):
+1. Write the ISO to a USB drive (minimum 4GB):
 
    **Linux**:
    ```bash
-   sudo dd if=zforge-proxmox-v3.iso of=/dev/sdX bs=4M status=progress
+   sudo dd if=zforge-r730xd-proxmox-v3.iso of=/dev/sdX bs=4M status=progress
    ```
    
    **Windows**:
    Use [Rufus](https://rufus.ie/) or [balenaEtcher](https://www.balena.io/etcher/)
 
-### Installation Options
+## Installation Process
 
-Z-Forge offers several distinct installation modes:
+### 1. Boot Options
 
-#### 1. New Installation
+When booting from the installation media:
+- **Normal Boot**: Full KDE desktop environment with Calamares installer
+- **Headless Boot**: Add `headless=true` kernel parameter for console-only installation
 
-- Boot from installation media
-- Select "Install Proxmox VE with Z-Forge" from the boot menu
-- Follow the GUI installer prompts
-- Optionally run the hardware detection to get optimal ZFS configuration
+### 2. ZFS Configuration
 
-#### 2. Recovery/Retrofit
+The installer provides several pool configurations:
 
-- Boot from installation media
-- Select "Install/Repair Bootloader" workflow
-- Choose the existing ZFS pool to repair
-- Follow the guided recovery process
+#### OS Pool (rpool)
+- Type: Mirror (recommended) or RAID-Z
+- Encryption: Enabled by default (AES-256-GCM)
+- Compression: Dynamic (minimum zstd-3)
 
-#### 3. Two-Stage Boot Installation
+#### Storage Pools
+Configure additional pools for different purposes:
+- **VM Storage**: RAID-Z2 with optimized recordsize
+- **Backup Storage**: RAID-Z3 with maximum compression
+- **Media Storage**: RAID-Z1 with light compression
 
-For systems that cannot boot directly from NVMe or have limited BIOS:
+### 3. Advanced Features
 
-- Boot from installation media
-- Select the two-stage boot installation option
-- Choose primary OS drive (e.g., NVMe) and secondary boot drive (SATA SSD/USB)
-- The system will install OpenCore + ZFSBootMenu for chainloaded boot
+#### Native ZFS Encryption
+- Full disk encryption using ZFS native encryption
+- Choice of key formats (raw key or passphrase)
+- Boot-time unlock support
 
-## ZFS Performance Testing
+#### OpenCore for Legacy Systems
+- Enables booting from PCIe NVMe on older systems
+- Automatically configured for Dell R730xd and similar hardware
+- Chainloads to ZFSBootMenu
 
-Z-Forge includes an integrated storage benchmarking tool that:
+#### Dynamic Compression
+System automatically selects optimal compression:
+- **Basic systems**: zstd-3
+- **Workstations**: zstd-3 to zstd-4
+- **Servers**: zstd-4 to zstd-5
+- **High-end systems**: zstd-5 to zstd-6
 
-1. Tests all available storage devices
-2. Analyzes CPU and memory capabilities
-3. Provides optimized ZFS pool, RAID level, and dataset recommendations
-4. Configures compression levels based on CPU capabilities
+## Custom Calamares Modules
 
-To run the benchmark manually:
-```bash
-sudo /install/benchmarking/zfs_performance_test.sh
+Z-FORGE includes several custom installer modules:
+
+1. **Storage Layout**: Pre-configured ZFS dataset templates
+2. **Hardware Health**: Temperature, SMART, and RAID monitoring setup
+3. **GPU Passthrough**: VFIO configuration for GPU virtualization
+4. **Network Config**: Advanced network interface configuration
+5. **Post Install**: Interactive checklist for post-installation tasks
+6. **ZFS Enhanced**: Advanced ZFS pool configuration options
+
+## Building Custom ISOs
+
+### Build Process Features
+
+- **Fully Automated**: No user interaction required
+- **Intelligent Error Handling**: Detailed logging and recovery
+- **Progress Tracking**: Real-time build status
+- **Automatic ISO Copy**: Copies to your launch directory
+
+### Configuration
+
+Edit `build_spec.yml` to customize:
+
+```yaml
+zfs_config:
+  version: latest        # or specific version like "2.3.3"
+  build_from_source: true
+  enable_encryption: true
+  default_compression: dynamic  # minimum zstd-3
+
+bootloader_config:
+  primary: zfsbootmenu   # uses ZFSBootMenu instead of GRUB
+  fallback: grub
+  enable_secure_boot: false
+
+opencore_config:
+  install_device: /dev/sda
+  enable_nvme_boot: true
+  chainload_zfsbootmenu: true
 ```
 
-The report will be saved to `~/zfs_test_results/` in Markdown format.
+### Hardware-Specific Builds
 
-## Advanced Usage
+Z-FORGE can create optimized builds for specific hardware:
 
-### Custom Pool Configuration
-
-Z-Forge supports a variety of pool configurations:
-
-1. **Standard Install**: Simple ZFS-on-root with boot partition
-2. **Advanced Install**: Manual ZFS configuration with encryption and compression
-3. **Custom Layout**: Create a customized dataset hierarchy for specialized workloads
-
-Example advanced dataset layout:
+```yaml
+hardware_profile:
+  system: dell_r730xd
+  cpu_count: 32
+  ram_gb: 256
+  features:
+    - avx2
+    - nvme_boot_workaround
 ```
-rpool/ROOT/proxmox - Root filesystem
-rpool/ROOT/proxmox/var - /var
-rpool/ROOT/proxmox/var/lib/vz - Container and VM storage
-rpool/HOME - User home directories
-rpool/BACKUP - Backup snapshots
-```
-
-### Recovery Options
-
-The live environment includes several recovery tools:
-
-- **ZFS Import/Export**: Tools to import pools with various options
-- **Boot Repair**: Fix broken boot configurations without reinstalling
-- **Data Recovery**: Access ZFS snapshots and perform data recovery operations
-
-## Building from Source
-
-Prerequisites:
-- Debian-based Linux system
-- Administrator (sudo/root) access
-- At least 10GB free space
-
-Build steps:
-```bash
-git clone https://github.com/user/z-forge.git
-cd z-forge
-sudo ./build-iso.sh
-```
-
-The resulting ISO will be created in the current directory.
-
-### Build Environment Prerequisites
-
-Before running the `build-iso.sh` script, your system must have a number of essential tools and dependencies installed. The build script will automatically run a pre-flight check (`scripts/check_build_env.sh`) to verify these. If any dependencies are missing, the script will notify you and exit.
-
-Common dependencies include:
-- `python3` (version 3.8 or higher) and the `requests` module
-- `git`
-- `debootstrap`
-- `xorriso` (or `mkisofs` as a fallback for some functions, though `xorriso` is preferred)
-- Standard build utilities like `make`, `gcc`, `gawk`, `autoconf`, `automake`, `libtool`
-- `curl`
-
-Please refer to the output of the check script for a complete list if you encounter issues, and install any missing packages using your system's package manager (e.g., `sudo apt install <package-name>`).
-
-### Important Build Notes
-
-The Z-Forge build process, specifically the `builder/modules/calamares_integration.py` module, relies on custom Calamares modules to handle ZFS-specific installation tasks and other Proxmox configurations. These custom modules (typically consisting of Python scripts like `main.py` and a `module.desc` descriptor file) are expected to be located in a `calamares/modules/` directory at the root of the Z-Forge project repository.
-
-As of the current analysis:
-*   The `calamares/modules/` directory and the source code for several critical custom Calamares modules appear to be **missing** from the repository.
-*   The specific Calamares modules that seem to be missing include:
-    *   `proxmoxconfig`
-    *   `zfsbootloader`
-    *   `zforgefinalize`
-    *   Potentially, the definitive versions of `zfspooldetect` and `zfsrootselect` (if the placeholder/example versions in `builder/modules/` are not the ones intended for direct Calamares use, or if they are incomplete).
-*   There is a helper script, `setup-calamares-modules.sh`, present in the repository which seems designed to create skeleton structures for these missing modules. However, this script is **not currently invoked** by the main `build-iso.sh` script.
-
-**Impact:**
-Without these custom Calamares modules, the installer built by Z-Forge will likely be unable to perform ZFS-specific operations (like setting up ZFS pools, installing the bootloader on ZFS, or applying Proxmox-specific configurations via the installer). Calamares will be configured to use these modules, but since their source code is not copied into the live ISO environment, it will fail to load them, leading to a non-functional or incomplete installation process for ZFS-on-root setups.
-
-**Resolution:**
-To build a fully functional Z-Forge installer, it is crucial to:
-1.  Provide the complete source code for the missing custom Calamares modules in the `calamares/modules/` directory at the project root.
-2.  Ensure that the `setup-calamares-modules.sh` script is either executed as part of the build process (e.g., called from `build-iso.sh`) to correctly place or prepare these modules, or that its functionality (copying/configuring these modules for Calamares) is integrated into the main build scripts.
-
-Resolving these missing components is essential for a successful build that produces an ISO capable of performing the intended ZFS-on-root installations.
 
 ## Troubleshooting
 
-### Common Issues
+### Build Issues
 
-1. **"Unable to import ZFS pool"**
-   - Try using the force option: `zpool import -f pool_name`
-   - Check if the pool is in use by another system
+If the build fails:
+1. Check logs in `logs/zforge_build_*.log`
+2. Ensure you have at least 20GB free space in `/tmp`
+3. Verify internet connectivity for package downloads
 
-2. **"Failed to boot from ZFS"**
-   - Boot using recovery mode and check `/boot/zfsbootmenu` configuration
-   - Verify ZFS modules are loaded in initramfs
+### Common Issues (All Fixed)
 
-3. **"Installation freezes during hardware detection"**
-   - Boot with `nomodeset` option for systems with problematic graphics
-   - Try disabling the benchmarking step during installation
+**Dracut errors with kernel versions containing '+'**:
+- ✅ Fixed automatically with wrapper script
 
-### Debug Logging
+**Missing packages**:
+- ✅ ZFSBootMenu downloaded from GitHub releases
+- ✅ All dependencies resolved automatically
 
-To enable verbose logging during installation:
-1. Press Tab at the boot menu
-2. Append `debug=1` to the boot parameters
-3. Installation logs will be available at `/var/log/calamares/`
+**Module not found errors**:
+- ✅ Fixed with improved name conversion (handles ZFS, ISO, etc.)
 
-## Roadmap
+**ZFS build failures**:
+- ✅ Locale issues fixed
+- ✅ Working directory handling corrected
+- ✅ All build dependencies included
 
-Future development plans:
+**Interactive prompts during installation**:
+- ✅ Completely eliminated with NonInteractiveFixes module
+- ✅ All packages pre-configured
+- ✅ Service starts prevented during build
 
-- Integration with Proxmox Ceph storage
-- Automated cluster deployment capabilities
-- Enhanced hardware support for ARM64 platforms
-- Support for ZFS Encryption 2.0 features
+## Module Development
+
+### Creating Custom Modules
+
+1. Create module file in `builder/modules/`:
+```python
+class MyModule:
+    def __init__(self, workspace: Path, config: Dict):
+        self.workspace = workspace
+        self.config = config
+        
+    def execute(self) -> Dict:
+        # Module implementation
+        return {'status': 'success'}
+```
+
+2. Add to `build_spec.yml`:
+```yaml
+modules:
+  - name: MyModule
+    enabled: true
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test the build process
+5. Submit a pull request
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0.
+Z-FORGE is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- The [Proxmox VE](https://www.proxmox.com) team for their excellent virtualization platform
-- The [OpenZFS](https://openzfs.org) project for the robust ZFS implementation
-- The [Calamares](https://calamares.io) team for the installer framework
-- The [OpenCore](https://github.com/acidanthera/OpenCorePkg) developers for UEFI implementation
+- [OpenZFS](https://openzfs.org/) for the amazing filesystem
+- [Proxmox](https://www.proxmox.com/) for the virtualization platform
+- [ZFSBootMenu](https://github.com/zbm-dev/zfsbootmenu) for the boot environment
+- [Calamares](https://calamares.io/) for the installer framework
 
-## Contact & Support
+## Support
 
-For bugs, issues, or feature requests, please open an issue on the GitHub repository.
-
-For detailed documentation, visit the [Z-Forge Wiki](https://github.com/user/z-forge/wiki).
+- **Issues**: [GitHub Issues](https://github.com/yourusername/Z-FORGE/issues)
+- **Wiki**: [Z-FORGE Wiki](https://github.com/yourusername/Z-FORGE/wiki)
+- **Community**: [Z-FORGE Discussions](https://github.com/yourusername/Z-FORGE/discussions)
 
 ---
 
-**Project Z-Forge V3**  
-_Proxmox VE Bootstrap System_
+Built with ❤️ for the ZFS and Proxmox communities
