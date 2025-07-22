@@ -87,19 +87,27 @@ class LiveEnvironment:
             'sddm',          # Added SDDM display manager
             # Essential system utilities for dracut
             'btrfs-progs',   # Btrfs filesystem support
+            'xfsprogs',      # XFS filesystem support
+            'e2fsprogs',     # ext2/3/4 filesystem utilities
             'kbd',           # Keyboard utilities (loadkeys, setfont)
             'systemd-timesyncd',  # Time synchronization
             'systemd-resolved',   # DNS resolution
             'systemd-boot',       # systemd-boot and systemd-repart
+            'systemd-container',  # systemd-portabled
             'nvme-cli',           # NVMe utilities
+            'jq',                 # JSON processor (for nvmf)
             'open-iscsi',         # iSCSI support
             'nfs-common',         # NFS support
             'cifs-utils',         # SMB/CIFS support
+            'nbd-client',         # Network Block Device support
             'multipath-tools',    # Multipath I/O
             'tpm2-tools',         # TPM 2.0 support
             'pcsc-lite',          # Smart card support
             'rng-tools',          # Hardware RNG daemon
-            'util-linux'          # Various system utilities
+            'util-linux',         # Various system utilities
+            'isc-dhcp-client',    # DHCP client for network-legacy
+            'dmraid',             # Device-mapper RAID support
+            'kmod'                # Kernel module utilities
         ]
 
         install_cmd = f"apt-get install -y --no-install-recommends {' '.join(packages)}" # Added --no-install-recommends
