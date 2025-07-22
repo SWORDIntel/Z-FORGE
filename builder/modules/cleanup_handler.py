@@ -11,7 +11,13 @@ import atexit
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Set
 import logging
-import psutil
+
+# Try to import psutil, but make it optional
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
 
 class CleanupHandler:
     """Handles cleanup of build artifacts and mounted filesystems"""
@@ -154,6 +160,30 @@ class CleanupHandler:
         chroot_path = self.workspace / "chroot"
         
         if not chroot_path.exists():
+            return killed
+            
+        if not HAS_PSUTIL:
+            # Fallback method using lsof
+            try:
+                result = subprocess.run(
+                    ["lsof", "+D", str(chroot_path)],
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0 and result.stdout:
+                    # Parse lsof output to find PIDs
+                    for line in result.stdout.strip().split('\n')[1:]:  # Skip header
+                        parts = line.split()
+                        if len(parts) > 1:
+                            try:
+                                pid = int(parts[1])
+                                self.logger.warning(f"Killing process {pid} in chroot")
+                                os.kill(pid, signal.SIGTERM)
+                                killed.append(pid)
+                            except (ValueError, OSError):
+                                pass
+            except Exception as e:
+                self.logger.debug(f"Failed to use lsof fallback: {e}")
             return killed
             
         try:

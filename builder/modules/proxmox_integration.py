@@ -7,7 +7,7 @@ Prepares Proxmox VE repositories and packages for installation
 
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import logging
 import os
 from builder.core.lockfile import BuildLockfile
@@ -76,6 +76,13 @@ class ProxmoxIntegration:
                 'error': str(e),
                 'module': self.__class__.__name__
             }
+    
+    def _get_package_list(self) -> List[str]:
+        """Get list of cached Proxmox packages"""
+        cache_dir = self.chroot_path / "var/cache/zforge/proxmox"
+        if cache_dir.exists():
+            return [p.name for p in cache_dir.glob("*.deb")]
+        return []
     
     def _add_repository_keys(self, chroot_path: Path):
         """Add Proxmox GPG keys"""

@@ -7,7 +7,13 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional
 
-from tqdm import tqdm
+# Try to import tqdm, but make it optional
+try:
+    from tqdm import tqdm
+except ImportError:
+    # Fallback to simple iteration
+    tqdm = lambda x, **kwargs: x
+
 from builder.core.lockfile import BuildLockfile
 
 class BootloaderSetup:

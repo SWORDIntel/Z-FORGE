@@ -44,7 +44,7 @@ class OpenCoreNVME:
         try:
             self.logger.info("Setting up OpenCore for NVMe boot support...")
             
-            opencore_config = config.get('opencore_config', {})
+            opencore_config = self.config.get('opencore_config', {})
             install_device = opencore_config.get('install_device')
             system_type = opencore_config.get('system_type', 'generic')  # generic, dell_r420, etc.
             
