@@ -68,7 +68,7 @@ def setup_postinstall_checklist(config):
 
 def create_checklist_script(root_path, config):
     """Create the post-install checklist script"""
-    script_content = """#!/usr/bin/env python3
+    script_content = '''#!/usr/bin/env python3
 """
 Z-FORGE Post-Installation Checklist
 Interactive wizard for completing system setup
@@ -409,7 +409,7 @@ class PostInstallChecklist:
 if __name__ == "__main__":
     checklist = PostInstallChecklist()
     checklist.run_interactive()
-"""
+'''
     
     script_path = Path(root_path) / "usr/local/bin/zforge-checklist"
     script_path.parent.mkdir(parents=True, exist_ok=True)

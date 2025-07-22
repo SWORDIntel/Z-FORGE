@@ -150,11 +150,11 @@ def setup_snapshot_schedule(pool_name, template):
     
     for dataset, frequency in template_schedules.items():
         if frequency == "hourly":
-            cron_content += f"0 * * * * root zfs snapshot {pool_name}/{dataset}@auto-$(date +\%Y\%m\%d-\%H\%M\%S)\n"
+            cron_content += f"0 * * * * root zfs snapshot {pool_name}/{dataset}@auto-$(date +\\%Y\\%m\\%d-\\%H\\%M\\%S)\n"
         elif frequency == "daily":
-            cron_content += f"0 2 * * * root zfs snapshot {pool_name}/{dataset}@auto-$(date +\%Y\%m\%d-\%H\%M\%S)\n"
+            cron_content += f"0 2 * * * root zfs snapshot {pool_name}/{dataset}@auto-$(date +\\%Y\\%m\\%d-\\%H\\%M\\%S)\n"
         elif frequency == "weekly":
-            cron_content += f"0 2 * * 0 root zfs snapshot {pool_name}/{dataset}@auto-$(date +\%Y\%m\%d-\%H\%M\%S)\n"
+            cron_content += f"0 2 * * 0 root zfs snapshot {pool_name}/{dataset}@auto-$(date +\\%Y\\%m\\%d-\\%H\\%M\\%S)\n"
     
     # Write to target system
     root_mount_point = libcalamares.globalstorage.value("rootMountPoint")

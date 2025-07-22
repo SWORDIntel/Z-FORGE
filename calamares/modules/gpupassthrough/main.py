@@ -196,7 +196,7 @@ def detect_gpus():
             
             # Check for audio device
             audio_addr = pci_addr.rsplit('.', 1)[0] + '.1'
-            audio_match = re.search(f'{audio_addr}.*Audio.*\[{vendor_id}:([0-9a-f]+)\]', output)
+            audio_match = re.search(f'{audio_addr}.*Audio.*\\[{vendor_id}:([0-9a-f]+)\\]', output)
             if audio_match:
                 gpu_info["audio_id"] = audio_match.group(1)
                 gpu_info["audio_addr"] = audio_addr

@@ -162,7 +162,7 @@ DISK_WARN={}
 # Check CPU temperature
 check_cpu_temp() {{
     sensors | grep "Core" | while read line; do
-        temp=$(echo $line | grep -oP '\+\K[0-9]+' | head -1)
+        temp=$(echo $line | grep -oP '\\+\\K[0-9]+' | head -1)
         if [ "$temp" -gt "$CPU_CRIT" ]; then
             echo "CRITICAL: CPU temperature $temp°C" | mail -s "Hardware Alert" $ALERT_EMAIL
         elif [ "$temp" -gt "$CPU_WARN" ]; then

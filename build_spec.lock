@@ -6,14 +6,81 @@
   "modules": {
     "WorkspaceSetup": {
       "status": "success",
-      "timestamp": "2025-07-04T01:01:03.068627",
+      "timestamp": "2025-07-22T22:59:24.256426",
       "version": "1.0"
     },
     "Debootstrap": {
       "status": "success",
-      "timestamp": "2025-07-04T01:04:55.177415",
+      "timestamp": "2025-07-22T23:05:43.285315",
+      "version": "unknown"
+    },
+    "KernelAcquisition": {
+      "status": "success",
+      "timestamp": "2025-07-22T23:11:47.691693",
+      "version": "unknown",
+      "kernel_version": "6.12.35+deb13-amd64"
+    },
+    "SystemPrerequisites": {
+      "status": "success",
+      "timestamp": "2025-07-22T22:59:13.091524",
+      "version": "unknown"
+    },
+    "AutoInstallDeps": {
+      "status": "success",
+      "timestamp": "2025-07-22T22:59:13.104792",
+      "version": "unknown"
+    },
+    "MirrorSelector": {
+      "status": "success",
+      "timestamp": "2025-07-22T22:59:23.338400",
+      "version": "unknown"
+    },
+    "BuildCache": {
+      "status": "success",
+      "timestamp": "2025-07-22T22:59:23.353621",
+      "version": "unknown"
+    },
+    "BuildOptimizer": {
+      "status": "success",
+      "timestamp": "2025-07-22T22:59:23.375778",
+      "version": "unknown"
+    },
+    "ModuleVerifier": {
+      "status": "success",
+      "timestamp": "2025-07-22T22:59:23.564002",
+      "version": "unknown"
+    },
+    "ProgressMonitor": {
+      "status": "success",
+      "timestamp": "2025-07-22T22:59:23.565600",
+      "version": "unknown"
+    },
+    "NonInteractiveFixes": {
+      "status": "success",
+      "timestamp": "2025-07-22T23:05:44.200307",
+      "version": "unknown"
+    },
+    "ZFSBuild": {
+      "status": "success",
+      "timestamp": "2025-07-22T23:16:39.570762",
+      "version": "unknown",
+      "zfs_version": "unknown"
+    },
+    "ZFSPoolConfig": {
+      "status": "success",
+      "timestamp": "2025-07-22T23:16:39.574922",
+      "version": "unknown"
+    },
+    "ZFSCompressionOptimizer": {
+      "status": "success",
+      "timestamp": "2025-07-22T23:16:39.704201",
+      "version": "unknown"
+    },
+    "DracutConfig": {
+      "status": "success",
+      "timestamp": "2025-07-22T23:17:07.720982",
       "version": "unknown"
     }
   },
-  "last_updated": "2025-07-04T01:04:55.178025"
+  "last_updated": "2025-07-22T23:17:07.722953"
 }

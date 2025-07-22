@@ -71,6 +71,8 @@ check_command "debootstrap" "Creating the initial Debian chroot environment." "d
 check_command "xorriso" "Generating the final ISO image." "xorriso"
 check_command "curl" "Fetching files from the internet (used by Python 'requests' or directly)." "curl"
 check_command "mkisofs" "Generating the final ISO image (alternative, xorriso is preferred)." "genisoimage" # Often a symlink to xorriso or part of cdrtools/genisoimage
+check_command "mksquashfs" "Creating compressed filesystem for live ISO." "squashfs-tools"
+check_command "grub-mkrescue" "Creating bootable ISO with GRUB." "grub-common"
 
 # --- Build System Utilities ---
 check_command "make" "Compiling ZFS and potentially other software." "build-essential"
