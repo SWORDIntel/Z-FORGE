@@ -1,0 +1,178 @@
+# Z-Forge Build Configuration for PowerEdge T30
+builder_config:
+  debian_release: trixie
+  kernel_version: latest
+  output_iso_name: zforge-t30-proxmox-v3.iso
+  enable_debug: true
+  workspace_path: /tmp/zforge_workspace
+  cache_packages: true
+
+# System Configuration
+system:
+  desktop_environment: minimal  # Options: kde, gnome, xfce, minimal, none
+
+proxmox_config:
+  version: latest
+  minimal_install: true
+  build_from_source: false
+  use_beta_iso: false
+  include_packages:
+    - proxmox-ve
+    - pve-kernel-6.8
+    - zfs-dkms
+    - zfsutils-linux
+    - pve-zsync
+    # Dell PowerEdge T30 specific packages
+    - ipmitool
+    - openipmi
+    - lm-sensors
+    - nvme-cli
+    - smartmontools
+    - ethtool
+    - fio
+    # T30 uses software RAID, not hardware RAID
+    - mdadm
+    - snmp
+    # Intel management tools for T30's Xeon E3 v5
+    - intel-microcode
+    - thermald
+    - powertop
+    - i7z
+
+zfs_config:
+  version: latest
+  build_from_source: true
+  enable_encryption: true
+  default_compression: lz4
+  # T30 typically has 8-64GB RAM, optimize accordingly
+  arc_max_size: "4G"
+  # Desktop/Tower server optimizations
+  prefetch_disable: false
+  zio_delay_max: 30000
+
+bootloader_config:
+  primary: zfsbootmenu
+  # T30 supports UEFI and Legacy BIOS
+  enable_opencore: true
+  enable_two_stage: true
+  opencore_drivers:
+    - NvmExpressDxe.efi
+    - OpenRuntime.efi
+    - XhciDxe.efi  # For USB 3.0 support
+  # UEFI mode preferred for T30
+  uefi_mode: true
+
+dracut_config:
+  modules:
+    - zfs
+    - systemd
+    - network
+    - mdraid  # For software RAID support
+  compress: zstd
+  hostonly: true
+  # Console configuration for T30
+  kernel_cmdline: "root=zfs:AUTO console=tty0 console=ttyS0,115200n8 intel_iommu=on"
+  extra_drivers:
+    - nvme
+    # Intel chipset drivers for T30
+    - ahci
+    - e1000e
+    - igb
+    # USB 3.0 support
+    - xhci_hcd
+    - xhci_pci
+    # Software RAID
+    - raid0
+    - raid1
+    - raid10
+    - raid456
+
+# Dell PowerEdge T30 specific configuration
+dell_t30_config:
+  # T30 is a tower server, different from rack servers
+  server_type: tower
+  enable_serial_console: true
+  serial_port: "ttyS0"
+  serial_speed: 115200
+  # T30 has basic BMC, not full iDRAC
+  enable_basic_bmc: true
+  # Intel Xeon E3-1200 v5 optimizations
+  cpu_settings:
+    governor: "performance"
+    enable_turbo: true
+    c_states: "limited"  # Balance power and performance
+  # Memory optimization for DDR4 ECC
+  memory_settings:
+    enable_ecc_reporting: true
+    numa_balancing: false  # Single socket system
+  # Storage configuration
+  storage_settings:
+    # T30 supports up to 4 SATA drives
+    sata_link_power: "max_performance"
+    # Optional M.2 NVMe support via PCIe
+    nvme_settings:
+      io_timeout: 4294967295
+      max_host_mem_size_mb: 128
+      scheduler: "none"
+      read_ahead_kb: 1024
+      nr_requests: 512
+  # PCIe configuration for T30
+  pcie_settings:
+    # T30 has 4 PCIe slots
+    aspm: "performance"  # Disable power saving on PCIe
+
+# Include Dell T30 specific post-install scripts
+post_install_scripts:
+  - config/t30/t30_post_install.sh
+  - config/t30/t30_optimization.sh
+
+modules:
+  # Phase 1: Core Setup
+  - name: WorkspaceSetup
+    enabled: true
+  - name: Debootstrap
+    enabled: true
+  
+  # Phase 2: Core System
+  - name: KernelAcquisition
+    enabled: true
+  - name: ZFSBuild
+    enabled: true
+  - name: LiveEnvironment
+    enabled: true
+  
+  # Phase 3: Boot Infrastructure
+  - name: DracutConfig
+    enabled: true
+  - name: ZFSBootMenuInstall
+    enabled: true
+  - name: BootloaderSetup
+    enabled: true
+  
+  # Phase 4: System Integration
+  - name: ProxmoxIntegration
+    enabled: true
+  - name: SecurityHardening
+    enabled: true
+  - name: ZFSEncryption
+    enabled: true
+  - name: OpenCoreNVME
+    enabled: true
+  
+  # Phase 5: User Interface
+  - name: CalamaresIntegration
+    enabled: true
+  - name: KDEThemeConfig
+    enabled: false  # Minimal install, no desktop
+  
+  # Phase 6: Hardware-Specific
+  - name: DellT30Optimize
+    enabled: true
+  - name: HardwareProfilerIntegration
+    enabled: true
+  
+  # Phase 7: Finalization
+  - name: CleanupHandler
+    enabled: true
+  - name: ISOGeneration
+    enabled: true
