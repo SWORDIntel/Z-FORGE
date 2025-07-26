@@ -250,7 +250,7 @@ apt-get clean
                   # or as a very early PythonJob if it's purely backend. For simplicity in this sequence,
                   # we assume its data is available by the time 'telemetryconsent' or later modules need it.
                   # A more robust setup would have an 'init' sequence for such tasks.
-                    'show': ['welcome', 'hardwaredetect', 'telemetryconsent', 'locale', 'keyboard', 'zfspooldetect', 'zfsenhancedconfig', 'raidcontroller', 'storageconfig']
+                    'show': ['welcome', 'hardwaredetect', 'telemetryconsent', 'locale', 'keyboard', 'zfspooldetect', 'zfsenhancedconfig', 'raidcontroller', 'zfspoolconfig', 'storageconfig']
                 },
                 { # Second phase: Execution of tasks
                     'exec': [
@@ -372,23 +372,50 @@ apt-get clean
             yaml.dump(hardware_detect_config, f, default_flow_style=False)
         self.logger.info(f"Hardware detection config written to {hardware_detect_conf_path}")
         
-        # RAID Controller Module Configuration
+        # RAID Controller Configuration for ZFS
         raid_controller_config: Dict[str, Any] = {
             'detectControllers': True,
-            'showITModeWarning': True,  # Warn about IT mode for ZFS
+            'zfsMode': True,  # ZFS-focused configuration
+            'showITModeWarning': True,  # Warn about IT mode requirement for ZFS
+            'requireITMode': True,  # Enforce IT/HBA mode for ZFS
+            'disableHardwareRAID': True,  # Disable hardware RAID options
             'managementTools': {
-                'dell_perc': 'perccli',
-                'hp_smartarray': 'ssacli',
-                'lsi_megaraid': 'megacli',
-                'adaptec': 'arcconf'
+                'dell_perc': {
+                    'tool': 'perccli',
+                    'it_mode_cmd': 'perccli /c0 set personality=HBA',
+                    'check_mode_cmd': 'perccli /c0 show'
+                },
+                'hp_smartarray': {
+                    'tool': 'ssacli',
+                    'it_mode_cmd': 'ssacli ctrl slot=0 modify hbamode=on',
+                    'check_mode_cmd': 'ssacli ctrl all show'
+                },
+                'lsi_megaraid': {
+                    'tool': 'megacli',
+                    'it_mode_cmd': 'megacli -AdpSetProp -EnableJBOD -1 -a0',
+                    'check_mode_cmd': 'megacli -AdpAllInfo -a0'
+                },
+                'adaptec': {
+                    'tool': 'arcconf',
+                    'it_mode_cmd': 'arcconf SETCONFIG 1 DIRECTATTACHEDMODE',
+                    'check_mode_cmd': 'arcconf GETCONFIG 1'
+                }
             },
-            'recommendedMode': 'IT',  # IT/HBA mode for ZFS
-            'allowJBODMode': True
+            'zfsRecommendations': {
+                'mode': 'IT/HBA',
+                'reason': 'ZFS requires direct disk access for data integrity',
+                'benefits': [
+                    'ZFS manages redundancy and checksumming',
+                    'Better performance with ZFS caching',
+                    'Avoids double-caching issues',
+                    'Enables ZFS self-healing'
+                ]
+            }
         }
         raid_conf_path: Path = calamares_modules_config_dir_chroot / "raidcontroller.conf"
         with raid_conf_path.open('w') as f:
             yaml.dump(raid_controller_config, f, default_flow_style=False)
-        self.logger.info(f"RAID controller config written to {raid_conf_path}")
+        self.logger.info(f"RAID controller config for ZFS written to {raid_conf_path}")
         
         # Storage Configuration Module
         storage_config: Dict[str, Any] = {
@@ -453,6 +480,124 @@ apt-get clean
         with opencore_conf_path.open('w') as f:
             yaml.dump(opencore_config, f, default_flow_style=False)
         self.logger.info(f"OpenCore installation config written to {opencore_conf_path}")
+        
+        # ZFS Pool Configuration Module
+        zfs_pool_config: Dict[str, Any] = {
+            'enableZFS': True,
+            'zfsVersion': '2.3.3',
+            'poolLayouts': {
+                'single': {
+                    'name': 'Single Disk',
+                    'description': 'No redundancy - for testing only',
+                    'minDisks': 1,
+                    'redundancy': 'none',
+                    'warning': 'No data protection!'
+                },
+                'mirror': {
+                    'name': 'Mirror (RAID1)',
+                    'description': 'Best for 2-4 disks, excellent redundancy',
+                    'minDisks': 2,
+                    'redundancy': 'n-way mirror',
+                    'recommended': True
+                },
+                'raidz1': {
+                    'name': 'RAID-Z1 (RAID5)',
+                    'description': 'Good for 3-5 disks, single parity',
+                    'minDisks': 3,
+                    'redundancy': '1 disk failure',
+                    'optimal': [3, 5]
+                },
+                'raidz2': {
+                    'name': 'RAID-Z2 (RAID6)',
+                    'description': 'Good for 4-8 disks, double parity',
+                    'minDisks': 4,
+                    'redundancy': '2 disk failures',
+                    'optimal': [4, 6, 8],
+                    'recommended': True
+                },
+                'raidz3': {
+                    'name': 'RAID-Z3',
+                    'description': 'For 7+ disks, triple parity',
+                    'minDisks': 7,
+                    'redundancy': '3 disk failures',
+                    'optimal': [7, 11]
+                }
+            },
+            'advancedOptions': {
+                'ashift': {
+                    'description': 'Sector size (12=4K, 13=8K)',
+                    'default': 12,
+                    'detectAuto': True
+                },
+                'compression': {
+                    'description': 'Data compression algorithm',
+                    'default': 'lz4',
+                    'options': ['off', 'lz4', 'gzip', 'zstd']
+                },
+                'encryption': {
+                    'description': 'Native ZFS encryption',
+                    'default': True,
+                    'algorithm': 'aes-256-gcm'
+                },
+                'deduplication': {
+                    'description': 'Block deduplication (requires lots of RAM)',
+                    'default': False,
+                    'warning': 'Requires 5GB RAM per TB of data!'
+                }
+            },
+            'datasetLayout': {
+                'root': {
+                    'mountpoint': '/',
+                    'canmount': 'noauto',
+                    'compression': 'lz4'
+                },
+                'home': {
+                    'mountpoint': '/home',
+                    'canmount': 'on',
+                    'compression': 'lz4'
+                },
+                'varlog': {
+                    'mountpoint': '/var/log',
+                    'canmount': 'on',
+                    'compression': 'zstd',
+                    'sync': 'disabled'
+                },
+                'proxmox': {
+                    'mountpoint': '/var/lib/vz',
+                    'canmount': 'on',
+                    'compression': 'lz4',
+                    'recordsize': '64K'
+                }
+            },
+            'specialVdevs': {
+                'cache': {
+                    'description': 'L2ARC read cache (fast SSD)',
+                    'enabled': True,
+                    'autoDetect': 'nvme'
+                },
+                'log': {
+                    'description': 'SLOG write cache (fast SSD with PLP)',
+                    'enabled': True,
+                    'requiresPLP': True,
+                    'mirror': True
+                },
+                'special': {
+                    'description': 'Metadata on fast storage',
+                    'enabled': True,
+                    'minSize': '10GB'
+                }
+            },
+            'validation': {
+                'checkControllerMode': True,
+                'requireITMode': True,
+                'warnMixedDiskTypes': True,
+                'validateDiskHealth': True
+            }
+        }
+        zfs_pool_conf_path: Path = calamares_modules_config_dir_chroot / "zfspoolconfig.conf"
+        with zfs_pool_conf_path.open('w') as f:
+            yaml.dump(zfs_pool_config, f, default_flow_style=False)
+        self.logger.info(f"ZFS pool configuration written to {zfs_pool_conf_path}")
 
         # Create Z-Forge specific branding for Calamares.
         self._create_calamares_branding()
