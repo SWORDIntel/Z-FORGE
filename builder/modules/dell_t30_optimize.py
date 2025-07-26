@@ -15,11 +15,11 @@ import os
 class DellT30Optimize:
     """Dell PowerEdge T30 specific optimizations"""
     
-    def __init__(self, config: Dict[str, Any], chroot_path: Path, logger: logging.Logger):
+    def __init__(self, workspace: Path, config: Dict[str, Any]):
+        self.workspace = workspace
         self.config = config
-        self.chroot_path = chroot_path
-        self.logger = logger
-        self.workspace = Path(config.get('workspace_path', '/tmp/zforge_workspace'))
+        self.chroot_path = workspace / "chroot"
+        self.logger = logging.getLogger(self.__class__.__name__)
         
         # T30 specific configuration
         self.t30_config = config.get('dell_t30_config', {})

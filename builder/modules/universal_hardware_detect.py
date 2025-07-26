@@ -16,10 +16,11 @@ from builder.modules.hardware_db import HardwareDatabase, HardwareProfile
 class UniversalHardwareDetect:
     """Universal hardware detection and configuration"""
     
-    def __init__(self, config: Dict[str, Any], chroot_path: Path, logger: logging.Logger):
+    def __init__(self, workspace: Path, config: Dict[str, Any]):
+        self.workspace = workspace
         self.config = config
-        self.chroot_path = chroot_path
-        self.logger = logger
+        self.chroot_path = workspace / "chroot"
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.hardware_profile = {}
         self.hardware_db = HardwareDatabase()
         self.detected_profile = None

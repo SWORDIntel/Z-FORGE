@@ -13,10 +13,11 @@ from typing import Dict, Any, Optional
 class GPGBypass:
     """Bypass GPG verification for build process"""
     
-    def __init__(self, config: Dict[str, Any], chroot_path: Path, logger: logging.Logger):
+    def __init__(self, workspace: Path, config: Dict[str, Any]):
+        self.workspace = workspace
         self.config = config
-        self.chroot_path = chroot_path
-        self.logger = logger
+        self.chroot_path = workspace / "chroot"
+        self.logger = logging.getLogger(self.__class__.__name__)
         
     def execute(self, resume_data: Optional[Dict[str, Any]] = None,
                 lockfile: Optional[Any] = None) -> Dict[str, Any]:
