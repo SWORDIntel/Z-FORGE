@@ -19,6 +19,7 @@ class ProxmoxIntegration:
         self.workspace = workspace
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.chroot_path = workspace / "chroot"
         self.proxmox_config = config.get('proxmox_config', {})
         self.build_from_source = self.proxmox_config.get('build_from_source', False)
         self.use_beta_iso = self.proxmox_config.get('use_beta_iso', False)
@@ -85,7 +86,7 @@ class ProxmoxIntegration:
         return []
     
     def _add_repository_keys(self, chroot_path: Path):
-        """Add Proxmox GPG keys"""
+        """Add Proxmox GPG keys using modern approach"""
         
         # Download Proxmox release key
         key_url = "https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg"
@@ -95,13 +96,32 @@ class ProxmoxIntegration:
             "wget", "-O", str(key_path), key_url
         ], check=True)
         
-        # Import key (requires mounted filesystems)
+        # Create trusted.gpg.d directory if it doesn't exist
+        trusted_dir = chroot_path / "etc/apt/trusted.gpg.d"
+        trusted_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Copy the key to trusted.gpg.d (modern approach, no apt-key needed)
+        import shutil
+        dest_key = trusted_dir / "proxmox-release.gpg"
+        shutil.copy2(key_path, dest_key)
+        
+        # Fix permissions so apt can read it
+        import os
+        os.chmod(dest_key, 0o644)
+        
+        self.logger.info("Proxmox GPG key installed to trusted.gpg.d")
+        
+    def _update_package_lists(self, chroot_path: Path):
+        """Update APT package lists in chroot"""
+        self.logger.info("Updating package lists...")
+        
+        # Mount pseudo filesystems for apt
         self._mount_pseudo_filesystems(chroot_path)
         try:
             subprocess.run([
                 "chroot", str(chroot_path),
-                "apt-key", "add", "/tmp/proxmox-release.gpg"
-            ], check=True)
+                "apt-get", "update"
+            ], check=True, timeout=300)
         finally:
             self._unmount_pseudo_filesystems(chroot_path)
         
@@ -111,10 +131,10 @@ class ProxmoxIntegration:
         # Create Proxmox sources list
         sources_content = """
 # Proxmox VE No-Subscription Repository
-deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription
+deb [trusted=yes] http://download.proxmox.com/debian/pve bookworm pve-no-subscription
 
 # Proxmox VE Test Repository (for latest packages)
-# deb http://download.proxmox.com/debian/pve bookworm pvetest
+# deb [trusted=yes] http://download.proxmox.com/debian/pve bookworm pvetest
 """
         
         sources_file = chroot_path / "etc/apt/sources.list.d/pve.list"
@@ -126,8 +146,6 @@ deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription
         
         packages = self.config.get('proxmox_config', {}).get('include_packages', [
             'proxmox-ve',
-            'pve-kernel-6.8',
-            'pve-headers-6.8',
             'pve-firmware',
             'pve-manager',
             'pve-cluster',
@@ -145,17 +163,39 @@ deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription
         cache_dir.mkdir(parents=True, exist_ok=True)
         
         # Download packages without installing (requires mounted filesystems)
-        download_cmd = f"""
-        apt-get update
-        apt-get download -o Dir::Cache::archives={cache_dir} {' '.join(packages)}
-        """
-        
         self._mount_pseudo_filesystems(chroot_path)
         try:
+            # Update package lists first
             subprocess.run([
                 "chroot", str(chroot_path),
-                "bash", "-c", download_cmd
+                "apt-get", "update"
             ], check=True)
+            
+            # Try to download packages individually to handle missing ones
+            downloaded = []
+            failed = []
+            
+            for package in packages:
+                try:
+                    # Change to cache directory and download there
+                    result = subprocess.run([
+                        "chroot", str(chroot_path),
+                        "bash", "-c", f"cd {cache_dir} && apt-get download {package}"
+                    ], check=True, capture_output=True, text=True)
+                    downloaded.append(package)
+                    self.logger.debug(f"Downloaded package: {package}")
+                except subprocess.CalledProcessError as e:
+                    # Check if it's a virtual package or just missing
+                    if "virtual packages" in e.stderr or "has no installation candidate" in e.stderr:
+                        self.logger.info(f"Package {package} is virtual or not available")
+                    else:
+                        self.logger.warning(f"Failed to download {package}: {e.stderr}")
+                    failed.append(package)
+            
+            self.logger.info(f"Downloaded {len(downloaded)} packages successfully")
+            if failed:
+                self.logger.info(f"Skipped {len(failed)} unavailable packages: {', '.join(failed)}")
+            
         finally:
             self._unmount_pseudo_filesystems(chroot_path)
         

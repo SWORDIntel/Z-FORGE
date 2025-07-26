@@ -114,17 +114,76 @@ class DracutConfig:
             "pigz",      # For parallel compression
             "squashfs-tools",  # For mksquashfs/unsquashfs needed by dmsquash-live
             "dmsetup",   # Device mapper tools
-            "kpartx"     # For partition mapping
+            "kpartx",    # For partition mapping
+            # Essential packages for dracut modules
+            "util-linux",  # For hwclock (warpclock module)
+            "kbd",  # For loadkeys, setfont (i18n module)
+            "systemd-coredump",  # For coredumpctl
+            "cryptsetup",  # For systemd-cryptsetup
+            "systemd-boot",  # For systemd-repart
+            "systemd-resolved",  # For resolvectl
+            "systemd-timesyncd",  # For time sync
+            "systemd-container",  # For systemd-portabled
+            "dbus-broker",  # D-Bus message broker
+            "rng-tools5",  # For rngd (hardware RNG)
+            "btrfs-progs",  # Btrfs support
+            "xfsprogs",  # XFS support
+            "lvm2",  # LVM support
+            "mdadm",  # Software RAID
+            "multipath-tools",  # Multipath I/O
+            "open-iscsi",  # iSCSI support
+            "nfs-common",  # NFS support (we'll keep it excluded in dracut)
+            "nvme-cli",  # NVMe utilities
+            "jq",  # JSON processor for nvmf
+            "cifs-utils",  # SMB/CIFS support
+            "nbd-client",  # Network block device
+            "dmraid",  # Device-mapper RAID
+            "fcoe-utils",  # Fibre Channel over Ethernet
+            "lldpad",  # Link Layer Discovery Protocol
+            "biosdevname",  # Consistent network device naming
+            "tpm2-tools",  # TPM 2.0 support
+            "libtss2-tcti-device0",  # TPM2 library
+            "pcsc-tools",  # Smart card support
+            "erofs-utils"  # Enhanced Read-Only File System
         ]
         
+        # Try to install all packages at once first
         cmd = [
             "chroot", str(self.chroot_path),
             "apt-get", "install", "-y", "--no-install-recommends"
         ] + packages
         
-        subprocess.run(cmd, check=True, timeout=300)  # 5 minutes for package installation
-        
-        self.logger.info("Dracut packages installed successfully")
+        try:
+            subprocess.run(cmd, check=True, timeout=600)  # 10 minutes for package installation
+            self.logger.info("All dracut packages installed successfully")
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Some packages failed to install: {e}")
+            # Try to install essential packages one by one
+            essential = packages[:9]  # Core dracut packages
+            failed = []
+            for pkg in essential:
+                try:
+                    subprocess.run([
+                        "chroot", str(self.chroot_path),
+                        "apt-get", "install", "-y", "--no-install-recommends", pkg
+                    ], check=True, timeout=60)
+                except subprocess.CalledProcessError:
+                    self.logger.error(f"Failed to install essential package: {pkg}")
+                    failed.append(pkg)
+            
+            if failed:
+                raise Exception(f"Failed to install essential dracut packages: {', '.join(failed)}")
+            
+            # Try optional packages individually
+            optional = packages[9:]
+            for pkg in optional:
+                try:
+                    subprocess.run([
+                        "chroot", str(self.chroot_path),
+                        "apt-get", "install", "-y", "--no-install-recommends", pkg
+                    ], check=True, timeout=60)
+                except subprocess.CalledProcessError:
+                    self.logger.warning(f"Optional package not available: {pkg}")
     
     def _configure_dracut(self):
         """Configure dracut for ZFS boot"""
@@ -215,8 +274,10 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
                 break
                 
         if not dracut_modules_dir:
-            self.logger.error("Could not find dracut modules directory")
-            return
+            # Create the standard directory if none exist
+            dracut_modules_dir = self.chroot_path / "usr/lib/dracut/modules.d"
+            self.logger.info(f"Creating dracut modules directory: {dracut_modules_dir}")
+            dracut_modules_dir.mkdir(parents=True, exist_ok=True)
             
         chroot_dracut_module_dir = dracut_modules_dir / custom_module_name
         
@@ -259,6 +320,15 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
                      "/" + str(chroot_dracut_module_dir.relative_to(self.chroot_path))]
         result = subprocess.run(check_cmd, capture_output=True, text=True)
         self.logger.info(f"Module directory contents: {result.stdout}")
+        
+        # Also check if dracut can see the module
+        list_modules_cmd = ["chroot", str(self.chroot_path), "dracut", "--list-modules"]
+        modules_result = subprocess.run(list_modules_cmd, capture_output=True, text=True)
+        if "90zforge-toram" in modules_result.stdout:
+            self.logger.info("✓ 90zforge-toram module is recognized by dracut")
+        else:
+            self.logger.warning("✗ 90zforge-toram module NOT recognized by dracut!")
+            self.logger.debug(f"Available modules: {modules_result.stdout}")
         
         # Don't add to config here - it's already added in _configure_dracut
         self.logger.info("Custom toram module installed successfully")

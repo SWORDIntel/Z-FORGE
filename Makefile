@@ -1,0 +1,72 @@
+# Z-FORGE Makefile for automated builds
+
+.PHONY: all build check clean help
+
+# Default target
+all: build
+
+# Run the full build
+build: check
+	@echo "Starting Z-FORGE automated build..."
+	@sudo python3 build-auto.py
+
+# Check build environment
+check:
+	@echo "Checking build environment..."
+	@bash scripts/check_build_env.sh
+
+# Clean build artifacts
+clean:
+	@echo "Cleaning build workspace..."
+	@sudo rm -rf /tmp/zforge_workspace
+	@sudo rm -rf /var/tmp/zforge_workspace
+	@rm -f logs/*.log
+	@echo "Cleanup complete"
+
+# Install build dependencies (Debian/Ubuntu)
+deps:
+	@echo "Installing build dependencies..."
+	@sudo apt-get update
+	@sudo apt-get install -y \
+		python3 python3-requests python3-yaml \
+		debootstrap git curl wget \
+		xorriso squashfs-tools \
+		grub-common grub-pc-bin grub-efi-amd64-bin \
+		build-essential autoconf automake libtool gawk \
+		dkms zfsutils-linux \
+		libblkid-dev uuid-dev libudev-dev libssl-dev \
+		zlib1g-dev libaio-dev libattr1-dev libelf-dev
+
+# Quick build with custom workspace
+build-custom:
+	@read -p "Enter workspace path [/tmp/zforge_workspace]: " ws; \
+	export ZFORGE_WORKSPACE=$${ws:-/tmp/zforge_workspace}; \
+	sudo -E python3 build-auto.py
+
+# Build in verbose/debug mode
+debug: check
+	@echo "Starting Z-FORGE build in debug mode..."
+	@sudo python3 build-auto.py --debug
+
+# Show help
+help:
+	@echo "Z-FORGE Build System"
+	@echo "==================="
+	@echo ""
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@echo "  build       - Run the full automated build (default)"
+	@echo "  check       - Check build environment"
+	@echo "  clean       - Clean build artifacts and workspace"
+	@echo "  deps        - Install build dependencies (Debian/Ubuntu)"
+	@echo "  debug       - Build with debug output"
+	@echo "  help        - Show this help message"
+	@echo ""
+	@echo "Environment Variables:"
+	@echo "  ZFORGE_WORKSPACE - Set custom workspace location"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make                    # Run full build"
+	@echo "  make clean && make      # Clean build"
+	@echo "  ZFORGE_WORKSPACE=/data/build make build"

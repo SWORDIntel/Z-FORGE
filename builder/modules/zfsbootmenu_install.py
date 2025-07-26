@@ -18,6 +18,7 @@ class ZFSBootMenuInstall:
     # Latest stable version - update as needed
     ZFSBOOTMENU_VERSION = "3.0.1"
     ZFSBOOTMENU_BASE_URL = "https://github.com/zbm-dev/zfsbootmenu/releases/download"
+    ZFSBOOTMENU_GET_URL = "https://get.zfsbootmenu.org"
     
     def __init__(self, workspace: Path, config: Dict):
         self.workspace = workspace
@@ -45,24 +46,17 @@ class ZFSBootMenuInstall:
             version = zbm_config.get('version', self.ZFSBOOTMENU_VERSION)
             install_recovery = zbm_config.get('install_recovery', True)
             
-            # Step 1: Download ZFSBootMenu release assets
+            # Step 1: Download ZFSBootMenu files
             self._download_zfsbootmenu(version)
             
-            # Step 2: Install generate-zbm script
-            self._install_generate_zbm(version)
+            # Step 2: Install recovery EFI
+            self._install_recovery_efi()
             
-            # Step 3: Install recovery kernel if requested
-            if install_recovery:
-                self._install_recovery_kernel(version)
-            
-            # Step 4: Configure ZFSBootMenu
+            # Step 3: Configure ZFSBootMenu
             self._configure_zfsbootmenu()
             
-            # Step 5: Create dracut module for ZFS if missing
+            # Step 4: Create dracut module for ZFS if missing
             self._ensure_dracut_zfs_module()
-            
-            # Step 6: Generate initial ZFSBootMenu images
-            self._generate_initial_images()
             
             self.logger.info("ZFSBootMenu installation complete")
             
@@ -86,17 +80,16 @@ class ZFSBootMenuInstall:
     
     def _download_zfsbootmenu(self, version: str):
         """Download ZFSBootMenu release files"""
-        self.logger.info(f"Downloading ZFSBootMenu {version}...")
+        self.logger.info(f"Downloading ZFSBootMenu...")
         
-        # Files to download
-        files = [
-            f"zfsbootmenu-release-x86_64-v{version}.tar.gz",
-            f"zfsbootmenu-recovery-x86_64-v{version}-linux.EFI",
-            f"generate-zbm_{version}_all.deb"  # Debian package if available
+        # Use the working get.zfsbootmenu.org URLs
+        downloads = [
+            ("zfsbootmenu-recovery.efi", f"{self.ZFSBOOTMENU_GET_URL}/efi/recovery"),
+            ("vmlinuz-bootmenu", f"{self.ZFSBOOTMENU_GET_URL}/kernel"),
+            ("initramfs-bootmenu.img", f"{self.ZFSBOOTMENU_GET_URL}/initramfs")
         ]
         
-        for filename in files:
-            url = f"{self.ZFSBOOTMENU_BASE_URL}/v{version}/{filename}"
+        for filename, url in downloads:
             output_path = self.download_dir / filename
             
             if output_path.exists():
@@ -105,13 +98,48 @@ class ZFSBootMenuInstall:
             
             try:
                 self.logger.info(f"Downloading {filename}...")
-                subprocess.run([
-                    "wget", "-O", str(output_path), url
-                ], check=True, capture_output=True)
+                # Use curl with better error handling and follow redirects
+                result = subprocess.run([
+                    "curl", "-L", "-f", "-o", str(output_path), url
+                ], capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    self.logger.warning(f"Failed to download {filename}: {result.stderr}")
+                    # Try with wget as fallback
+                    subprocess.run([
+                        "wget", "--no-check-certificate", "-O", str(output_path), url
+                    ], check=True, capture_output=True)
+                    
+                # Verify file is not empty
+                if output_path.stat().st_size == 0:
+                    self.logger.warning(f"Downloaded file {filename} is empty, removing...")
+                    output_path.unlink()
+                    continue
+                    
             except subprocess.CalledProcessError:
-                self.logger.warning(f"Failed to download {filename}, trying alternate method...")
-                # Some files might not exist, that's OK
+                self.logger.warning(f"Failed to download {filename}")
+                if output_path.exists() and output_path.stat().st_size == 0:
+                    output_path.unlink()
                 continue
+    
+    def _install_recovery_efi(self):
+        """Install recovery EFI file"""
+        self.logger.info("Installing recovery EFI...")
+        
+        recovery_efi = self.download_dir / "zfsbootmenu-recovery.efi"
+        if not recovery_efi.exists():
+            self.logger.warning("Recovery EFI not found, skipping")
+            return
+        
+        # Create EFI directory structure
+        efi_dir = self.chroot_path / "boot" / "efi" / "EFI" / "zfsbootmenu"
+        efi_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Copy recovery EFI
+        target = efi_dir / "zfsbootmenu-recovery.efi"
+        shutil.copy2(recovery_efi, target)
+        
+        self.logger.info(f"Recovery EFI installed to {target}")
     
     def _install_generate_zbm(self, version: str):
         """Install generate-zbm script"""

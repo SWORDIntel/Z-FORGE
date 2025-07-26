@@ -35,14 +35,20 @@ class SecurityHardening:
         self.chroot_path = self.workspace / "chroot"
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    def _run(self, cmd):
+    def _run(self, cmd, check=True):
         try:
             self.logger.debug(f"Preparing to run in chroot: {' '.join(cmd)}")
             chrooted_cmd = ["chroot", str(self.chroot_path)] + cmd
-            subprocess.run(chrooted_cmd, check=True)
+            result = subprocess.run(chrooted_cmd, check=check, capture_output=True, text=True)
+            if result.returncode != 0 and check:
+                self.logger.error(f"Command failed: {result.stderr}")
+                sys.exit(1)
+            return result
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Command failed: {e}")
-            sys.exit(1)
+            if check:
+                sys.exit(1)
+            return e
 
     def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[BuildLockfile] = None) -> Dict:
         self.logger.info("=== SecurityHardening start ===")
@@ -57,10 +63,14 @@ class SecurityHardening:
 
             if task == "ssh_hardening" and self.config.get("ssh_disable_root", True):
                 cfg = "/etc/ssh/sshd_config"
-                self._run(["sed", "-i",
-                           "s/^#*PermitRootLogin .*/PermitRootLogin no/",
-                           cfg])
-                self.logger.info("Disabled SSH root login.")
+                cfg_path = self.chroot_path / "etc/ssh/sshd_config"
+                if cfg_path.exists():
+                    self._run(["sed", "-i",
+                               "s/^#*PermitRootLogin .*/PermitRootLogin no/",
+                               cfg])
+                    self.logger.info("Disabled SSH root login.")
+                else:
+                    self.logger.info("SSH not installed, skipping SSH hardening.")
             elif task == "apply_sysctl":
                 for key, val in self.config.get("sysctl", {}).items():
                     self._run(["sysctl", "-w", f"{key}={val}"])
@@ -74,18 +84,30 @@ class SecurityHardening:
                 self._run(["sysctl", "--system"])
                 self.logger.info("Applied sysctl settings.")
             elif task == "unattended_upgrades":
-                self._run(["apt-get", "update"])
-                self._run(["apt-get", "install", "-y", "unattended-upgrades"])
-                self._run(["dpkg-reconfigure", "-plow", "unattended-upgrades"])
-                self.logger.info("Configured unattended-upgrades.")
+                # Skip for ISO builds - not needed in live environment
+                is_iso_build = self.config.get('builder_config', {}).get('output_iso_name') is not None
+                if is_iso_build:
+                    self.logger.info("ISO build detected - skipping unattended-upgrades")
+                else:
+                    self._run(["apt-get", "update"])
+                    self._run(["apt-get", "install", "-y", "unattended-upgrades"])
+                    self._run(["dpkg-reconfigure", "-plow", "unattended-upgrades"])
+                    self.logger.info("Configured unattended-upgrades.")
             elif task == "disable_services":
                 for svc in self.config.get("services_disable", []):
-                    self._run(["systemctl", "disable", "--now", svc])
-                    self.logger.info(f"Disabled service: {svc}")
+                    result = self._run(["systemctl", "disable", "--now", svc], check=False)
+                    if result.returncode == 0:
+                        self.logger.info(f"Disabled service: {svc}")
+                    else:
+                        self.logger.info(f"Service {svc} not found or already disabled")
             else:
                 self.logger.debug(f"No action for task {task}")
             result["completed_steps"].append(task)
 
         self.logger.info("=== SecurityHardening complete ===")
-        return result
+        return {
+            'status': 'success',
+            'completed_steps': result.get('completed_steps', []),
+            'module': self.__class__.__name__
+        }
 

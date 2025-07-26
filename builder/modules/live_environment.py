@@ -59,7 +59,8 @@ class LiveEnvironment:
     def _install_live_packages(self):
         """Install packages needed for live boot"""
 
-        packages = [
+        # Core packages needed for live boot
+        core_packages = [
             'live-boot',
             'live-boot-initramfs-tools',
             'live-config',
@@ -78,13 +79,16 @@ class LiveEnvironment:
             'efibootmgr',
             'grub-pc-bin',
             'grub-efi-amd64-bin',
+            'grub-common',  # Provides grub-mkimage and other utilities
+            'syslinux',
+            'syslinux-common',
+            'isolinux',
+            'syslinux-efi',
             'memtest86+',
             'rsync',
             'cryptsetup',
             'lvm2',
             'mdadm',
-            'kde-standard',  # Added KDE standard packages
-            'sddm',          # Added SDDM display manager
             # Essential system utilities for dracut
             'btrfs-progs',   # Btrfs filesystem support
             'xfsprogs',      # XFS filesystem support
@@ -116,11 +120,42 @@ class LiveEnvironment:
             'erofs-utils'         # Enhanced Read-Only File System tools
         ]
 
-        # Install packages in batches to handle potential failures
-        self.logger.info(f"Installing {len(packages)} packages for live environment...")
+        # Desktop environment packages (separated for longer timeout)
+        desktop_env = self.config.get('system', {}).get('desktop_environment', 'kde')
+        desktop_packages = []
         
-        # First try to install all packages
-        install_cmd = f"apt-get install -y --no-install-recommends {' '.join(packages)}"
+        if desktop_env == 'kde':
+            desktop_packages = [
+                'kde-standard',  # KDE standard packages
+                'sddm',          # SDDM display manager
+            ]
+        elif desktop_env == 'gnome':
+            desktop_packages = [
+                'gnome-core',
+                'gdm3',
+            ]
+        elif desktop_env == 'xfce':
+            desktop_packages = [
+                'xfce4',
+                'lightdm',
+            ]
+        elif desktop_env == 'minimal':
+            # Minimal desktop for installer UI only
+            desktop_packages = [
+                'xorg',
+                'openbox',
+                'lightdm',
+                'lightdm-gtk-greeter',
+                'xinit',
+                'x11-utils',
+                'mesa-utils',
+            ]
+
+        # Install core packages first
+        self.logger.info(f"Installing {len(core_packages)} core packages for live environment...")
+        
+        # First try to install all core packages
+        install_cmd = f"apt-get install -y --no-install-recommends {' '.join(core_packages)}"
         
         result = subprocess.run(
             ["chroot", str(self.chroot_path), "bash", "-c", install_cmd],
@@ -134,24 +169,56 @@ class LiveEnvironment:
             self.logger.warning("Batch installation failed, trying individual packages...")
             failed_packages = []
             
-            for package in packages:
+            for package in core_packages:
                 try:
                     subprocess.run(
                         ["chroot", str(self.chroot_path), "apt-get", "install", "-y", "--no-install-recommends", package],
                         check=True,
                         capture_output=True,
-                        timeout=60
+                        timeout=120  # 2 minutes timeout for individual packages
                     )
                     self.logger.debug(f"Successfully installed: {package}")
                 except subprocess.CalledProcessError:
                     self.logger.warning(f"Failed to install: {package}")
+                    failed_packages.append(package)
+                except subprocess.TimeoutExpired:
+                    self.logger.warning(f"Timeout installing: {package}")
                     failed_packages.append(package)
             
             if failed_packages:
                 self.logger.warning(f"Could not install {len(failed_packages)} packages: {', '.join(failed_packages)}")
                 self.logger.info("Continuing with available packages...")
         else:
-            self.logger.info("All packages installed successfully")
+            self.logger.info("Core packages installed successfully")
+
+        # Install desktop environment if configured
+        if desktop_env != 'none' and desktop_packages:
+            self.logger.info(f"Installing {desktop_env} desktop environment...")
+            
+            for package in desktop_packages:
+                try:
+                    self.logger.info(f"Installing {package} (this may take several minutes)...")
+                    subprocess.run(
+                        ["chroot", str(self.chroot_path), "apt-get", "install", "-y", "--no-install-recommends", package],
+                        check=True,
+                        capture_output=True,
+                        timeout=1800  # 30 minutes timeout for large desktop packages
+                    )
+                    self.logger.info(f"Successfully installed: {package}")
+                except subprocess.CalledProcessError as e:
+                    self.logger.warning(f"Failed to install {package}: {e}")
+                    # Don't fail the build if desktop environment fails
+                    self.logger.info("Continuing without desktop environment...")
+                except subprocess.TimeoutExpired:
+                    self.logger.warning(f"Timeout installing {package} after 30 minutes")
+                    # Kill any hanging apt processes
+                    subprocess.run(
+                        ["chroot", str(self.chroot_path), "pkill", "-9", "apt-get"],
+                        capture_output=True
+                    )
+                    self.logger.info("Continuing without desktop environment...")
+        else:
+            self.logger.info("Skipping desktop environment installation (configured as 'none')")
 
     def _configure_live_system(self):
         """Configure live system settings"""
@@ -236,8 +303,16 @@ iface lo inet loopback
         services_to_enable = [
             'NetworkManager',
             'ssh',  # For remote debugging
-            'sddm'  # Changed lightdm to sddm
         ]
+        
+        # Add display manager based on desktop environment
+        desktop_env = self.config.get('system', {}).get('desktop_environment', 'kde')
+        if desktop_env == 'kde':
+            services_to_enable.append('sddm')
+        elif desktop_env == 'gnome':
+            services_to_enable.append('gdm3')
+        elif desktop_env in ['xfce', 'minimal']:
+            services_to_enable.append('lightdm')
 
         for service in services_to_enable:
             subprocess.run(

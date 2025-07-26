@@ -47,6 +47,17 @@ class BootloaderSetup:
 
     def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[BuildLockfile] = None) -> Dict:
         self.logger.info("=== BootloaderSetup start ===")
+        
+        # Check if we're building an ISO (no partitions available)
+        is_iso_build = self.config.get('builder_config', {}).get('output_iso_name') is not None
+        if is_iso_build:
+            self.logger.info("ISO build detected - skipping bootloader setup (will be handled by ISO generation)")
+            return {
+                'status': 'success',
+                'message': 'Skipped for ISO build',
+                'skipped': True
+            }
+        
         resume = resume_data or {}
         result = {"completed_steps": []}
 

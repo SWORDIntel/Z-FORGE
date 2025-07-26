@@ -394,8 +394,17 @@ class ZForgeBuilder:
 
         self.logger.info(f"Saving build progress to {progress_file}")
         try:
+            # Custom JSON encoder to handle sets and other non-serializable types
+            class SetEncoder(json.JSONEncoder):
+                def default(self, obj):
+                    if isinstance(obj, set):
+                        return list(obj)
+                    elif hasattr(obj, '__dict__'):
+                        return str(obj)
+                    return super().default(obj)
+            
             with progress_file.open('w') as f:
-                json.dump(results, f, indent=2)
+                json.dump(results, f, indent=2, cls=SetEncoder)
             self.logger.debug(f"Successfully saved progress to {progress_file}")
         except IOError as e:
             self.logger.error(f"Failed to save build progress to {progress_file}: {e}")

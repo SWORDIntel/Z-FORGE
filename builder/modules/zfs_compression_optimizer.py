@@ -96,7 +96,7 @@ class ZFSCompressionOptimizer:
         system_info = {
             'cpu_count': cpu_count,
             'total_ram_gb': total_ram_gb,
-            'cpu_features': cpu_features,
+            'cpu_features': list(cpu_features) if isinstance(cpu_features, set) else cpu_features,
             'has_qat': has_qat,
             'has_avx2': has_avx2,
             'has_avx512': has_avx512,

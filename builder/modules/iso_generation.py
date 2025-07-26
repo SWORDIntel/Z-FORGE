@@ -45,6 +45,7 @@ class ISOGeneration:
 
         (self.iso_staging_path / "boot").mkdir()
         (self.iso_staging_path / "boot" / "grub").mkdir() # For GRUB config and modules
+        (self.iso_staging_path / "boot" / "grub" / "x86_64-efi").mkdir(parents=True, exist_ok=True) # For GRUB modules
         (self.iso_staging_path / "live").mkdir()          # For the SquashFS image
         (self.iso_staging_path / "EFI" / "BOOT").mkdir(parents=True, exist_ok=True) # For UEFI bootloader
 
@@ -189,7 +190,7 @@ class ISOGeneration:
 
         kernel_cmdline_params = [
             "boot=live",
-            "findiso=/live/filesystem.squashfs", # Path to squashfs *on the ISO*
+            "live-media-path=/live", # Tell live-boot where to find the squashfs
             "union=overlay", # Common for modern live systems
             "quiet",
             "splash",
@@ -232,40 +233,166 @@ menuentry "Shutdown" {{
             self.logger.error(error_msg)
             return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
 
+        # Create BIOS boot support
+        self.logger.info("Setting up BIOS boot support...")
+        
+        # Create isolinux directory for BIOS boot
+        isolinux_dir = self.iso_staging_path / "isolinux"
+        isolinux_dir.mkdir(exist_ok=True)
+        
+        # Check if isolinux is available in chroot
+        isolinux_files_found = False
+        chroot_isolinux_path = self.chroot_path / "usr/lib/ISOLINUX/isolinux.bin"
+        chroot_ldlinux_path = self.chroot_path / "usr/lib/syslinux/modules/bios/ldlinux.c32"
+        
+        if chroot_isolinux_path.exists() and chroot_ldlinux_path.exists():
+            self.logger.info("Found isolinux files in chroot")
+            shutil.copy2(chroot_isolinux_path, isolinux_dir / "isolinux.bin")
+            shutil.copy2(chroot_ldlinux_path, isolinux_dir / "ldlinux.c32")
+            isolinux_files_found = True
+        else:
+            # Try host system
+            host_isolinux_path = Path("/usr/lib/ISOLINUX/isolinux.bin")
+            host_ldlinux_path = Path("/usr/lib/syslinux/modules/bios/ldlinux.c32")
+            
+            if host_isolinux_path.exists() and host_ldlinux_path.exists():
+                self.logger.info("Found isolinux files on host")
+                shutil.copy2(host_isolinux_path, isolinux_dir / "isolinux.bin")
+                shutil.copy2(host_ldlinux_path, isolinux_dir / "ldlinux.c32")
+                isolinux_files_found = True
+            else:
+                self.logger.warning("isolinux files not found, ISO will only support UEFI boot")
+        
+        if isolinux_files_found:
+            # Create isolinux.cfg for BIOS boot
+            isolinux_cfg_content = f"""
+DEFAULT zforge
+TIMEOUT 50
+PROMPT 1
+
+LABEL zforge
+    KERNEL /boot/vmlinuz
+    APPEND initrd=/boot/initrd.img {kernel_cmdline}
+
+LABEL zforge-toram
+    KERNEL /boot/vmlinuz
+    APPEND initrd=/boot/initrd.img {kernel_cmdline} zforge.toram=yes
+"""
+            isolinux_cfg_path = isolinux_dir / "isolinux.cfg"
+            isolinux_cfg_path.write_text(isolinux_cfg_content)
+            self.logger.info("Created isolinux.cfg for BIOS boot")
+
         self.logger.info("Creating bootable ISO image with xorriso...")
 
         iso_output_name = self.config.get('builder_config', {}).get('output_iso_name', 'zforge-live.iso')
         final_iso_path = self.workspace / iso_output_name # Output ISO to the workspace for now
 
-        # Ensure grubx64.efi is staged for UEFI boot
-        # Look for GRUB EFI in the chroot first, then fall back to host
-        grub_efi_locations = [
-            self.chroot_path / "usr/lib/grub/x86_64-efi/grubx64.efi",
-            self.chroot_path / "boot/efi/EFI/BOOT/grubx64.efi",
-            Path("/usr/lib/grub/x86_64-efi/grubx64.efi"),  # Host fallback
+        # Generate GRUB EFI bootloader
+        self.logger.info("Generating GRUB EFI bootloader...")
+        
+        staged_grub_efi_dst = self.iso_staging_path / "EFI" / "BOOT" / "BOOTX64.EFI" # Path in ISO staging
+        staged_grub_efi_dst.parent.mkdir(parents=True, exist_ok=True) # Ensure EFI/BOOT exists
+        
+        # First check if grub-mkimage is available in chroot
+        grub_mkimage_cmd = None
+        use_chroot = False
+        if (self.chroot_path / "usr/bin/grub-mkimage").exists():
+            use_chroot = True
+            grub_mkimage_cmd = ["chroot", str(self.chroot_path), "grub-mkimage"]
+            modules_dir = "/usr/lib/grub/x86_64-efi"
+            # Create temp directory in chroot for output
+            temp_output_dir = self.chroot_path / "tmp/grub_efi"
+            temp_output_dir.mkdir(parents=True, exist_ok=True)
+            temp_output_path = "/tmp/grub_efi/BOOTX64.EFI"
+            actual_output_path = self.chroot_path / "tmp/grub_efi/BOOTX64.EFI"
+        elif shutil.which("grub-mkimage"):
+            # Fall back to host grub-mkimage
+            grub_mkimage_cmd = ["grub-mkimage"]
+            modules_dir = "/usr/lib/grub/x86_64-efi"
+            temp_output_path = str(staged_grub_efi_dst)
+            actual_output_path = staged_grub_efi_dst
+        else:
+            error_msg = "grub-mkimage not found in chroot or host. Cannot create UEFI bootable ISO."
+            self.logger.error(error_msg)
+            return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
+        
+        # Essential modules for EFI boot
+        grub_modules = [
+            "all_video", "boot", "btrfs", "cat", "chain", "configfile",
+            "echo", "efifwsetup", "efinet", "ext2", "fat", "font", "gettext",
+            "gfxmenu", "gfxterm", "gfxterm_background", "gzio", "halt",
+            "help", "hfsplus", "iso9660", "jpeg", "keystatus", "linux",
+            "loadenv", "loopback", "ls", "lsefi", "lsefimmap", "lsefisystab",
+            "lssal", "memdisk", "minicmd", "normal", "ntfs", "part_apple",
+            "part_gpt", "part_msdos", "password_pbkdf2", "png", "probe",
+            "reboot", "regexp", "search", "search_fs_file", "search_fs_uuid",
+            "search_label", "sleep", "smbios", "squash4", "test", "true",
+            "video", "xfs", "zfs", "zfscrypt", "zfsinfo"
         ]
         
-        grub_efi_file_src = None
-        for location in grub_efi_locations:
-            if location.exists():
-                grub_efi_file_src = location
-                break
-                
-        staged_grub_efi_dst = self.iso_staging_path / "EFI" / "BOOT" / "BOOTX64.EFI" # Path in ISO staging
-
-        if not grub_efi_file_src:
-            error_msg = "GRUB EFI file not found in any expected location. Cannot create UEFI bootable ISO."
-            self.logger.error(error_msg)
-            return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
+        # Create embedded config for GRUB
+        if use_chroot:
+            # Create embedded config in chroot
+            embedded_cfg_chroot = self.chroot_path / "tmp/grub_efi/grub_embed.cfg"
+            embedded_cfg_path = "/tmp/grub_efi/grub_embed.cfg"
+        else:
+            embedded_cfg_chroot = self.iso_staging_path / "EFI" / "BOOT" / "grub_embed.cfg"
+            embedded_cfg_path = str(embedded_cfg_chroot)
+            
+        embedded_cfg_content = """search --set=root --file /boot/grub/grub.cfg
+set prefix=($root)/boot/grub
+configfile /boot/grub/grub.cfg
+"""
+        embedded_cfg_chroot.write_text(embedded_cfg_content)
+        
+        # Build grub-mkimage command
+        mkimage_cmd = grub_mkimage_cmd + [
+            "-d", modules_dir,
+            "-o", temp_output_path,
+            "-p", "/boot/grub",
+            "-O", "x86_64-efi",
+            "-c", embedded_cfg_path
+        ] + grub_modules
+        
         try:
-            staged_grub_efi_dst.parent.mkdir(parents=True, exist_ok=True) # Ensure EFI/BOOT exists
-            shutil.copy2(grub_efi_file_src, staged_grub_efi_dst)
-            self.logger.info(f"Copied GRUB EFI file {grub_efi_file_src} to {staged_grub_efi_dst}")
+            self.logger.info(f"Running: {' '.join(mkimage_cmd)}")
+            subprocess.run(mkimage_cmd, check=True, capture_output=True, text=True)
+            
+            # If we used chroot, copy the file to the staging area
+            if use_chroot and actual_output_path != staged_grub_efi_dst:
+                shutil.copy2(actual_output_path, staged_grub_efi_dst)
+                self.logger.info(f"Copied GRUB EFI bootloader from chroot to {staged_grub_efi_dst}")
+            
+            self.logger.info(f"Generated GRUB EFI bootloader at {staged_grub_efi_dst}")
+            
+            # Clean up temporary files
+            embedded_cfg_chroot.unlink()
+            if use_chroot:
+                actual_output_path.unlink()
+            
+            # Copy GRUB modules to ISO staging area
+            self.logger.info("Copying GRUB modules to ISO staging area...")
+            grub_modules_src = self.chroot_path / "usr/lib/grub/x86_64-efi"
+            grub_modules_dst = self.iso_staging_path / "boot" / "grub" / "x86_64-efi"
+            
+            if grub_modules_src.exists():
+                # Copy all .mod files
+                for mod_file in grub_modules_src.glob("*.mod"):
+                    shutil.copy2(mod_file, grub_modules_dst)
+                self.logger.info(f"Copied GRUB modules to {grub_modules_dst}")
+            else:
+                self.logger.warning("GRUB modules directory not found in chroot, ISO may not boot properly")
+            
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to generate GRUB EFI bootloader: {e.stderr}"
+            self.logger.error(error_msg)
+            return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
         except Exception as e:
-            error_msg = f"Failed to copy GRUB EFI file: {str(e)}"
+            error_msg = f"Failed to generate GRUB EFI bootloader: {str(e)}"
             self.logger.error(error_msg)
             return {'status': 'error', 'error': error_msg, 'module': self.__class__.__name__}
 
+        # Build xorriso command based on available boot methods
         xorriso_cmd = [
             "sudo",
             "xorriso",
@@ -273,18 +400,35 @@ menuentry "Shutdown" {{
             "-o", str(final_iso_path),
             "-iso-level", "3", # For Joliet/Rock Ridge extensions, long filenames
             "-volid", "ZFORGE_LIVE", # Volume ID
-
+            "-J", "-joliet-long", # Joliet extensions with long filename support
+            "-r", # Rock Ridge extensions
+        ]
+        
+        # Add BIOS boot if isolinux is available
+        if isolinux_files_found:
+            xorriso_cmd.extend([
+                # BIOS Boot Configuration using isolinux
+                "-b", "isolinux/isolinux.bin", # Boot image path relative to ISO root
+                "-c", "isolinux/boot.cat", # Boot catalog path
+                "-no-emul-boot",
+                "-boot-load-size", "4",
+                "-boot-info-table",
+            ])
+        
+        # Add UEFI boot
+        xorriso_cmd.extend([
             # UEFI Boot Configuration:
             # Specifies the EFI boot image. The file must be in the ISO at the given path.
             # BOOTX64.EFI at /EFI/BOOT/ is the standard path for removable media.
             "-eltorito-alt-boot",
             "-e", "EFI/BOOT/BOOTX64.EFI", # Path to EFI boot image *on the ISO*
             "-no-emul-boot",
-
-            # Add all files from the staging directory to the ISO root
-            # This means contents of self.iso_staging_path will be at the root of the ISO.
-            str(self.iso_staging_path)
-        ]
+            "-isohybrid-gpt-basdat", # For USB boot compatibility
+        ])
+        
+        # Add all files from the staging directory to the ISO root
+        # This means contents of self.iso_staging_path will be at the root of the ISO.
+        xorriso_cmd.append(str(self.iso_staging_path))
 
         self.logger.info(f"Running xorriso: {' '.join(xorriso_cmd)}")
 

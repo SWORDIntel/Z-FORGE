@@ -131,8 +131,9 @@ def execute_resume_build(options: Dict):
     # Load lockfile
     lockfile = BuildLockfile(Path(lockfile_path))
     
-    # Initialize builder from lockfile
-    builder = ZForgeBuilder.from_lockfile(lockfile)
+    # Initialize builder with the same config file
+    config_file = options.get('build_spec', 'build_spec.yml')
+    builder = ZForgeBuilder(config_file)
     
     # Resume build pipeline
     result = builder.execute_pipeline(lockfile=lockfile, resume=True)
@@ -154,11 +155,16 @@ def verify_existing_iso(options: Dict):
         print(f"[!] ISO file not found: {iso_path}")
         sys.exit(1)
         
-    # Initialize builder for verification only
-    builder = ZForgeBuilder(None, verification_mode=True)
+    # Initialize builder with default config
+    config_file = options.get('build_spec', 'build_spec.yml')
+    builder = ZForgeBuilder(config_file)
     
-    # Verify ISO
-    result = builder.verify_iso(iso_path)
+    # Verify ISO (if method exists)
+    if hasattr(builder, 'verify_iso'):
+        result = builder.verify_iso(iso_path)
+    else:
+        print(f"[!] ISO verification not implemented yet")
+        sys.exit(1)
     
     if result['status'] == 'success':
         print(f"\n[+] ISO verification successful!")

@@ -7,6 +7,11 @@ builder_config:
   workspace_path: /tmp/zforge_workspace
   cache_packages: true
 
+# System Configuration
+system:
+  desktop_environment: minimal  # Options: kde, gnome, xfce, minimal, none
+  # For server/Proxmox builds, minimal or none is recommended
+
 proxmox_config:
   version: latest
   minimal_install: true

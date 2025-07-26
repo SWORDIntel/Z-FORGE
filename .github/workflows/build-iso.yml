@@ -1,0 +1,100 @@
+name: Build Z-FORGE ISO
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Enable debug mode'
+        required: false
+        type: boolean
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          debootstrap \
+          xorriso \
+          squashfs-tools \
+          grub-common \
+          grub-pc-bin \
+          grub-efi-amd64-bin \
+          git \
+          build-essential \
+          autoconf \
+          automake \
+          libtool \
+          gawk \
+          alien \
+          fakeroot \
+          dkms \
+          libblkid-dev \
+          uuid-dev \
+          libudev-dev \
+          libssl-dev \
+          zlib1g-dev \
+          libaio-dev \
+          libattr1-dev \
+          libelf-dev \
+          python3-dev \
+          python3-setuptools \
+          python3-cffi \
+          libffi-dev \
+          python3-requests
+          
+    - name: Set up larger workspace
+      run: |
+        # GitHub Actions has limited /tmp space, use current directory
+        export ZFORGE_WORKSPACE="${GITHUB_WORKSPACE}/workspace"
+        echo "ZFORGE_WORKSPACE=${ZFORGE_WORKSPACE}" >> $GITHUB_ENV
+        
+    - name: Run build
+      run: |
+        sudo -E python3 build-auto.py
+        
+    - name: Upload ISO artifact
+      if: success()
+      uses: actions/upload-artifact@v3
+      with:
+        name: zforge-iso-${{ github.sha }}
+        path: |
+          output/*.iso
+          output/*.iso.sha256
+        retention-days: 7
+        
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          output/*.iso
+          output/*.iso.sha256
+        draft: false
+        prerelease: false
+        
+    - name: Upload build logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-logs-${{ github.sha }}
+        path: logs/
+        retention-days: 3
