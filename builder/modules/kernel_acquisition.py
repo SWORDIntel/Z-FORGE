@@ -674,26 +674,35 @@ CONFIG_ZLIB_DEFLATE=y
         
         # Build and install kernel with timeout and better error handling
         self.logger.info("Starting kernel compilation (this may take 30-60 minutes)...")
+        
+        # Set safe compilation flags
+        build_env = {
+            'CFLAGS': '-O2 -pipe -fno-strict-aliasing',
+            'CXXFLAGS': '-O2 -pipe -fno-strict-aliasing',
+            'CC': '/usr/bin/gcc',
+            'CXX': '/usr/bin/g++'
+        }
+        
         try:
             # Step 1: Configure kernel
             self._run_chroot_command([
                 "bash", "-c", f"cd {src_dir} && make olddefconfig"
-            ], timeout=300)  # 5 minutes for config
+            ], timeout=300, env=build_env)  # 5 minutes for config
             
             # Step 2: Build kernel (longest step)
             self._run_chroot_command([
                 "bash", "-c", f"cd {src_dir} && make -j$(nproc)"
-            ], timeout=7200)  # 2 hours for build
+            ], timeout=7200, env=build_env)  # 2 hours for build
             
             # Step 3: Install modules
             self._run_chroot_command([
                 "bash", "-c", f"cd {src_dir} && make modules_install"
-            ], timeout=1200)  # 20 minutes for module install
+            ], timeout=1200, env=build_env)  # 20 minutes for module install
             
             # Step 4: Install kernel
             self._run_chroot_command([
                 "bash", "-c", f"cd {src_dir} && make install"
-            ], timeout=600)  # 10 minutes for kernel install
+            ], timeout=600, env=build_env)  # 10 minutes for kernel install
             
         except subprocess.TimeoutExpired as e:
             self.logger.error(f"Kernel build timed out after {e.timeout} seconds")

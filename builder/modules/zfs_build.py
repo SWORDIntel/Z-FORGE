@@ -507,6 +507,8 @@ int main() {
         configure_script_content = f"""#!/bin/bash
 set -e
 export CC=/usr/bin/gcc
+export CFLAGS="-O2 -pipe -fno-strict-aliasing"
+export CXXFLAGS="-O2 -pipe -fno-strict-aliasing"
 export CXX=/usr/bin/g++
 export LD=/usr/bin/ld
 export AR=/usr/bin/ar

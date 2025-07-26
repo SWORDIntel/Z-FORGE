@@ -563,15 +563,15 @@ early_microcode="no"
             "-C", "/tmp/dracut-build", "--strip-components=1"
         ])
         
-        # Configure and build
+        # Configure and build with safe optimization flags
         self.logger.info("Configuring dracut build...")
         self._run_chroot_command([
-            "sh", "-c", "cd /tmp/dracut-build && ./configure --prefix=/usr --sysconfdir=/etc"
+            "sh", "-c", "cd /tmp/dracut-build && CFLAGS='-O2 -pipe -fno-strict-aliasing' CXXFLAGS='-O2 -pipe -fno-strict-aliasing' ./configure --prefix=/usr --sysconfdir=/etc"
         ])
         
         self.logger.info("Building dracut (this may take a while)...")
         self._run_chroot_command([
-            "sh", "-c", "cd /tmp/dracut-build && make -j$(nproc)"
+            "sh", "-c", "cd /tmp/dracut-build && CFLAGS='-O2 -pipe -fno-strict-aliasing' CXXFLAGS='-O2 -pipe -fno-strict-aliasing' make -j$(nproc)"
         ])
         
         self.logger.info("Installing dracut...")

@@ -337,10 +337,19 @@ echo "Proxmox VE installation complete!"
                     "cp", "-r", str(repo_path), str(chroot_build_path)
                 ], check=True)
                 
-                # Build in chroot
+                # Build in chroot with safe optimization flags
+                build_env = {
+                    'CFLAGS': '-O2 -pipe -fno-strict-aliasing',
+                    'CXXFLAGS': '-O2 -pipe -fno-strict-aliasing',
+                    'CC': '/usr/bin/gcc',
+                    'CXX': '/usr/bin/g++',
+                    'DEB_BUILD_OPTIONS': 'parallel=4'
+                }
+                env_vars = ' '.join([f"{k}={v}" for k, v in build_env.items()])
+                
                 subprocess.run([
                     "chroot", str(chroot_path),
-                    "bash", "-c", f"cd /usr/src/{repo} && make deb"
+                    "bash", "-c", f"cd /usr/src/{repo} && {env_vars} make deb"
                 ], check=True)
                 
                 # Copy built packages to cache
