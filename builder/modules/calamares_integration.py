@@ -151,7 +151,12 @@ class CalamaresIntegration:
             "gir1.2-pango-1.0", "python3-cairo",
             # QML dependencies for telemetry consent module
             "qml-module-qtquick2", "qml-module-qtquick-controls2",
-            "qml-module-qtquick-layouts", "qml-module-qtquick-window2"
+            "qml-module-qtquick-layouts", "qml-module-qtquick-window2",
+            # Hardware detection dependencies
+            "pciutils", "usbutils", "dmidecode", "lshw", "hdparm",
+            "smartmontools", "nvme-cli", "python3-pyudev",
+            # RAID management tool dependencies  
+            "mdadm", "lvm2"
         ]
         # Ensure no XFCE or LightDM packages are installed if they were in a previous version of this list
         # For example, by explicitly removing them or ensuring they are not in `packages_to_install`.
@@ -245,12 +250,13 @@ apt-get clean
                   # or as a very early PythonJob if it's purely backend. For simplicity in this sequence,
                   # we assume its data is available by the time 'telemetryconsent' or later modules need it.
                   # A more robust setup would have an 'init' sequence for such tasks.
-                    'show': ['welcome', 'telemetryconsent', 'locale', 'keyboard', 'zfspooldetect', 'zfsenhancedconfig']
+                    'show': ['welcome', 'hardwaredetect', 'telemetryconsent', 'locale', 'keyboard', 'zfspooldetect', 'zfsenhancedconfig', 'raidcontroller', 'storageconfig']
                 },
                 { # Second phase: Execution of tasks
                     'exec': [
                         # 'loadbuildspec', # Conceptual: if it's a job and needs to run before mount for some reason.
                                          # More likely, its data is loaded by an early Python module (non-job).
+                        'hardwareconfig',  # Apply hardware-specific configurations
                         'mount',        # Mounts partitions (as defined by zfsrootselect or other partitioning modules).
                         'unpackfs',     # Extracts the SquashFS filesystem.
                         # Z-Forge specific modules / ZFS specific partitioning logic
@@ -290,6 +296,7 @@ apt-get clean
                         'initramfs',    # Generates initramfs (crucial for ZFS root).
                         'grubcfg',      # Configures GRUB.
                         'bootloader',   # Installs the bootloader (must support ZFS).
+                        'opencoreinstall', # Install OpenCore for NVMe boot support if selected
                         'umount',       # Unmounts filesystems before finishing.
                         'telemetryjob'  # Send telemetry data as the very last step.
                     ]
@@ -342,6 +349,110 @@ apt-get clean
         with zfs_bench_conf_path.open('w') as f:
             yaml.dump(zfs_bench_module_config, f, default_flow_style=False)
         self.logger.info(f"Calamares zfsbench.conf module configuration written to {zfs_bench_conf_path}")
+        
+        # Hardware Detection Module Configuration
+        hardware_detect_config: Dict[str, Any] = {
+            'displayProfiles': True,  # Show detected hardware profiles to user
+            'showRAIDControllers': True,  # Display RAID controller options
+            'showStorageOptimizations': True,  # Show storage optimization options
+            'enableOpenCore': True,  # Enable OpenCore installation options
+            'hardwareDatabase': {
+                'enableDatabaseLookup': True,
+                'showOptimalSettings': True,
+                'categories': [
+                    'servers',
+                    'workstations', 
+                    'storage_systems',
+                    'raid_controllers'
+                ]
+            }
+        }
+        hardware_detect_conf_path: Path = calamares_modules_config_dir_chroot / "hardwaredetect.conf"
+        with hardware_detect_conf_path.open('w') as f:
+            yaml.dump(hardware_detect_config, f, default_flow_style=False)
+        self.logger.info(f"Hardware detection config written to {hardware_detect_conf_path}")
+        
+        # RAID Controller Module Configuration
+        raid_controller_config: Dict[str, Any] = {
+            'detectControllers': True,
+            'showITModeWarning': True,  # Warn about IT mode for ZFS
+            'managementTools': {
+                'dell_perc': 'perccli',
+                'hp_smartarray': 'ssacli',
+                'lsi_megaraid': 'megacli',
+                'adaptec': 'arcconf'
+            },
+            'recommendedMode': 'IT',  # IT/HBA mode for ZFS
+            'allowJBODMode': True
+        }
+        raid_conf_path: Path = calamares_modules_config_dir_chroot / "raidcontroller.conf"
+        with raid_conf_path.open('w') as f:
+            yaml.dump(raid_controller_config, f, default_flow_style=False)
+        self.logger.info(f"RAID controller config written to {raid_conf_path}")
+        
+        # Storage Configuration Module
+        storage_config: Dict[str, Any] = {
+            'detectDriveTypes': ['nvme', 'sas', 'sata', 'usb'],
+            'showDriveDetails': True,
+            'optimizationProfiles': {
+                'nvme': {
+                    'scheduler': 'none',
+                    'nr_requests': 2048
+                },
+                'sas': {
+                    'scheduler': 'mq-deadline',
+                    'nr_requests': 256,
+                    'read_ahead_kb': 512
+                },
+                'sata': {
+                    'scheduler': 'mq-deadline',
+                    'nr_requests': 128,
+                    'read_ahead_kb': 256
+                }
+            },
+            'zfsOptimizations': True
+        }
+        storage_conf_path: Path = calamares_modules_config_dir_chroot / "storageconfig.conf"
+        with storage_conf_path.open('w') as f:
+            yaml.dump(storage_config, f, default_flow_style=False)
+        self.logger.info(f"Storage config written to {storage_conf_path}")
+        
+        # OpenCore Installation Module Configuration
+        opencore_config: Dict[str, Any] = {
+            'enabled': True,
+            'version': '0.9.9',
+            'installTargets': {
+                'vFlash': {
+                    'enabled': True,
+                    'priority': 10,
+                    'description': 'Dell vFlash/IDSDM embedded storage'
+                },
+                'usb': {
+                    'enabled': True,
+                    'priority': 7,
+                    'description': 'USB storage device'
+                },
+                'secondary': {
+                    'enabled': True,
+                    'priority': 5,
+                    'description': 'Secondary internal drive'
+                },
+                'sdcard': {
+                    'enabled': True,
+                    'priority': 6,
+                    'description': 'Internal SD card storage'
+                }
+            },
+            'features': {
+                'nvmeSupport': True,
+                'raidSupport': True,
+                'chainloadZFS': True
+            }
+        }
+        opencore_conf_path: Path = calamares_modules_config_dir_chroot / "opencoreinstall.conf"  
+        with opencore_conf_path.open('w') as f:
+            yaml.dump(opencore_config, f, default_flow_style=False)
+        self.logger.info(f"OpenCore installation config written to {opencore_conf_path}")
 
         # Create Z-Forge specific branding for Calamares.
         self._create_calamares_branding()
@@ -371,16 +482,17 @@ apt-get clean
             'windowExpanding': 'normal',    # How the window expands (normal, fullscreen, etc.)
             'windowSize': '900,600',        # Default window size W,H
             'strings': { # Product-specific strings
-                'productName': 'Z-Forge Proxmox VE',
+                'productName': 'Z-Forge Proxmox VE Enterprise',
                 'shortProductName': 'Z-Forge',
                 'version': self.config.get('builder_config', {}).get('iso_version', '3.0'), # Get version from main config
                 'shortVersion': f"v{self.config.get('builder_config', {}).get('iso_version', '3.0')}",
-                'versionedName': f"Z-Forge Proxmox VE v{self.config.get('builder_config', {}).get('iso_version', '3.0')}",
+                'versionedName': f"Z-Forge Proxmox VE Enterprise v{self.config.get('builder_config', {}).get('iso_version', '3.0')}",
                 'shortVersionedName': f"Z-Forge v{self.config.get('builder_config', {}).get('iso_version', '3.0')}",
                 'bootloaderEntryName': 'Z-Forge Proxmox', # Name for bootloader entries
                 'productUrl': 'https://github.com/z-forge', # Example URL
                 'supportUrl': 'https://github.com/z-forge/issues', # Example URL
-                'bugReportUrl': 'https://github.com/z-forge/issues' # Example URL
+                'bugReportUrl': 'https://github.com/z-forge/issues', # Example URL
+                'knownIssuesUrl': 'https://github.com/z-forge/issues' # Example URL
             },
             'images': { # Image filenames (expected within the branding_dir_chroot)
                 'productLogo': 'logo.png',       # Main product logo
@@ -431,11 +543,34 @@ Item {
         anchors.fill: parent
         fillMode: Image.PreserveAspectFit
     }
-    Text {
+    Column {
         anchors.centerIn: parent
-        text: "Welcome to Z-Forge Proxmox VE Installer!"
-        font.pixelSize: 24
-        color: "white"
+        spacing: 10
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "Welcome to Z-Forge Proxmox VE Enterprise Installer!"
+            font.pixelSize: 28
+            font.bold: true
+            color: "white"
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "Enterprise-ready with automatic hardware detection"
+            font.pixelSize: 18
+            color: "#D35400"
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "Supports: Dell, HP, Supermicro servers • NVMe, SAS, RAID controllers"
+            font.pixelSize: 16
+            color: "#CCCCCC"
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "Featuring ZFS 2.3.3 with full encryption support"
+            font.pixelSize: 16
+            color: "#CCCCCC"
+        }
     }
 }
 """)
