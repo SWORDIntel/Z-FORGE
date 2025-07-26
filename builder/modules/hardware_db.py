@@ -132,6 +132,49 @@ class HardwareDatabase:
                 "25GbE networking option"
             ],
             tested=True
+        ),
+        "PowerEdge T30": HardwareProfile(
+            name="Dell PowerEdge T30",
+            vendor="Dell Inc.",
+            model="PowerEdge T30",
+            type="server",
+            optimal_settings={
+                "zfs": {
+                    "arc_max_percent": 50,
+                    "l2arc_write_max": "8M",
+                    "zfs_txg_timeout": 5,
+                    "compression": "lz4"
+                },
+                "kernel": {
+                    "vm_swappiness": 10,
+                    "transparent_hugepages": "never",
+                    "vm_dirty_ratio": 10,
+                    "vm_dirty_background_ratio": 5
+                },
+                "cpu": {
+                    "governor": "performance",
+                    "energy_perf_bias": "performance",
+                    "intel_pstate": "active"
+                },
+                "storage": {
+                    "scheduler": "none",  # For NVMe
+                    "nr_requests": 512
+                }
+            },
+            known_issues=[
+                "May require latest Intel microcode for stability",
+                "BIOS updates recommended for Linux compatibility",
+                "Intel AMT may need to be disabled for some Linux distros"
+            ],
+            special_features=[
+                "Intel AMT remote management",
+                "ECC memory support (unbuffered)",
+                "Dual NVMe M.2 slots",
+                "Intel Xeon E3-1225 v5 support",
+                "4x SATA3 ports",
+                "Up to 64GB DDR4 ECC memory"
+            ],
+            tested=True
         )
     }
     
@@ -364,6 +407,340 @@ class HardwareDatabase:
                 "PCIe 5.0"
             ],
             tested=True
+        ),
+        # Enterprise SAS Storage Systems
+        "WD Ultrastar SAS System": HardwareProfile(
+            name="System with WD Ultrastar SAS Drives",
+            vendor="Western Digital",
+            model="Ultrastar SAS",
+            type="storage_server",
+            optimal_settings={
+                "zfs": {
+                    "arc_max_percent": 60,
+                    "l2arc_write_max": "32M",
+                    "recordsize": "128K",  # Good for enterprise workloads
+                    "compression": "lz4",
+                    "sync": "standard",
+                    "redundant_metadata": "all"
+                },
+                "kernel": {
+                    "vm_swappiness": 1,
+                    "vm_dirty_ratio": 5,
+                    "vm_dirty_background_ratio": 2
+                },
+                "storage": {
+                    "scheduler": "mq-deadline",
+                    "queue_depth": 32,
+                    "read_ahead_kb": 512,
+                    "nr_requests": 128
+                }
+            },
+            known_issues=[
+                "SAS drives require proper cooling in enterprise environments",
+                "Monitor drive temperature and workload patterns"
+            ],
+            special_features=[
+                "Enterprise reliability (2.5M hours MTBF)",
+                "512MB cache buffer",
+                "Dual-port SAS for redundancy",
+                "Advanced error recovery",
+                "Vibration resistance"
+            ],
+            tested=True
+        ),
+        "Dell EMC SAS System": HardwareProfile(
+            name="System with Dell EMC SAS Drives",
+            vendor="Dell EMC",
+            model="Enterprise SAS",
+            type="storage_server",
+            optimal_settings={
+                "zfs": {
+                    "arc_max_percent": 65,
+                    "l2arc_write_max": "64M",
+                    "recordsize": "128K",
+                    "compression": "lz4",
+                    "sync": "always",  # Enterprise data integrity
+                    "copies": 2  # Dual copy for critical data
+                },
+                "kernel": {
+                    "vm_swappiness": 1,
+                    "vm_dirty_ratio": 5,
+                    "elevator": "mq-deadline"
+                },
+                "storage": {
+                    "scheduler": "mq-deadline",
+                    "queue_depth": 32,
+                    "read_ahead_kb": 512,
+                    "enterprise_features": True
+                }
+            },
+            known_issues=[
+                "Ensure Dell OMSA is installed for monitoring",
+                "Check firmware compatibility with Linux kernel"
+            ],
+            special_features=[
+                "Dell certified drives",
+                "OMSA integration",
+                "PowerVault compatibility",
+                "Enterprise support",
+                "Advanced diagnostics"
+            ],
+            tested=True
+        ),
+        "HP Enterprise SAS System": HardwareProfile(
+            name="System with HP Enterprise SAS Drives",
+            vendor="HP/HPE",
+            model="Enterprise SAS",
+            type="storage_server",
+            optimal_settings={
+                "zfs": {
+                    "arc_max_percent": 60,
+                    "l2arc_write_max": "32M",
+                    "recordsize": "128K",
+                    "compression": "lz4",
+                    "checksum": "sha512",  # Enhanced data integrity
+                    "redundant_metadata": "all"
+                },
+                "kernel": {
+                    "vm_swappiness": 1,
+                    "vm_dirty_ratio": 5
+                },
+                "storage": {
+                    "scheduler": "mq-deadline",
+                    "queue_depth": 32,
+                    "read_ahead_kb": 512,
+                    "nr_requests": 128
+                }
+            },
+            known_issues=[
+                "Smart Array controllers may need HBA mode",
+                "HP SSA tools required for drive management"
+            ],
+            special_features=[
+                "HP SmartDrive technology",
+                "Smart Array integration",
+                "Predictive failure analysis",
+                "Enterprise encryption option",
+                "24x7 support availability"
+            ],
+            tested=True
+        ),
+        "Seagate Exos SAS System": HardwareProfile(
+            name="System with Seagate Exos SAS Drives",
+            vendor="Seagate",
+            model="Exos SAS",
+            type="storage_server",
+            optimal_settings={
+                "zfs": {
+                    "arc_max_percent": 65,
+                    "l2arc_write_max": "64M",
+                    "recordsize": "128K",
+                    "compression": "lz4",
+                    "atime": "off",  # Performance optimization
+                    "logbias": "throughput"
+                },
+                "kernel": {
+                    "vm_swappiness": 1,
+                    "vm_dirty_ratio": 5,
+                    "vm_dirty_background_ratio": 2
+                },
+                "storage": {
+                    "scheduler": "mq-deadline",
+                    "queue_depth": 32,
+                    "read_ahead_kb": 512,
+                    "nr_requests": 128
+                }
+            },
+            known_issues=[
+                "Monitor for firmware updates",
+                "Verify SAS cable integrity in high-density configurations"
+            ],
+            special_features=[
+                "2.5M hours MTBF",
+                "PowerBalance technology",
+                "Instant Secure Erase",
+                "Multi-tier caching",
+                "Seagate Secure"
+            ],
+            tested=True
+        )
+    }
+    
+    # RAID Controller Profiles
+    RAID_CONTROLLERS = {
+        "Dell PERC H730": HardwareProfile(
+            name="Dell PERC H730 RAID Controller",
+            vendor="Dell Inc.",
+            model="PERC H730",
+            type="raid_controller",
+            optimal_settings={
+                "raid": {
+                    "mode": "IT",  # IT mode recommended for ZFS
+                    "cache_policy": "disabled",
+                    "bbu_policy": "check_status",
+                    "patrol_read": "auto"
+                },
+                "zfs": {
+                    "arc_max_percent": 50,  # Conservative with RAID cache
+                    "recordsize": "128K",
+                    "compression": "lz4",
+                    "redundant_metadata": "all"
+                },
+                "kernel": {
+                    "vm_swappiness": 10,
+                    "elevator": "mq-deadline"
+                }
+            },
+            known_issues=[
+                "Must be configured in IT mode for ZFS",
+                "RAID cache should be disabled for ZFS pools",
+                "May require PERC firmware update for IT mode"
+            ],
+            special_features=[
+                "2GB cache with BBU",
+                "IT mode support",
+                "RAID 0,1,5,6,10,50,60 support",
+                "Pass-through mode for JBOD"
+            ],
+            tested=True
+        ),
+        "Dell PERC H740P": HardwareProfile(
+            name="Dell PERC H740P RAID Controller",
+            vendor="Dell Inc.",
+            model="PERC H740P",
+            type="raid_controller",
+            optimal_settings={
+                "raid": {
+                    "mode": "IT",
+                    "cache_policy": "disabled",
+                    "fast_path": "enabled",
+                    "patrol_read": "auto"
+                },
+                "zfs": {
+                    "arc_max_percent": 55,
+                    "recordsize": "128K",
+                    "compression": "lz4",
+                    "sync": "standard"
+                },
+                "kernel": {
+                    "vm_swappiness": 5,
+                    "elevator": "none"  # NVMe-capable
+                }
+            },
+            known_issues=[
+                "IT mode required for ZFS",
+                "NVMe pass-through may need firmware update"
+            ],
+            special_features=[
+                "8GB cache with supercapacitor",
+                "NVMe support",
+                "IT mode support",
+                "Enhanced performance"
+            ],
+            tested=True
+        ),
+        "HP Smart Array P440ar": HardwareProfile(
+            name="HP Smart Array P440ar RAID Controller",
+            vendor="HP/HPE",
+            model="Smart Array P440ar",
+            type="raid_controller",
+            optimal_settings={
+                "raid": {
+                    "mode": "HBA",  # HBA mode for ZFS
+                    "cache_policy": "disabled",
+                    "smart_array_mode": "hba"
+                },
+                "zfs": {
+                    "arc_max_percent": 50,
+                    "recordsize": "128K",
+                    "compression": "lz4",
+                    "checksum": "sha512"
+                },
+                "kernel": {
+                    "vm_swappiness": 10,
+                    "elevator": "mq-deadline"
+                }
+            },
+            known_issues=[
+                "Must be configured in HBA mode for ZFS",
+                "HP SSA tools required for configuration",
+                "May need HP firmware for HBA mode"
+            ],
+            special_features=[
+                "2GB cache with FBWC",
+                "HBA mode support",
+                "Smart Array technology",
+                "HPE integration"
+            ],
+            tested=True
+        ),
+        "LSI MegaRAID SAS 9361-8i": HardwareProfile(
+            name="LSI MegaRAID SAS 9361-8i",
+            vendor="LSI/Broadcom",
+            model="MegaRAID SAS 9361-8i",
+            type="raid_controller",
+            optimal_settings={
+                "raid": {
+                    "mode": "IT",
+                    "cache_policy": "writethrough",
+                    "bbu_policy": "enabled",
+                    "jbod_support": "enabled"
+                },
+                "zfs": {
+                    "arc_max_percent": 60,
+                    "recordsize": "128K",
+                    "compression": "lz4",
+                    "atime": "off"
+                },
+                "kernel": {
+                    "vm_swappiness": 5,
+                    "elevator": "mq-deadline"
+                }
+            },
+            known_issues=[
+                "IT mode firmware required for ZFS",
+                "May need LSI tools for configuration"
+            ],
+            special_features=[
+                "1GB cache with BBU",
+                "IT mode firmware available",
+                "JBOD support",
+                "MegaCLI tools"
+            ],
+            tested=True
+        ),
+        "Adaptec ASR-8805": HardwareProfile(
+            name="Adaptec ASR-8805 RAID Controller",
+            vendor="Adaptec/Microsemi",
+            model="ASR-8805",
+            type="raid_controller",
+            optimal_settings={
+                "raid": {
+                    "mode": "HBA",
+                    "cache_policy": "disabled",
+                    "maxcache_mode": "disabled"
+                },
+                "zfs": {
+                    "arc_max_percent": 55,
+                    "recordsize": "128K",
+                    "compression": "lz4"
+                },
+                "kernel": {
+                    "vm_swappiness": 10,
+                    "elevator": "mq-deadline"
+                }
+            },
+            known_issues=[
+                "HBA mode required for ZFS",
+                "Adaptec tools needed for configuration"
+            ],
+            special_features=[
+                "1GB cache",
+                "HBA mode support",
+                "Adaptec management tools",
+                "Smart storage technology"
+            ],
+            tested=True
         )
     }
     
@@ -376,7 +753,8 @@ class HardwareDatabase:
         """Load all hardware profiles"""
         # Combine all profiles
         for profile_dict in [self.DELL_SERVERS, self.HP_SERVERS, 
-                           self.SUPERMICRO_SERVERS, self.CONSUMER_HARDWARE]:
+                           self.SUPERMICRO_SERVERS, self.CONSUMER_HARDWARE,
+                           self.RAID_CONTROLLERS]:
             self.profiles.update(profile_dict)
     
     def detect_hardware(self) -> Dict[str, Any]:
@@ -594,8 +972,189 @@ class HardwareDatabase:
                             }
                             
                     elif device["name"].startswith("sd"):
-                        # Could be SATA or SAS
-                        dev_info["interface"] = "SATA/SAS"
+                        # Could be SATA or SAS - detect specific drive types
+                        model_upper = dev_info["model"].upper()
+                        
+                        # Detect SAS vs SATA based on model patterns
+                        if any(sas_indicator in model_upper for sas_indicator in [
+                            "SAS", "ST", "SEAGATE", "WD", "WESTERN DIGITAL", 
+                            "HGST", "HITACHI", "TOSHIBA", "DELL", "HP", "EMC"
+                        ]):
+                            dev_info["interface"] = "SAS"
+                            
+                            # WD/Western Digital SAS drives
+                            if "WD" in model_upper or "WESTERN DIGITAL" in model_upper:
+                                if "ULTRASTAR" in model_upper:
+                                    dev_info["special"] = "WD Ultrastar SAS"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 32,
+                                        "read_ahead_kb": 512,
+                                        "nr_requests": 128,
+                                        "rotational": 1 if dev_info["rotational"] else 0
+                                    }
+                                elif "GOLD" in model_upper or "RE" in model_upper:
+                                    dev_info["special"] = "WD Gold/RE SAS"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 32,
+                                        "read_ahead_kb": 512,
+                                        "nr_requests": 128
+                                    }
+                                else:
+                                    dev_info["special"] = "WD SAS Drive"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 16,
+                                        "read_ahead_kb": 256
+                                    }
+                            
+                            # Seagate SAS drives
+                            elif "SEAGATE" in model_upper or "ST" in model_upper:
+                                if "EXOS" in model_upper:
+                                    dev_info["special"] = "Seagate Exos SAS"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 32,
+                                        "read_ahead_kb": 512,
+                                        "nr_requests": 128
+                                    }
+                                elif "ENTERPRISE" in model_upper or "CONSTELLATION" in model_upper:
+                                    dev_info["special"] = "Seagate Enterprise SAS"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 32,
+                                        "read_ahead_kb": 512,
+                                        "nr_requests": 128
+                                    }
+                                elif "IRONWOLF" in model_upper:
+                                    dev_info["special"] = "Seagate IronWolf SAS"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 16,
+                                        "read_ahead_kb": 256
+                                    }
+                                else:
+                                    dev_info["special"] = "Seagate SAS Drive"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 16,
+                                        "read_ahead_kb": 256
+                                    }
+                            
+                            # Dell EMC SAS drives
+                            elif "DELL" in model_upper or "EMC" in model_upper:
+                                dev_info["special"] = "Dell EMC SAS Drive"
+                                dev_info["optimizations"] = {
+                                    "scheduler": "mq-deadline",
+                                    "queue_depth": 32,
+                                    "read_ahead_kb": 512,
+                                    "nr_requests": 128,
+                                    "enterprise_features": True
+                                }
+                            
+                            # HP SAS drives
+                            elif "HP" in model_upper or "HPE" in model_upper:
+                                if "ENTERPRISE" in model_upper or "EG" in model_upper:
+                                    dev_info["special"] = "HP Enterprise SAS"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 32,
+                                        "read_ahead_kb": 512,
+                                        "nr_requests": 128
+                                    }
+                                else:
+                                    dev_info["special"] = "HP SAS Drive"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 16,
+                                        "read_ahead_kb": 256
+                                    }
+                            
+                            # HGST/Hitachi SAS drives (now WD)
+                            elif "HGST" in model_upper or "HITACHI" in model_upper:
+                                if "ULTRASTAR" in model_upper:
+                                    dev_info["special"] = "HGST Ultrastar SAS"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 32,
+                                        "read_ahead_kb": 512,
+                                        "nr_requests": 128
+                                    }
+                                else:
+                                    dev_info["special"] = "HGST SAS Drive"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 16,
+                                        "read_ahead_kb": 256
+                                    }
+                            
+                            # Toshiba SAS drives
+                            elif "TOSHIBA" in model_upper:
+                                if "ENTERPRISE" in model_upper or "AL" in model_upper:
+                                    dev_info["special"] = "Toshiba Enterprise SAS"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 32,
+                                        "read_ahead_kb": 512,
+                                        "nr_requests": 128
+                                    }
+                                else:
+                                    dev_info["special"] = "Toshiba SAS Drive"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "mq-deadline",
+                                        "queue_depth": 16,
+                                        "read_ahead_kb": 256
+                                    }
+                            
+                            # Generic SAS drive
+                            else:
+                                dev_info["special"] = "Generic SAS Drive"
+                                dev_info["optimizations"] = {
+                                    "scheduler": "mq-deadline",
+                                    "queue_depth": 16,
+                                    "read_ahead_kb": 256,
+                                    "nr_requests": 64
+                                }
+                        else:
+                            # Likely SATA
+                            dev_info["interface"] = "SATA"
+                            
+                            # SATA SSD detection
+                            if not dev_info["rotational"]:
+                                # Samsung SATA SSDs
+                                if "SAMSUNG" in model_upper:
+                                    if "EVO" in model_upper or "PRO" in model_upper:
+                                        dev_info["special"] = "Samsung SATA SSD"
+                                        dev_info["optimizations"] = {
+                                            "scheduler": "none",
+                                            "queue_depth": 32,
+                                            "read_ahead_kb": 128
+                                        }
+                                # WD SATA SSDs
+                                elif "WD" in model_upper and ("BLUE" in model_upper or "GREEN" in model_upper):
+                                    dev_info["special"] = "WD SATA SSD"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "none",
+                                        "queue_depth": 32,
+                                        "read_ahead_kb": 128
+                                    }
+                                # Generic SATA SSD
+                                else:
+                                    dev_info["special"] = "Generic SATA SSD"
+                                    dev_info["optimizations"] = {
+                                        "scheduler": "none",
+                                        "queue_depth": 32,
+                                        "read_ahead_kb": 128
+                                    }
+                            else:
+                                # SATA HDD - basic optimization
+                                dev_info["special"] = "SATA HDD"
+                                dev_info["optimizations"] = {
+                                    "scheduler": "mq-deadline",
+                                    "queue_depth": 4,
+                                    "read_ahead_kb": 128
+                                }
                     
                     storage_devices.append(dev_info)
                     

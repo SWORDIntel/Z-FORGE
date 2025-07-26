@@ -42,7 +42,7 @@ proxmox_config:
     - i7z
 
 zfs_config:
-  version: latest
+  version: "2.3.3"  # Explicitly use ZFS 2.3.3
   build_from_source: true
   enable_encryption: true
   default_compression: lz4
@@ -51,6 +51,9 @@ zfs_config:
   # Desktop/Tower server optimizations
   prefetch_disable: false
   zio_delay_max: 30000
+  # ZFS 2.3.x features
+  enable_block_cloning: true
+  enable_vdev_properties: true
 
 bootloader_config:
   primary: zfsbootmenu

@@ -1,0 +1,255 @@
+# Z-Forge Build Configuration for PowerEdge R730xd
+builder_config:
+  debian_release: trixie
+  kernel_version: latest
+  output_iso_name: zforge-r730xd-proxmox-v3.iso
+  enable_debug: true
+  workspace_path: /tmp/zforge_workspace
+  cache_packages: true
+
+# System Configuration
+system:
+  desktop_environment: minimal  # Options: kde, gnome, xfce, minimal, none
+  # For server/Proxmox builds, minimal or none is recommended
+
+proxmox_config:
+  version: latest
+  minimal_install: true
+  # Choose installation method:
+  # - false/commented: Use APT repositories (default)
+  # - build_from_source: true - Build from git.proxmox.com
+  # - use_beta_iso: true - Extract from Proxmox VE 9.0 BETA ISO
+  build_from_source: false
+  use_beta_iso: false
+  include_packages:
+    - proxmox-ve
+    - pve-kernel-6.8
+    - zfs-dkms
+    - zfsutils-linux
+    - pve-zsync
+    # Dell PowerEdge R730xd specific packages
+    - ipmitool
+    - openipmi
+    - lm-sensors
+    - nvme-cli
+    - megacli
+    - megactl
+    - megaraid-status
+    - srvadmin-all
+    - snmp
+    - ethtool
+    - fio
+    - smartmontools
+    # Packages for KDE theme configuration and utilities
+    - "kwriteconfig5" # From kwriteconfig package, ensure it's available
+    - "breeze" # For Breeze themes, including Breeze Dark (usually part of kde-standard)
+    - "plasma-desktop-data" # For default theme data, if needed explicitly
+
+zfs_config:
+  version: latest
+  build_from_source: true
+  enable_encryption: true
+  default_compression: dynamic  # Minimum zstd-3, optimized based on system
+  # R730xd has more RAM, can use larger ARC
+  arc_max_size: "16G"  # Updated based on user feedback
+  # Server optimizations
+  prefetch_disable: false  # Enable prefetch for better read perf
+  zio_delay_max: 5000
+
+# ZFS Native Encryption Configuration
+encryption_config:
+  enable: true
+  key_format: raw  # raw or passphrase
+  cipher: aes-256-gcm  # aes-128-gcm, aes-192-gcm, or aes-256-gcm
+  boot_unlock_method: keyfile  # keyfile or passphrase
+
+bootloader_config:
+  primary: zfsbootmenu
+  # R730xd has UEFI, may not need two-stage boot
+  enable_opencore: true
+  enable_two_stage: false
+  opencore_drivers:
+    - NvmExpressDxe.efi
+    - OpenRuntime.efi
+  # Dell PowerEdge R730xd PCIe path configuration
+  nvme_pcie_path: "PciRoot(0x0)/Pci(0x3,0x0)/Pci(0x0,0x0)"
+  # Use UEFI mode for R730xd
+  uefi_mode: true
+
+# OpenCore Configuration for NVMe Boot Support
+opencore_config:
+  install_device: /dev/sda  # Secondary device for OpenCore installation
+  system_type: dell_r730xd  # System-specific configuration
+  enable_nvme_boot: true
+  chainload_zfsbootmenu: true
+
+# ZFS Pool Configuration - Multiple pools with different RAID levels
+zfs_pool_config:
+  # OS Pool - typically mirror for redundancy
+  os_pool:
+    name: rpool
+    type: mirror  # mirror, raidz, raidz2, raidz3, stripe
+    encryption: true
+    compression: dynamic  # Will be optimized (minimum zstd-3)
+    ashift: 12
+    
+  # Storage pools - can have multiple with different purposes
+  storage_pools:
+    - name: tank
+      type: raidz2  # Good balance of capacity and redundancy
+      purpose: vm_storage  # vm_storage, backup, media, database, general
+      mountpoint: /tank
+      encryption: false  # Optional per pool
+      compression: dynamic  # Will be optimized (minimum zstd-3)
+      ashift: 12
+      recordsize: 128K  # Tuned for VM storage
+      
+    - name: backup
+      type: raidz3  # Maximum redundancy for backups
+      purpose: backup
+      mountpoint: /backup
+      encryption: true
+      compression: dynamic  # Will be optimized (minimum zstd-3)  # Better compression for backups
+      ashift: 12
+      recordsize: 1M  # Large records for backup files
+
+dracut_config:
+  modules:
+    - zfs
+    - systemd
+    - network
+  compress: zstd
+  hostonly: true
+  # Add serial console support
+  kernel_cmdline: "root=zfs:AUTO console=tty0 console=ttyS0,115200n8 mitigations=auto,nosmt"
+  extra_drivers:
+    - nvme
+    # Dell PERC RAID controller drivers
+    - megaraid_sas
+    - mpt3sas
+    - mptbase
+    - mptscsih
+    # Network drivers for Dell PowerEdge R730xd
+    - bnx2x
+    - igb
+    - ixgbe
+    - i40e
+
+# Dell PowerEdge R730xd specific configuration
+dell_r730xd_config:
+  enable_serial_console: true
+  serial_port: "ttyS0"
+  serial_speed: 115200
+  enable_idrac: true
+  # IPMI configuration
+  ipmi_settings:
+    enable_sol: true
+    sol_speed: 115200
+  # Hardware RAID configuration
+  raid_monitoring: true
+  # NVMe optimization for modern hardware
+  nvme_settings:
+    io_timeout: 4294967295
+    max_host_mem_size_mb: 1024
+    scheduler: "none"
+    read_ahead_kb: 4096
+    nr_requests: 4096
+  # CPU optimization
+  cpu_governor: "performance"
+  # Memory optimization - R730xd supports more RAM
+  system_memory:
+    swappiness: 5
+    dirty_ratio: 10
+    min_free_kbytes: 1048576
+
+# Include R730xd specific post-install scripts
+post_install_scripts:
+  - config/r730xd/r730xd_post_install.sh
+  - config/r730xd/r730xd_nvme_tune.sh
+
+modules:
+  # Phase 0: Pre-Build Optimization and Verification
+  - name: SystemPrerequisites
+    enabled: true
+  - name: AutoInstallDeps
+    enabled: true
+  - name: MirrorSelector
+    enabled: true
+  - name: BuildCache
+    enabled: true
+  - name: BuildOptimizer
+    enabled: true
+  - name: ModuleVerifier
+    enabled: true
+  - name: ProgressMonitor
+    enabled: true
+    
+  # Phase 1: Base System Setup
+  - name: WorkspaceSetup
+    enabled: true
+  - name: Debootstrap
+    enabled: true
+  - name: NonInteractiveFixes
+    enabled: true
+    
+  # Phase 2: Kernel and Core Modules
+  - name: KernelAcquisition
+    enabled: true
+  - name: ZFSBuild
+    enabled: true
+  - name: ZFSPoolConfig
+    enabled: true
+  - name: ZFSCompressionOptimizer
+    enabled: true
+    
+  # Phase 3: Boot Infrastructure  
+  - name: DracutConfig
+    enabled: true
+  - name: ZFSBootMenuInstall
+    enabled: true
+  - name: BootloaderSetup
+    enabled: true
+    
+  # Phase 4: System Integration
+  - name: ProxmoxIntegration
+    enabled: true
+  - name: SecurityHardening
+    enabled: true
+  - name: ZFSEncryption
+    enabled: true
+  - name: OpenCoreNVME
+    enabled: true
+    
+  # Phase 5: Live Environment
+  - name: LiveEnvironment
+    enabled: true
+  - name: CalamaresIntegration
+    enabled: true
+  - name: KDEThemeConfig
+    enabled: true  # Enable KDE theme configuration
+  - name: DellR730xdOptimize
+    enabled: false  # Module not yet implemented
+    
+  # Phase 6: ISO Generation
+  - name: ISOGeneration
+    enabled: true
+    
+  # Phase 7: Final Cleanup
+  - name: CleanupHandler
+    enabled: true
+
+# Custom ISO Build Versioning
+iso_customization:
+  iso_version: "r730xd-dev-build-$(date +%Y%m%d)" # Example dynamic version, ensure your build env can expand this
+
+# Security Hardening Configuration
+security_config:
+  security_hardening_profile: "server" # Options: "baseline", "server", or "none" (or omit for none)
+
+# Telemetry Configuration (Disabled based on user feedback)
+# telemetry_config:
+#   # Define the endpoint URL where telemetry data should be sent.
+#   # If commented out or empty, the TelemetryJob module will not attempt to send data.
+#   telemetry_endpoint_url: "https_example.com/telemetry_test_r730xd" # Placeholder URL
+#   # User consent is handled via the TelemetryConsent UI module in Calamares.
+#   # This URL is only used if the user explicitly opts-in during installation.
