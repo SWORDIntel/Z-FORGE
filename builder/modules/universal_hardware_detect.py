@@ -25,10 +25,12 @@ class UniversalHardwareDetect:
         self.hardware_db = HardwareDatabase()
         self.detected_profile = None
     
-    def _write_file(self, path: Path, content: str):
+    def _write_file(self, path: Path, content: str, mode: int = None):
         """Write file ensuring parent directory exists"""
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
+        if mode:
+            path.chmod(mode)
         
     def execute(self, resume_data: Optional[Dict[str, Any]] = None,
                 lockfile: Optional[Any] = None) -> Dict[str, Any]:
@@ -81,7 +83,7 @@ class UniversalHardwareDetect:
         
         # Create comprehensive detection script
         detect_script = tmp_dir / "universal_hw_detect.sh"
-        detect_script.write_text("""#!/bin/bash
+        self._write_file(detect_script, """#!/bin/bash
 # Universal Hardware Detection
 
 # System Information
@@ -153,8 +155,7 @@ cat > /tmp/hardware_profile.json << EOF
 EOF
 
 echo "Hardware detection completed"
-""")
-        detect_script.chmod(0o755)
+""", mode=0o755)
         
         # Run detection
         try:
@@ -208,13 +209,11 @@ echo "Hardware detection completed"
         
         # Create modprobe config
         modprobe_conf = self.chroot_path / "etc/modules-load.d/zforge-universal.conf"
-        modprobe_conf.parent.mkdir(parents=True, exist_ok=True)
-        modprobe_conf.write_text('\n'.join(universal_modules))
+        self._write_file(modprobe_conf, '\n'.join(universal_modules))
         
         # Universal dracut configuration
         dracut_conf = self.chroot_path / "etc/dracut.conf.d/99-universal.conf"
-        dracut_conf.parent.mkdir(parents=True, exist_ok=True)
-        dracut_conf.write_text("""# Universal hardware support
+        self._write_file(dracut_conf, """# Universal hardware support
 add_drivers+=" ahci libahci sd_mod sr_mod "
 add_drivers+=" e1000 e1000e igb ixgbe i40e r8169 tg3 bnx2 bnx2x "
 add_drivers+=" nvme nvme_core nvme_common nvme_tcp nvme_rdma "
@@ -264,8 +263,7 @@ add_drivers+=" mpt3sas mpt2sas mptsas megaraid_sas "
         # Dell modules
         modules = ['dell_smbios', 'dcdbas', 'dell_wmi', 'dell_laptop']
         module_conf = self.chroot_path / "etc/modules-load.d/dell.conf"
-        module_conf.parent.mkdir(parents=True, exist_ok=True)
-        module_conf.write_text('\n'.join(modules))
+        self._write_file(module_conf, '\n'.join(modules))
         
         # Dell repository (with GPG bypass)
         if not (self.chroot_path / "etc/apt/sources.list.d/dell-omsa.list").exists():
@@ -273,8 +271,7 @@ add_drivers+=" mpt3sas mpt2sas mptsas megaraid_sas "
 deb [arch=amd64 trusted=yes] https://linux.dell.com/repo/community/openmanage/11100/jammy jammy main
 """
             dell_sources = self.chroot_path / "etc/apt/sources.list.d/dell-omsa.list"
-            dell_sources.parent.mkdir(parents=True, exist_ok=True)
-            dell_sources.write_text(sources)
+            self._write_file(dell_sources, sources)
     
     def _configure_hp_system(self):
         """HP/HPE-specific configurations"""
@@ -282,8 +279,7 @@ deb [arch=amd64 trusted=yes] https://linux.dell.com/repo/community/openmanage/11
         
         modules = ['hpilo', 'hpwdt', 'hp_accel']
         module_conf = self.chroot_path / "etc/modules-load.d/hp.conf"
-        module_conf.parent.mkdir(parents=True, exist_ok=True)
-        module_conf.write_text('\n'.join(modules))
+        self._write_file(module_conf, '\n'.join(modules))
     
     def _configure_lenovo_system(self):
         """Lenovo/IBM-specific configurations"""
@@ -291,7 +287,7 @@ deb [arch=amd64 trusted=yes] https://linux.dell.com/repo/community/openmanage/11
         
         modules = ['thinkpad_acpi', 'hdaps']
         module_conf = self.chroot_path / "etc/modules-load.d/lenovo.conf"
-        module_conf.write_text('\n'.join(modules))
+        self._write_file(module_conf, '\n'.join(modules))
     
     def _configure_supermicro_system(self):
         """Supermicro-specific configurations"""
@@ -300,7 +296,7 @@ deb [arch=amd64 trusted=yes] https://linux.dell.com/repo/community/openmanage/11
         # Supermicro IPMI modules
         modules = ['ipmi_si', 'ipmi_devintf', 'ipmi_msghandler']
         module_conf = self.chroot_path / "etc/modules-load.d/supermicro.conf"
-        module_conf.write_text('\n'.join(modules))
+        self._write_file(module_conf, '\n'.join(modules))
     
     def _configure_intel_cpu(self):
         """Intel CPU optimizations"""
@@ -309,7 +305,7 @@ deb [arch=amd64 trusted=yes] https://linux.dell.com/repo/community/openmanage/11
         # Intel modules
         modules = ['intel_pstate', 'intel_powerclamp', 'coretemp']
         module_conf = self.chroot_path / "etc/modules-load.d/intel-cpu.conf"
-        module_conf.write_text('\n'.join(modules))
+        self._write_file(module_conf, '\n'.join(modules))
         
         # Intel microcode
         if not self._is_package_installed('intel-microcode'):
@@ -322,7 +318,7 @@ deb [arch=amd64 trusted=yes] https://linux.dell.com/repo/community/openmanage/11
         # AMD modules
         modules = ['amd_pstate', 'k10temp', 'fam15h_power']
         module_conf = self.chroot_path / "etc/modules-load.d/amd-cpu.conf"
-        module_conf.write_text('\n'.join(modules))
+        self._write_file(module_conf, '\n'.join(modules))
         
         # AMD microcode
         if not self._is_package_installed('amd64-microcode'):
@@ -355,7 +351,7 @@ vm.dirty_background_ratio = 5
 vm.min_free_kbytes = 131072"""
         
         sysctl_conf = self.chroot_path / f"etc/sysctl.d/99-{config_type}.conf"
-        sysctl_conf.write_text(vm_settings)
+        self._write_file(sysctl_conf, vm_settings)
     
     def _configure_build_settings(self, cores: int, memory_gb: int):
         """Configure build parallelism based on hardware"""
@@ -365,7 +361,7 @@ vm.min_free_kbytes = 131072"""
         
         # Save for other modules to use
         build_conf = self.chroot_path / "etc/zforge-build.conf"
-        build_conf.write_text(f"""# Z-Forge Build Configuration
+        self._write_file(build_conf, f"""# Z-Forge Build Configuration
 ZFORGE_BUILD_JOBS={safe_jobs}
 ZFORGE_CPU_CORES={cores}
 ZFORGE_MEMORY_GB={memory_gb}
