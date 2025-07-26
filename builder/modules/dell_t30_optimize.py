@@ -35,6 +35,9 @@ class DellT30Optimize:
             # Copy T30 scripts to chroot
             self._copy_scripts()
             
+            # Detect hardware automatically
+            self._detect_hardware()
+            
             # Apply T30 specific configurations
             self._configure_t30_hardware()
             
@@ -87,6 +90,141 @@ class DellT30Optimize:
                 self.logger.info(f"Copied {source.name} to chroot")
             else:
                 self.logger.warning(f"Script not found: {source}")
+    
+    def _detect_hardware(self):
+        """Automatically detect T30 hardware configuration"""
+        self.logger.info("Detecting Dell T30 hardware configuration...")
+        
+        # Create hardware detection script
+        detect_script = self.chroot_path / "tmp/detect_t30_hardware.sh"
+        detect_script.write_text("""#!/bin/bash
+# Dell T30 Hardware Detection
+
+echo "=== Dell T30 Hardware Detection ==="
+
+# CPU Detection
+echo "CPU Information:"
+lscpu | grep -E "Model name|Socket|Core|Thread" || true
+
+# Memory Detection
+echo -e "\nMemory Configuration:"
+free -h | grep "Mem:" || true
+dmidecode -t memory 2>/dev/null | grep -E "Size:|Type:|Speed:" | head -10 || true
+
+# Storage Detection
+echo -e "\nStorage Devices:"
+lsblk -d -o NAME,SIZE,TYPE,MODEL | grep -v loop || true
+
+# NVMe Detection
+echo -e "\nNVMe Devices:"
+nvme list 2>/dev/null || echo "No NVMe devices detected"
+
+# Network Detection
+echo -e "\nNetwork Interfaces:"
+ip link show | grep -E "^[0-9]+: " | grep -v "lo:" || true
+lspci | grep -i ethernet || true
+
+# PCIe Devices
+echo -e "\nPCIe Devices:"
+lspci | grep -E "VGA|Audio|USB|SATA|RAID" || true
+
+# BIOS/UEFI Mode
+echo -e "\nBoot Mode:"
+if [ -d /sys/firmware/efi ]; then
+    echo "UEFI Mode"
+else
+    echo "BIOS/Legacy Mode"
+fi
+
+# Save detection results
+cat > /etc/dell-t30-hardware.conf << EOF
+# Dell T30 Hardware Configuration (Auto-detected)
+DETECTED_DATE="$(date)"
+CPU_MODEL="$(lscpu | grep "Model name" | cut -d: -f2 | xargs)"
+CPU_CORES="$(nproc)"
+MEMORY_GB="$(free -g | awk '/^Mem:/{print $2}')"
+BOOT_MODE="$([ -d /sys/firmware/efi ] && echo "UEFI" || echo "BIOS")"
+EOF
+
+echo -e "\nHardware detection completed."
+""")
+        detect_script.chmod(0o755)
+        
+        # Run detection script
+        try:
+            result = subprocess.run(
+                ["chroot", str(self.chroot_path), "/tmp/detect_t30_hardware.sh"],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            if result.stdout:
+                self.logger.info("Hardware detection output:")
+                for line in result.stdout.splitlines():
+                    self.logger.info(f"  {line}")
+                    
+            # Parse detected hardware
+            self._parse_hardware_info()
+            
+        except subprocess.TimeoutExpired:
+            self.logger.warning("Hardware detection timed out")
+        except Exception as e:
+            self.logger.warning(f"Hardware detection failed: {e}")
+    
+    def _parse_hardware_info(self):
+        """Parse and apply hardware-specific optimizations"""
+        hw_conf = self.chroot_path / "etc/dell-t30-hardware.conf"
+        
+        if hw_conf.exists():
+            content = hw_conf.read_text()
+            
+            # Extract key values
+            cpu_cores = 4  # default
+            memory_gb = 8  # default
+            
+            for line in content.splitlines():
+                if line.startswith("CPU_CORES="):
+                    try:
+                        cpu_cores = int(line.split('=')[1].strip('"'))
+                    except ValueError:
+                        pass
+                elif line.startswith("MEMORY_GB="):
+                    try:
+                        memory_gb = int(line.split('=')[1].strip('"'))
+                    except ValueError:
+                        pass
+            
+            self.logger.info(f"Detected: {cpu_cores} CPU cores, {memory_gb}GB RAM")
+            
+            # Apply dynamic optimizations based on hardware
+            if memory_gb >= 32:
+                self.logger.info("High memory system detected, applying optimizations")
+                self._apply_high_memory_optimizations()
+            elif memory_gb <= 8:
+                self.logger.info("Low memory system detected, applying conservative settings")
+                self._apply_low_memory_optimizations()
+    
+    def _apply_high_memory_optimizations(self):
+        """Apply optimizations for high-memory T30 systems"""
+        opt_conf = self.chroot_path / "etc/sysctl.d/99-t30-highmem.conf"
+        opt_conf.write_text("""# High memory T30 optimizations
+vm.swappiness = 1
+vm.vfs_cache_pressure = 50
+vm.dirty_ratio = 15
+vm.dirty_background_ratio = 5
+""")
+    
+    def _apply_low_memory_optimizations(self):
+        """Apply optimizations for low-memory T30 systems"""
+        opt_conf = self.chroot_path / "etc/sysctl.d/99-t30-lowmem.conf"
+        opt_conf.write_text("""# Low memory T30 optimizations
+vm.swappiness = 60
+vm.vfs_cache_pressure = 100
+vm.dirty_ratio = 5
+vm.dirty_background_ratio = 2
+vm.overcommit_memory = 1
+""")
     
     def _configure_t30_hardware(self):
         """Configure T30-specific hardware settings"""

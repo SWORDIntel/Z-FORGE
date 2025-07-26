@@ -298,11 +298,15 @@ iface lo inet loopback
 
     def _configure_services(self):
         """Configure systemd services for live boot"""
+        
+        # Install hardware detection script
+        self._install_hardware_detection()
 
         # Enable necessary services
         services_to_enable = [
             'NetworkManager',
             'ssh',  # For remote debugging
+            'zforge-hardware-detect',  # Hardware auto-detection
         ]
         
         # Add display manager based on desktop environment
@@ -378,3 +382,37 @@ iface lo inet loopback
                 ["chroot", self.chroot_path, "update-initramfs", "-u", "-k", "all"],
                 check=True
             )
+    
+    def _install_hardware_detection(self):
+        """Install hardware detection script and service"""
+        self.logger.info("Installing hardware detection system...")
+        
+        # Copy hardware detection script
+        hw_detect_script = Path(__file__).parent.parent.parent / "scripts/iso_hardware_detect.sh"
+        if hw_detect_script.exists():
+            dest = self.chroot_path / "usr/local/bin/zforge-hardware-detect"
+            shutil.copy2(hw_detect_script, dest)
+            dest.chmod(0o755)
+            self.logger.info("Installed hardware detection script")
+            
+            # Create systemd service
+            hw_service = self.chroot_path / "etc/systemd/system/zforge-hardware-detect.service"
+            hw_service.write_text("""[Unit]
+Description=Z-FORGE Hardware Detection
+DefaultDependencies=no
+After=basic.target
+Before=multi-user.target display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zforge-hardware-detect
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target
+""")
+            self.logger.info("Created hardware detection service")
+        else:
+            self.logger.warning("Hardware detection script not found")

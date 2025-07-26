@@ -149,6 +149,8 @@ modules:
   # Phase 1: Core Setup
   - name: WorkspaceSetup
     enabled: true
+  - name: GPGBypass
+    enabled: true
   - name: Debootstrap
     enabled: true
   

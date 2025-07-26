@@ -725,7 +725,7 @@ Acquire::https::Verify-Host "false";
         
         # Add Dell repository with trusted=yes and arch specified
         dell_sources = """# Dell OpenManage Server Administrator
-deb [arch=amd64 trusted=yes check-valid-until=no] https://linux.dell.com/repo/community/openmanage/11100/jammy jammy main
+deb [arch=amd64 trusted=yes check-valid-until=no signed-by=/usr/share/keyrings/dell-trusted.gpg] https://linux.dell.com/repo/community/openmanage/11100/jammy jammy main
 """
         dell_sources_path = self.chroot_path / "etc" / "apt" / "sources.list.d" / "dell-omsa.list"
         with open(dell_sources_path, "w") as f:
