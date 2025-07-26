@@ -7,7 +7,7 @@ Automatically detects and configures for any hardware during ISO build
 import subprocess
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import json
 import shutil
 from builder.modules.hardware_db import HardwareDatabase, HardwareProfile
