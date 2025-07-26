@@ -24,6 +24,11 @@ class UniversalHardwareDetect:
         self.hardware_profile = {}
         self.hardware_db = HardwareDatabase()
         self.detected_profile = None
+    
+    def _write_file(self, path: Path, content: str):
+        """Write file ensuring parent directory exists"""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
         
     def execute(self, resume_data: Optional[Dict[str, Any]] = None,
                 lockfile: Optional[Any] = None) -> Dict[str, Any]:
@@ -70,8 +75,12 @@ class UniversalHardwareDetect:
         """Detect all hardware components"""
         self.logger.info("Detecting system hardware...")
         
+        # Ensure tmp directory exists in chroot
+        tmp_dir = self.chroot_path / "tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        
         # Create comprehensive detection script
-        detect_script = self.chroot_path / "tmp/universal_hw_detect.sh"
+        detect_script = tmp_dir / "universal_hw_detect.sh"
         detect_script.write_text("""#!/bin/bash
 # Universal Hardware Detection
 
@@ -255,6 +264,7 @@ add_drivers+=" mpt3sas mpt2sas mptsas megaraid_sas "
         # Dell modules
         modules = ['dell_smbios', 'dcdbas', 'dell_wmi', 'dell_laptop']
         module_conf = self.chroot_path / "etc/modules-load.d/dell.conf"
+        module_conf.parent.mkdir(parents=True, exist_ok=True)
         module_conf.write_text('\n'.join(modules))
         
         # Dell repository (with GPG bypass)
@@ -272,6 +282,7 @@ deb [arch=amd64 trusted=yes] https://linux.dell.com/repo/community/openmanage/11
         
         modules = ['hpilo', 'hpwdt', 'hp_accel']
         module_conf = self.chroot_path / "etc/modules-load.d/hp.conf"
+        module_conf.parent.mkdir(parents=True, exist_ok=True)
         module_conf.write_text('\n'.join(modules))
     
     def _configure_lenovo_system(self):
