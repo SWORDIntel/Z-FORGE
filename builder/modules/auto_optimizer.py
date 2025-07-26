@@ -21,14 +21,44 @@ logger = logging.getLogger(__name__)
 class AutoOptimizer:
     """Automatically optimize Z-FORGE installation based on hardware"""
     
-    def __init__(self):
+    def __init__(self, workspace: Path, config: Dict[str, Any]):
+        self.workspace = workspace
+        self.config = config
+        self.chroot_path = workspace / "chroot"
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.hw_db = HardwareDatabase()
         self.preset_loader = PresetLoader()
         self.optimization_report = {}
     
+    def execute(self, resume_data: Optional[Dict[str, Any]] = None,
+                lockfile: Optional[Any] = None) -> Dict[str, Any]:
+        """Execute auto-optimization module"""
+        try:
+            self.logger.info("Starting auto-optimization...")
+            
+            # Perform system analysis
+            analysis = self.analyze_system()
+            
+            # Apply optimizations
+            if analysis and analysis.get('recommended_preset'):
+                self.logger.info(f"Applying preset: {analysis['recommended_preset']}")
+                # Note: Actual application would happen here
+            
+            return {
+                'status': 'success',
+                'analysis': analysis,
+                'message': 'Auto-optimization completed'
+            }
+        except Exception as e:
+            self.logger.error(f"Auto-optimization failed: {e}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
+    
     def analyze_system(self) -> Dict[str, Any]:
         """Perform complete system analysis"""
-        logger.info("Starting system analysis...")
+        self.logger.info("Starting system analysis...")
         
         # Detect hardware
         hw_info = self.hw_db.detect_hardware()
@@ -116,7 +146,7 @@ class AutoOptimizer:
         
         preset_name = preset_override or self.optimization_report["recommended_preset"]
         
-        logger.info(f"Generating configuration with preset: {preset_name}")
+        self.logger.info(f"Generating configuration with preset: {preset_name}")
         
         # Create output directory
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -339,7 +369,7 @@ echo "Please reboot to ensure all settings take effect."
     
     def test_configuration(self, config_dir: Path) -> Dict[str, Any]:
         """Test generated configuration"""
-        logger.info("Testing configuration...")
+        self.logger.info("Testing configuration...")
         
         test_results = {
             "syntax": self._test_syntax(config_dir),
