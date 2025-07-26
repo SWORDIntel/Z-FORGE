@@ -250,7 +250,7 @@ apt-get clean
                   # or as a very early PythonJob if it's purely backend. For simplicity in this sequence,
                   # we assume its data is available by the time 'telemetryconsent' or later modules need it.
                   # A more robust setup would have an 'init' sequence for such tasks.
-                    'show': ['welcome', 'hardwaredetect', 'telemetryconsent', 'locale', 'keyboard', 'zfspooldetect', 'zfsenhancedconfig', 'raidcontroller', 'zfspoolconfig', 'storageconfig']
+                    'show': ['welcome', 'hardwaredetect', 'telemetryconsent', 'locale', 'keyboard', 'raidcontroller', 'zfsrichconfig']
                 },
                 { # Second phase: Execution of tasks
                     'exec': [
