@@ -24,6 +24,7 @@ class DellT30Optimize:
         # T30 specific configuration
         self.t30_config = config.get('dell_t30_config', {})
         self.post_install_scripts = config.get('post_install_scripts', [])
+        self.kernel_build_config = config.get('kernel_build_config', {})
         
     def execute(self, resume_data: Optional[Dict[str, Any]] = None,
                 lockfile: Optional[Any] = None) -> Dict[str, Any]:
@@ -45,6 +46,9 @@ class DellT30Optimize:
             
             # Configure tower server thermal profile
             self._configure_thermal_profile()
+            
+            # Configure memory-conscious kernel builds
+            self._configure_kernel_build_limits()
             
             # Run post-install scripts
             self._run_post_install_scripts()

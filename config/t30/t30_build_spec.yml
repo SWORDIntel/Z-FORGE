@@ -6,6 +6,8 @@ builder_config:
   enable_debug: true
   workspace_path: /tmp/zforge_workspace
   cache_packages: true
+  # T30 high-performance build settings  
+  max_build_jobs: 16  # Utilize full CPU power with 64GB RAM
 
 # System Configuration
 system:
@@ -86,6 +88,23 @@ dracut_config:
     - raid1
     - raid10
     - raid456
+
+# Kernel compilation settings for T30
+kernel_build_config:
+  # High-performance compilation settings for 64GB RAM system
+  max_parallel_jobs: 16  # Use all available cores
+  # Robust build settings to prevent failures
+  compile_flags:
+    - "-pipe"  # Use pipes instead of temp files
+    - "-j$(nproc)"  # Use all available cores
+  # Build environment optimizations
+  environment:
+    MAKEFLAGS: "-j$(nproc)"
+    # Ensure adequate disk space
+    min_free_space: "20G"  # Minimum free space for builds
+    # Build reliability settings
+    retry_failed_builds: true
+    verify_sources: true
 
 # Dell PowerEdge T30 specific configuration
 dell_t30_config:

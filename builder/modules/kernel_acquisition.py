@@ -668,10 +668,48 @@ CONFIG_ZLIB_DEFLATE=y
             with open(config_file, "a") as f:
                 f.write(zfs_config_options)
         
-        # Build and install kernel
-        self._run_chroot_command([
-            "bash", "-c", f"cd {src_dir} && make olddefconfig && make -j$(nproc) && make modules_install && make install"
-        ])
+        # Pre-build validation
+        self.logger.info("Validating build environment before kernel compilation...")
+        self._validate_build_environment()
+        
+        # Build and install kernel with timeout and better error handling
+        self.logger.info("Starting kernel compilation (this may take 30-60 minutes)...")
+        try:
+            # Step 1: Configure kernel
+            self._run_chroot_command([
+                "bash", "-c", f"cd {src_dir} && make olddefconfig"
+            ], timeout=300)  # 5 minutes for config
+            
+            # Step 2: Build kernel (longest step)
+            self._run_chroot_command([
+                "bash", "-c", f"cd {src_dir} && make -j$(nproc)"
+            ], timeout=7200)  # 2 hours for build
+            
+            # Step 3: Install modules
+            self._run_chroot_command([
+                "bash", "-c", f"cd {src_dir} && make modules_install"
+            ], timeout=1200)  # 20 minutes for module install
+            
+            # Step 4: Install kernel
+            self._run_chroot_command([
+                "bash", "-c", f"cd {src_dir} && make install"
+            ], timeout=600)  # 10 minutes for kernel install
+            
+        except subprocess.TimeoutExpired as e:
+            self.logger.error(f"Kernel build timed out after {e.timeout} seconds")
+            self.logger.error("This may indicate insufficient resources or a stuck build process")
+            raise RuntimeError(f"Kernel build timed out: {e}")
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Kernel build failed with exit code {e.returncode}")
+            if e.stderr:
+                self.logger.error(f"Build error output: {e.stderr}")
+            # Cleanup partial build on failure
+            self._cleanup_failed_build(src_dir)
+            raise RuntimeError(f"Kernel build failed: {e}")
+        except Exception as e:
+            self.logger.error(f"Unexpected error during kernel build: {e}")
+            self._cleanup_failed_build(src_dir)
+            raise
         
         # Find the installed kernel version
         ls_result = self._run_chroot_command(["ls", "-1", "/lib/modules"])
@@ -1174,3 +1212,101 @@ mount -t zfs "${root}" "${NEWROOT}" || return 1
             if mount_check.returncode == 0:
                 self.logger.debug(f"Unmounting {target}")
                 subprocess.run(["umount", str(target)], check=False)
+    
+    def _validate_build_environment(self):
+        """Validate the build environment before starting kernel compilation"""
+        self.logger.info("Performing pre-build validation...")
+        
+        # Check available disk space
+        workspace_stat = shutil.disk_usage(self.workspace)
+        free_gb = workspace_stat.free / (1024**3)
+        if free_gb < 20:
+            raise RuntimeError(f"Insufficient disk space: {free_gb:.1f}GB available, need at least 20GB")
+        
+        # Check for essential build tools
+        essential_tools = ['gcc', 'make', 'ld', 'as']
+        for tool in essential_tools:
+            try:
+                result = self._run_chroot_command(['which', tool], timeout=30)
+                if result.returncode != 0:
+                    raise RuntimeError(f"Essential build tool missing: {tool}")
+            except subprocess.TimeoutExpired:
+                raise RuntimeError(f"Timeout checking for build tool: {tool}")
+        
+        # Check for required packages
+        required_packages = ['build-essential', 'bc', 'kmod', 'cpio', 'flex', 'bison', 'libssl-dev', 'libelf-dev']
+        missing_packages = []
+        
+        for package in required_packages:
+            try:
+                result = self._run_chroot_command(['dpkg', '-l', package], timeout=30)
+                if result.returncode != 0:
+                    missing_packages.append(package)
+            except subprocess.TimeoutExpired:
+                missing_packages.append(package)
+        
+        if missing_packages:
+            self.logger.info(f"Installing missing packages: {', '.join(missing_packages)}")
+            try:
+                self._run_chroot_command([
+                    'apt-get', 'update'
+                ], timeout=300)
+                self._run_chroot_command([
+                    'apt-get', 'install', '-y', '--no-install-recommends'
+                ] + missing_packages, timeout=600)
+            except subprocess.TimeoutExpired:
+                raise RuntimeError("Timeout installing required packages")
+        
+        # Check system memory
+        try:
+            result = self._run_chroot_command(['cat', '/proc/meminfo'], timeout=30)
+            meminfo = result.stdout
+            
+            # Extract available memory
+            for line in meminfo.split('\n'):
+                if line.startswith('MemAvailable:'):
+                    mem_kb = int(line.split()[1])
+                    mem_gb = mem_kb / (1024 * 1024)
+                    if mem_gb < 2:
+                        self.logger.warning(f"Low memory available: {mem_gb:.1f}GB - kernel build may fail")
+                    break
+        except (subprocess.TimeoutExpired, ValueError, IndexError):
+            self.logger.warning("Could not check available memory")
+        
+        # Test basic compilation capability
+        try:
+            test_c_code = '#include <stdio.h>\nint main(){printf("test");return 0;}'
+            self._run_chroot_command([
+                'bash', '-c', 
+                f'echo \'{test_c_code}\' | gcc -x c - -o /tmp/test_compile && /tmp/test_compile && rm -f /tmp/test_compile'
+            ], timeout=60)
+            self.logger.info("Basic compilation test passed")
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Timeout during compilation test")
+        except subprocess.CalledProcessError:
+            raise RuntimeError("Basic compilation test failed - toolchain may be broken")
+        
+        self.logger.info("Build environment validation completed successfully")
+    
+    def _cleanup_failed_build(self, src_dir: str):
+        """Clean up after failed kernel build"""
+        self.logger.info(f"Cleaning up failed build in {src_dir}")
+        try:
+            # Kill any remaining build processes
+            self._run_chroot_command(['pkill', '-f', 'make'], check=False, timeout=30)
+            self._run_chroot_command(['pkill', '-f', 'gcc'], check=False, timeout=30)
+            
+            # Clean up build artifacts
+            self._run_chroot_command([
+                'bash', '-c', f'cd {src_dir} && make clean'
+            ], check=False, timeout=300)
+            
+            # Remove incomplete module installations
+            self._run_chroot_command([
+                'bash', '-c', 'rm -rf /lib/modules/*/build /lib/modules/*/source'
+            ], check=False, timeout=60)
+            
+        except Exception as e:
+            self.logger.warning(f"Error during cleanup: {e}")
+        
+        self.logger.info("Build cleanup completed")
