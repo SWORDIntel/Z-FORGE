@@ -417,27 +417,46 @@ apt-get clean
             yaml.dump(raid_controller_config, f, default_flow_style=False)
         self.logger.info(f"RAID controller config for ZFS written to {raid_conf_path}")
         
-        # Storage Configuration Module
+        # Storage Configuration Module (ZFS-focused)
         storage_config: Dict[str, Any] = {
             'detectDriveTypes': ['nvme', 'sas', 'sata', 'usb'],
             'showDriveDetails': True,
+            'zfsFocused': True,  # ZFS-specific optimizations
             'optimizationProfiles': {
                 'nvme': {
                     'scheduler': 'none',
-                    'nr_requests': 2048
+                    'nr_requests': 2048,
+                    'zfs_use': 'primary_pool',  # Fast primary storage
+                    'special_vdev': True  # Can be used for special/cache/log
                 },
                 'sas': {
                     'scheduler': 'mq-deadline',
                     'nr_requests': 256,
-                    'read_ahead_kb': 512
+                    'read_ahead_kb': 512,
+                    'zfs_use': 'primary_pool',  # Enterprise primary storage
+                    'recommended_vdev': 'raidz2'  # Best for SAS arrays
                 },
                 'sata': {
                     'scheduler': 'mq-deadline',
                     'nr_requests': 128,
-                    'read_ahead_kb': 256
+                    'read_ahead_kb': 256,
+                    'zfs_use': 'secondary_pool',  # Bulk storage
+                    'recommended_vdev': 'mirror'  # Best performance/redundancy
                 }
             },
-            'zfsOptimizations': True
+            'zfsRecommendations': {
+                'sectorSize': {
+                    'autoDetect': True,
+                    'nvme': 4096,  # 4K sectors
+                    'sas': 4096,   # Modern SAS uses 4K
+                    'sata': 4096   # Modern SATA uses 4K
+                },
+                'poolGuidelines': {
+                    'separatePools': 'Recommended for different disk types',
+                    'mixedPools': 'Not recommended - performance issues',
+                    'specialVdevs': 'Use fast NVMe for metadata/cache'
+                }
+            }
         }
         storage_conf_path: Path = calamares_modules_config_dir_chroot / "storageconfig.conf"
         with storage_conf_path.open('w') as f:

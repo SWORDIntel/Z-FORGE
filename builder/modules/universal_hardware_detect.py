@@ -874,24 +874,34 @@ WantedBy=basic.target
             self._configure_adaptec(controller)
     
     def _configure_dell_perc(self, controller: Dict[str, Any]):
-        """Configure Dell PERC controller"""
+        """Configure Dell PERC controller for ZFS"""
         # Create PERC configuration
         perc_conf = self.chroot_path / "etc/zforge/raid/dell_perc.conf"
         perc_conf.parent.mkdir(parents=True, exist_ok=True)
         
-        config = f"""# Dell PERC Configuration
+        config = f"""# Dell PERC Configuration for ZFS
 CONTROLLER_TYPE="{controller['type']}"
 CONTROLLER_NAME="{controller['name']}"
 MANAGEMENT_TOOL="{controller['management_tool']}"
 
-# Recommended settings for ZFS
-RAID_MODE="IT"  # IT mode recommended for ZFS
-CACHE_POLICY="disabled"  # Let ZFS handle caching
+# REQUIRED settings for ZFS
+RAID_MODE="IT"  # IT/HBA mode REQUIRED for ZFS
+CACHE_POLICY="disabled"  # ZFS manages all caching
 BBU_POLICY="check_status"
-PATROL_READ="auto"
+PATROL_READ="disabled"  # Let ZFS scrub handle this
+CONSISTENCY_CHECK="disabled"  # ZFS handles data integrity
+
+# ZFS Benefits with IT Mode:
+# - Direct disk access for ZFS checksums
+# - ZFS self-healing capabilities
+# - Better performance (no RAID overhead)
+# - ZFS native encryption support
 
 # Driver settings
 KERNEL_MODULE="megaraid_sas"
+
+# Command to switch to IT mode:
+# perccli /c0 set personality=HBA
 """
         perc_conf.write_text(config)
         
@@ -899,22 +909,32 @@ KERNEL_MODULE="megaraid_sas"
         self._add_package_to_install('perccli')
     
     def _configure_hp_smartarray(self, controller: Dict[str, Any]):
-        """Configure HP Smart Array controller"""
+        """Configure HP Smart Array controller for ZFS"""
         smartarray_conf = self.chroot_path / "etc/zforge/raid/hp_smartarray.conf"
         smartarray_conf.parent.mkdir(parents=True, exist_ok=True)
         
-        config = f"""# HP Smart Array Configuration
+        config = f"""# HP Smart Array Configuration for ZFS
 CONTROLLER_TYPE="{controller['type']}"
 CONTROLLER_NAME="{controller['name']}"
 MANAGEMENT_TOOL="{controller['management_tool']}"
 
-# Recommended settings for ZFS
-RAID_MODE="HBA"  # HBA mode recommended for ZFS
-CACHE_POLICY="disabled"
-SMART_CACHE="disabled"
+# REQUIRED settings for ZFS
+RAID_MODE="HBA"  # HBA mode REQUIRED for ZFS
+CACHE_POLICY="disabled"  # ZFS handles all caching
+SMART_CACHE="disabled"  # Disable SmartCache for ZFS
+ACCELERATOR="disabled"  # ZFS manages acceleration
+
+# ZFS Benefits with HBA Mode:
+# - ZFS native redundancy (mirror/raidz)
+# - Checksum verification on every read
+# - Automatic corruption repair
+# - Snapshot and clone support
 
 # Driver settings
 KERNEL_MODULE="hpsa"
+
+# Command to switch to HBA mode:
+# ssacli ctrl slot=0 modify hbamode=on
 """
         smartarray_conf.write_text(config)
         
@@ -922,23 +942,33 @@ KERNEL_MODULE="hpsa"
         self._add_package_to_install('ssacli')
     
     def _configure_lsi_megaraid(self, controller: Dict[str, Any]):
-        """Configure LSI MegaRAID controller"""
+        """Configure LSI MegaRAID controller for ZFS"""
         megaraid_conf = self.chroot_path / "etc/zforge/raid/lsi_megaraid.conf"
         megaraid_conf.parent.mkdir(parents=True, exist_ok=True)
         
-        config = f"""# LSI MegaRAID Configuration
+        config = f"""# LSI MegaRAID Configuration for ZFS
 CONTROLLER_TYPE="{controller['type']}"
 CONTROLLER_NAME="{controller['name']}"
 MANAGEMENT_TOOL="{controller['management_tool']}"
 
-# Recommended settings for ZFS
-RAID_MODE="IT"  # IT mode recommended for ZFS
-CACHE_POLICY="disabled"
+# REQUIRED settings for ZFS
+RAID_MODE="IT"  # IT mode REQUIRED for ZFS (or JBOD if IT not available)
+CACHE_POLICY="disabled"  # ZFS ARC handles caching
 BBU_POLICY="check_status"
-WRITE_POLICY="write_through"
+WRITE_POLICY="write_through"  # ZFS manages write caching
+DISK_CACHE="disabled"  # Let ZFS control disk caches
+
+# ZFS JBOD Mode (if IT mode not available):
+# - Present each disk individually to ZFS
+# - No RAID configuration at controller level
+# - Full ZFS control over redundancy
 
 # Driver settings
 KERNEL_MODULE="megaraid_sas"
+
+# Commands for ZFS setup:
+# megacli -CfgLdDel -Lall -aAll  # Delete all RAID configs
+# megacli -AdpSetProp -EnableJBOD 1 -a0  # Enable JBOD mode
 """
         megaraid_conf.write_text(config)
         
@@ -946,22 +976,32 @@ KERNEL_MODULE="megaraid_sas"
         self._add_package_to_install('megacli')
     
     def _configure_adaptec(self, controller: Dict[str, Any]):
-        """Configure Adaptec controller"""
+        """Configure Adaptec controller for ZFS"""
         adaptec_conf = self.chroot_path / "etc/zforge/raid/adaptec.conf"
         adaptec_conf.parent.mkdir(parents=True, exist_ok=True)
         
-        config = f"""# Adaptec Configuration
+        config = f"""# Adaptec Configuration for ZFS
 CONTROLLER_TYPE="{controller['type']}"
 CONTROLLER_NAME="{controller['name']}"
 MANAGEMENT_TOOL="{controller['management_tool']}"
 
-# Recommended settings for ZFS
-RAID_MODE="HBA"  # HBA mode recommended for ZFS
-CACHE_POLICY="disabled"
-MAXCACHE="disabled"
+# REQUIRED settings for ZFS
+RAID_MODE="HBA"  # HBA/Raw mode REQUIRED for ZFS
+CACHE_POLICY="disabled"  # ZFS handles all caching
+MAXCACHE="disabled"  # Disable MaxCache for ZFS
+BACKGROUND_VERIFY="disabled"  # ZFS scrub handles verification
+
+# ZFS Raw/HBA Mode Benefits:
+# - Direct disk access for ZFS
+# - Native ZFS encryption support
+# - ZFS compression efficiency
+# - Flexible pool expansion
 
 # Driver settings
 KERNEL_MODULE="aacraid"
+
+# Command to enable HBA mode:
+# arcconf SETCONFIG 1 DIRECTATTACHEDMODE
 """
         adaptec_conf.write_text(config)
         
