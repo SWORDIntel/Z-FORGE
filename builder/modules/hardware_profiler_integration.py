@@ -150,6 +150,7 @@ X-GNOME-Autostart-enabled=true
         
         # Create welcome script
         welcome_script = self.chroot_path / "usr/local/bin/show_profiler_welcome.sh"
+        welcome_script.parent.mkdir(parents=True, exist_ok=True)
         welcome_script.write_text("""#!/bin/bash
 # Show welcome message on first boot
 
@@ -205,6 +206,7 @@ Icon=applications-system
         
         # Create package list file
         pkg_list = self.chroot_path / "tmp/profiler_packages.txt"
+        pkg_list.parent.mkdir(parents=True, exist_ok=True)
         pkg_list.write_text("\n".join(packages))
         
         # Install packages (will be handled by package management module)

@@ -671,6 +671,7 @@ class OpenCoreNVME:
             
             # Write config.plist
             config_path = oc_dir / "config.plist"
+            config_path.parent.mkdir(parents=True, exist_ok=True)
             config_path.write_text(config_plist)
             
             # Create boot entry
@@ -790,6 +791,7 @@ echo "Target: $TARGET"
 '''
         
         script_path = self.chroot_path / "usr/local/bin/zforge-opencore-install"
+        script_path.parent.mkdir(parents=True, exist_ok=True)
         script_path.write_text(script_content)
         script_path.chmod(0o755)
         
