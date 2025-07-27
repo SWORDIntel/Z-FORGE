@@ -331,6 +331,17 @@ ff02::2 ip6-allrouters
             f.write(hosts_content)
         self.logger.debug(f"Configured {hosts_path}")
         
+        # Configure /etc/resolv.conf for DNS resolution
+        resolv_content: str = """# DNS configuration for Z-FORGE build
+nameserver 9.9.9.9
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+"""
+        resolv_path: Path = self.chroot_path / "etc/resolv.conf"
+        with open(resolv_path, 'w') as f:
+            f.write(resolv_content)
+        self.logger.debug(f"Configured {resolv_path}")
+        
         # Configure a minimal /etc/fstab.
         # The actual fstab will be generated during installation by Calamares or another installer.
         fstab_content: str = """# /etc/fstab: static file system information.

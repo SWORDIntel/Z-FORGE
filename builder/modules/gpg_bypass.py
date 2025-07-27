@@ -87,8 +87,6 @@ Debug::Acquire::gpgv "true";
         apt_prefs = """Package: *
 Pin: release *
 Pin-Priority: 1001
-
-Explanation: Trust all packages regardless of signature
 """
         
         apt_prefs_path = self.chroot_path / "etc/apt/preferences.d/99-trust-all"

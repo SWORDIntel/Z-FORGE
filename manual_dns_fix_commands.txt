@@ -1,0 +1,68 @@
+# Manual commands to fix DNS for Z-FORGE build
+# Run these commands one by one:
+
+echo "=== Manual DNS Fix Commands ==="
+
+# 1. Fix host DNS (create /etc/resolv.conf)
+echo "1. Creating host DNS configuration..."
+sudo tee /etc/resolv.conf > /dev/null << 'EOF'
+# DNS configuration for USB tethering
+nameserver 9.9.9.9
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+nameserver 8.8.4.4
+options timeout:10
+options attempts:3
+EOF
+
+# 2. Test host DNS
+echo "2. Testing host DNS..."
+nslookup deb.debian.org
+
+# 3. Fix chroot DNS
+echo "3. Creating chroot DNS configuration..."
+sudo tee /tmp/zforge_workspace/chroot/etc/resolv.conf > /dev/null << 'EOF'
+# DNS servers for tethered connections
+nameserver 9.9.9.9
+nameserver 8.8.8.8  
+nameserver 1.1.1.1
+nameserver 8.8.4.4
+options timeout:10
+options attempts:3
+options rotate
+EOF
+
+# 4. Mount chroot filesystems
+echo "4. Mounting chroot filesystems..."
+sudo mount -t proc proc /tmp/zforge_workspace/chroot/proc 2>/dev/null || echo "proc already mounted"
+sudo mount -t sysfs sysfs /tmp/zforge_workspace/chroot/sys 2>/dev/null || echo "sys already mounted"
+sudo mount --bind /dev /tmp/zforge_workspace/chroot/dev 2>/dev/null || echo "dev already mounted"
+sudo mount -t devpts devpts /tmp/zforge_workspace/chroot/dev/pts 2>/dev/null || echo "dev/pts already mounted"
+
+# 5. Configure APT for reliability
+echo "5. Configuring APT for network reliability..."
+sudo tee /tmp/zforge_workspace/chroot/etc/apt/apt.conf.d/99-network-reliability > /dev/null << 'EOF'
+// Network reliability optimizations
+Acquire::Retries "5";
+Acquire::http::Timeout "60";
+Acquire::https::Timeout "60";
+Acquire::ftp::Timeout "60";
+Acquire::http::Pipeline-Depth "0";
+Acquire::BrokenProxy "true";
+APT::Get::Assume-Yes "true";
+APT::Install-Recommends "false";
+APT::Install-Suggests "false";
+Dpkg::Progress-Fancy "false";
+EOF
+
+# 6. Test chroot DNS
+echo "6. Testing chroot DNS..."
+sudo chroot /tmp/zforge_workspace/chroot /bin/bash -c 'nslookup deb.debian.org'
+
+# 7. Test APT update
+echo "7. Testing APT update..."
+sudo chroot /tmp/zforge_workspace/chroot /bin/bash -c 'export DEBIAN_FRONTEND=noninteractive && apt-get update'
+
+echo "=== DNS Fix Complete ==="
+echo "Now resume Z-FORGE build:"
+echo "sudo python3 builder/z-forge.py --build-spec build_spec.yml --resume"

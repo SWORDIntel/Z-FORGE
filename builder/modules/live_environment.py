@@ -397,6 +397,7 @@ iface lo inet loopback
             
             # Create systemd service
             hw_service = self.chroot_path / "etc/systemd/system/zforge-hardware-detect.service"
+            hw_service.parent.mkdir(parents=True, exist_ok=True)
             hw_service.write_text("""[Unit]
 Description=Z-FORGE Hardware Detection
 DefaultDependencies=no

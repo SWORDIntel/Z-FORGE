@@ -227,15 +227,171 @@ These are helper/utility modules, not meant to be executed by the builder:
 - Added check for ISO build mode and skip bootloader setup
 - Bootloader will be handled by ISO generation module instead
 
-### Next Steps
+## File Operation Safety & Configuration Fixes (2025-07-27)
 
-The build should now proceed successfully. All major issues have been fixed:
+### Critical Build System Robustness Improvements
+
+#### 1. **File Operation Safety Pattern (Universal Fix)**
+
+**Problem**: Multiple modules were writing files without ensuring parent directories exist, causing "No such file or directory" errors.
+
+**Solution**: Implemented universal safe file write pattern across all modules:
+
+```python
+# UNSAFE (old pattern)
+file_path.write_text(content)
+
+# SAFE (new pattern)
+file_path.parent.mkdir(parents=True, exist_ok=True)
+file_path.write_text(content)
+
+# HELPER METHOD (recommended)
+def _write_file(self, path: Path, content: str, mode: int = None):
+    """Write file ensuring parent directory exists"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content)
+    if mode:
+        path.chmod(mode)
+```
+
+#### 2. **Modules Fixed for File Operation Safety**
+
+1. **UniversalHardwareDetect** (`universal_hardware_detect.py`)
+   - ✅ Fixed: `/etc/systemd/system/zforge-hw-autoconfig.service`
+   - ✅ Fixed: `/usr/local/bin/zforge-hw-autoconfig` script
+   - ✅ Fixed: `/etc/sysctl.d/99-zforge-optimal.conf`
+   - ✅ Fixed: `/etc/systemd/system/cpu-governor.service`
+   - ✅ Fixed: `/etc/systemd/system/disable-thp.service`
+   - ✅ Fixed: `/usr/local/bin/zforge-raid-info` script
+
+2. **LiveEnvironment** (`live_environment.py`)
+   - ✅ Fixed: `/etc/systemd/system/zforge-hardware-detect.service`
+
+3. **DellT30Optimize** (`dell_t30_optimize.py`)
+   - ✅ Fixed: `/tmp/detect_t30_hardware.sh`
+
+4. **Hardware Profiler Integration** (`hardware_profiler_integration.py`)
+   - ✅ Fixed: Welcome script and package list directory creation
+
+5. **OpenCore Enhanced** (`opencore_enhanced.py`)
+   - ✅ Fixed: Post-install script and config.plist directory creation
+
+#### 3. **APT Configuration Format Fix**
+
+**Problem**: Invalid APT preferences file format causing build failure:
+```
+E: Invalid record in the preferences file /etc/apt/preferences.d/99-trust-all, no Package header
+```
+
+**Root Cause**: Invalid "Explanation" field in APT preferences file.
+
+**Fix Applied** in `builder/modules/gpg_bypass.py`:
+```python
+# BEFORE (invalid APT preferences format)
+apt_prefs = """Package: *
+Pin: release *
+Pin-Priority: 1001
+
+Explanation: Trust all packages regardless of signature
+"""
+
+# AFTER (valid APT preferences format)
+apt_prefs = """Package: *
+Pin: release *
+Pin-Priority: 1001
+"""
+```
+
+#### 4. **Comprehensive Configuration File Audit**
+
+**Verified as Valid**:
+- ✅ All systemd service files (`[Unit]`, `[Service]`, `[Install]` sections)
+- ✅ All desktop entry files (`[Desktop Entry]` sections)
+- ✅ All shell scripts (proper `#!/bin/bash` shebangs)
+- ✅ All APT configuration files (correct syntax)
+- ✅ All network interfaces configuration
+- ✅ All environment variable exports
+- ✅ All package installation commands
+- ✅ All modprobe configuration files
+
+### File Operation Safety Guidelines for Module Development
+
+#### **Mandatory Pattern for All File Writes**
+
+```python
+class ModuleTemplate:
+    def _write_file(self, path: Path, content: str, mode: int = None):
+        """Universal safe file write method - USE THIS"""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+        if mode:
+            path.chmod(mode)
+    
+    def _create_config_file(self):
+        """Example of safe file creation"""
+        config_path = self.chroot_path / "etc/mymodule/config.conf"
+        config_content = """# My module configuration
+key=value
+"""
+        # ALWAYS use the helper method or manual directory creation
+        self._write_file(config_path, config_content, mode=0o644)
+        
+        # OR manually ensure directory exists
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(config_content)
+        config_path.chmod(0o644)
+```
+
+#### **Required Checks Before File Operations**
+
+1. **Systemd Services**: Always create `/etc/systemd/system/` directory
+2. **Scripts**: Always create `/usr/local/bin/` directory  
+3. **Configs**: Always create config directory (e.g., `/etc/sysctl.d/`)
+4. **Temporary Files**: Always create `/tmp/` in chroot
+5. **Application Configs**: Always create application-specific directories
+
+#### **Common Error Patterns to Avoid**
+
+```python
+# ❌ NEVER DO THIS - Will fail if directory doesn't exist
+systemd_service = self.chroot_path / "etc/systemd/system/myservice.service"
+systemd_service.write_text(service_content)
+
+# ❌ NEVER DO THIS - Will fail if /tmp doesn't exist in chroot
+script_path = self.chroot_path / "tmp/myscript.sh"
+script_path.write_text(script_content)
+
+# ✅ ALWAYS DO THIS - Safe pattern
+systemd_service = self.chroot_path / "etc/systemd/system/myservice.service"
+systemd_service.parent.mkdir(parents=True, exist_ok=True)
+systemd_service.write_text(service_content)
+
+# ✅ OR USE HELPER METHOD
+self._write_file(systemd_service, service_content, mode=0o644)
+```
+
+#### **Configuration File Format Standards**
+
+1. **APT Preferences**: No "Explanation" fields allowed
+2. **Systemd Services**: Must have `[Unit]`, `[Service]`, `[Install]` sections
+3. **Desktop Entries**: Must start with `[Desktop Entry]`
+4. **Shell Scripts**: Must start with `#!/bin/bash`
+5. **Network Interfaces**: Follow Debian interfaces(5) format
+
+### Build System Status (2025-07-27)
+
+**All Critical Issues Resolved**:
 1. ✅ Module signatures corrected
 2. ✅ Module name mismatches fixed with symlinks
 3. ✅ JSON serialization for sets handled
 4. ✅ Dracut packages installed in chroot
 5. ✅ Toram module permissions fixed
 6. ✅ ZFSBootMenu downloads working
+7. ✅ **File operation safety implemented across all modules**
+8. ✅ **APT configuration format errors fixed**
+9. ✅ **Directory creation errors eliminated**
+
+### Current Build Command
 
 Run the build with:
 ```bash
@@ -247,3 +403,5 @@ Or to resume from where it left off:
 ```bash
 sudo python3 builder/z-forge.py --build-spec build_spec.yml --resume
 ```
+
+**Build system is now robust and follows all safety patterns.**

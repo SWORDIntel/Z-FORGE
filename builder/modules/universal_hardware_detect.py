@@ -375,7 +375,7 @@ ZFORGE_MEMORY_GB={memory_gb}
         
         # Copy the universal detection script
         runtime_script = self.chroot_path / "usr/local/bin/zforge-hw-autoconfig"
-        runtime_script.write_text("""#!/bin/bash
+        self._write_file(runtime_script, """#!/bin/bash
 # Z-Forge Runtime Hardware Auto-Configuration
 
 echo "=== Z-Forge Hardware Auto-Configuration ==="
@@ -438,8 +438,7 @@ CPU_MODEL="$CPU_MODEL"
 MEMORY_GB="$MEM_GB"
 DETECTED_AT="$(date)"
 EOF
-""")
-        runtime_script.chmod(0o755)
+""", mode=0o755)
         
         # Create systemd service
         service_content = """[Unit]
@@ -459,7 +458,7 @@ WantedBy=multi-user.target
 """
         
         service_path = self.chroot_path / "etc/systemd/system/zforge-hw-autoconfig.service"
-        service_path.write_text(service_content)
+        self._write_file(service_path, service_content)
     
     def _is_package_installed(self, package: str) -> bool:
         """Check if package is marked for installation"""
@@ -600,6 +599,7 @@ WantedBy=multi-user.target
     def _apply_kernel_settings(self, kernel_settings: Dict[str, Any]):
         """Apply kernel-specific settings"""
         sysctl_conf = self.chroot_path / "etc/sysctl.d/99-zforge-optimal.conf"
+        sysctl_conf.parent.mkdir(parents=True, exist_ok=True)
         
         lines = ["# Z-Forge Optimal Kernel Settings"]
         for key, value in kernel_settings.items():
@@ -629,6 +629,7 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 """
             service_path = self.chroot_path / "etc/systemd/system/cpu-governor.service"
+            service_path.parent.mkdir(parents=True, exist_ok=True)
             service_path.write_text(service_content)
         
         self.logger.info("Applied optimal CPU settings")
@@ -676,6 +677,7 @@ ExecStart=/bin/sh -c 'echo never > /sys/kernel/mm/transparent_hugepage/enabled &
 WantedBy=basic.target
 """
             service_path = self.chroot_path / "etc/systemd/system/disable-thp.service"
+            service_path.parent.mkdir(parents=True, exist_ok=True)
             service_path.write_text(service_content)
     
     def _configure_raid_controllers(self):
@@ -1033,6 +1035,7 @@ KERNEL_MODULE="aacraid"
         
         # Create RAID management script
         raid_script = self.chroot_path / "usr/local/bin/zforge-raid-info"
+        raid_script.parent.mkdir(parents=True, exist_ok=True)
         raid_script.write_text("""#!/bin/bash
 # Z-FORGE RAID Information Script
 

@@ -97,6 +97,7 @@ class DellT30Optimize:
         
         # Create hardware detection script
         detect_script = self.chroot_path / "tmp/detect_t30_hardware.sh"
+        detect_script.parent.mkdir(parents=True, exist_ok=True)
         detect_script.write_text("""#!/bin/bash
 # Dell T30 Hardware Detection
 
