@@ -131,6 +131,8 @@ modules:
   # Phase 0: Detection and Setup
   - name: WorkspaceSetup
     enabled: true
+  - name: WorkspaceSafety  # CRITICAL: Must be early to track all mounts
+    enabled: true
   - name: GPGBypass
     enabled: true
   - name: UniversalHardwareDetect

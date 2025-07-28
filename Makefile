@@ -15,13 +15,13 @@ check:
 	@echo "Checking build environment..."
 	@bash scripts/build/check_build_env.sh
 
-# Clean build artifacts
+# Clean build artifacts SAFELY
 clean:
-	@echo "Cleaning build workspace..."
-	@sudo rm -rf /tmp/zforge_workspace
-	@sudo rm -rf /var/tmp/zforge_workspace
+	@echo "Cleaning build workspace SAFELY..."
+	@bash scripts/build/safe-cleanup-workspace.sh /tmp/zforge_workspace
+	@bash scripts/build/safe-cleanup-workspace.sh /var/tmp/zforge_workspace
 	@rm -f logs/*.log
-	@echo "Cleanup complete"
+	@echo "Safe cleanup complete"
 
 # Install build dependencies (Debian/Ubuntu)
 deps:
