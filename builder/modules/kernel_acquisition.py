@@ -752,8 +752,7 @@ CONFIG_ZLIB_DEFLATE=y
                     self.logger.info("Adding contrib component to sources.list...")
                     
                     # Add contrib to existing lines
-                    lines = sources_content.split('
-')
+                    lines = sources_content.split('\n')
                     new_lines = []
                     for line in lines:
                         if line.strip() and not line.strip().startswith('#'):
