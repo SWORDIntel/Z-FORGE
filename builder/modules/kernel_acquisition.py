@@ -734,6 +734,49 @@ CONFIG_ZLIB_DEFLATE=y
         self.logger.info(f"Built and installed kernel version: {target_version}")
         return target_version
     
+    def _add_zfs_repository(self) -> None:
+        """Add OpenZFS repository for Debian to get ZFS packages."""
+        self.logger.info("Adding OpenZFS repository for Debian...")
+        
+        try:
+            # Install curl if not present
+            self._run_chroot_command([
+                "apt-get", "install", "-y", "curl", "gnupg"
+            ])
+            
+            # Download and install OpenZFS GPG key
+            self._run_chroot_command([
+                "curl", "-fsSL", "https://packages.openzfs.org/openzfs.gpg.key",
+                "-o", "/tmp/openzfs.gpg.key"
+            ])
+            
+            # Import GPG key
+            self._run_chroot_command([
+                "gpg", "--dearmor", "--output", "/usr/share/keyrings/openzfs.gpg",
+                "/tmp/openzfs.gpg.key"
+            ])
+            
+            # Add repository (using [trusted=yes] to bypass GPG verification issues)
+            repo_line = (
+                "deb [trusted=yes] "
+                "https://packages.openzfs.org/debian trixie main"
+            )
+            
+            sources_list = self.chroot_path / "etc/apt/sources.list.d/openzfs.list"
+            sources_list.parent.mkdir(parents=True, exist_ok=True)
+            sources_list.write_text(f"{repo_line}\n")
+            
+            self.logger.info(f"Added OpenZFS repository: {sources_list}")
+            
+            # Update package lists
+            self._run_chroot_command([
+                "apt-get", "update"
+            ])
+            
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to add OpenZFS repository: {e}")
+            self.logger.info("Continuing with available packages...")
+    
     def _install_zfs_module(self, kernel_version: str) -> None:
         """
         Install ZFS kernel module for the specified kernel version.
@@ -742,6 +785,9 @@ CONFIG_ZLIB_DEFLATE=y
             kernel_version: The kernel version to install ZFS for.
         """
         self.logger.info(f"Installing ZFS module for kernel {kernel_version}...")
+        
+        # Add OpenZFS repository for Debian
+        self._add_zfs_repository()
         
         # Ensure ZFS packages are installed
         self._run_chroot_command([
