@@ -356,6 +356,8 @@ class KernelAcquisition:
         dracut_packages = ["dracut", "dracut-core", "dracut-network", "zstd", "kmod", "libkmod2"] # initramfs-tools is intentionally omitted here
         # ZFS packages (requires DKMS and kernel headers)
         zfs_packages = ["zfsutils-linux", "zfs-dkms"]
+        # Alternative ZFS packages if main ones fail
+        zfs_alt_packages = ["zfs-modules", "zfs-initramfs"]
         # ZFSBootMenu dependencies (zfsbootmenu itself will be installed separately)
         zfsbootmenu_packages = ["perl", "fzf", "mbuffer", "efibootmgr", "kexec-tools"]
         
@@ -735,38 +737,39 @@ CONFIG_ZLIB_DEFLATE=y
         return target_version
     
     def _add_zfs_repository(self) -> None:
-        """Add OpenZFS repository for Debian to get ZFS packages."""
-        self.logger.info("Adding OpenZFS repository for Debian...")
+        """Enable contrib repository for ZFS packages in Debian."""
+        self.logger.info("Enabling contrib repository for ZFS packages...")
         
         try:
-            # Install curl if not present
-            self._run_chroot_command([
-                "apt-get", "install", "-y", "curl", "gnupg"
-            ])
-            
-            # Download and install OpenZFS GPG key
-            self._run_chroot_command([
-                "curl", "-fsSL", "https://packages.openzfs.org/openzfs.gpg.key",
-                "-o", "/tmp/openzfs.gpg.key"
-            ])
-            
-            # Import GPG key
-            self._run_chroot_command([
-                "gpg", "--dearmor", "--output", "/usr/share/keyrings/openzfs.gpg",
-                "/tmp/openzfs.gpg.key"
-            ])
-            
-            # Add repository (using [trusted=yes] to bypass GPG verification issues)
-            repo_line = (
-                "deb [trusted=yes] "
-                "https://packages.openzfs.org/debian trixie main"
-            )
-            
-            sources_list = self.chroot_path / "etc/apt/sources.list.d/openzfs.list"
-            sources_list.parent.mkdir(parents=True, exist_ok=True)
-            sources_list.write_text(f"{repo_line}\n")
-            
-            self.logger.info(f"Added OpenZFS repository: {sources_list}")
+            # Read current sources.list
+            sources_list_path = self.chroot_path / "etc/apt/sources.list"
+            if sources_list_path.exists():
+                with open(sources_list_path, 'r') as f:
+                    sources_content = f.read()
+                
+                # Check if contrib is already enabled
+                if 'contrib' not in sources_content:
+                    self.logger.info("Adding contrib component to sources.list...")
+                    
+                    # Add contrib to existing lines
+                    lines = sources_content.split('
+')
+                    new_lines = []
+                    for line in lines:
+                        if line.strip() and not line.strip().startswith('#'):
+                            if 'deb ' in line and 'main' in line and 'contrib' not in line:
+                                # Add contrib and non-free-firmware to the line
+                                line = line.rstrip() + ' contrib non-free-firmware'
+                        new_lines.append(line)
+                    
+                    # Write back the updated sources.list
+                    with open(sources_list_path, 'w') as f:
+                        f.write('
+'.join(new_lines))
+                    
+                    self.logger.info("Updated sources.list with contrib repository")
+                else:
+                    self.logger.info("Contrib repository already enabled")
             
             # Update package lists
             self._run_chroot_command([
@@ -774,9 +777,8 @@ CONFIG_ZLIB_DEFLATE=y
             ])
             
         except subprocess.CalledProcessError as e:
-            self.logger.warning(f"Failed to add OpenZFS repository: {e}")
-            self.logger.info("Continuing with available packages...")
-    
+            self.logger.warning(f"Failed to update package lists: {e}")
+            self.logger.info("Continuing with installation attempt...")
     def _install_zfs_module(self, kernel_version: str) -> None:
         """
         Install ZFS kernel module for the specified kernel version.
@@ -786,40 +788,108 @@ CONFIG_ZLIB_DEFLATE=y
         """
         self.logger.info(f"Installing ZFS module for kernel {kernel_version}...")
         
-        # Add OpenZFS repository for Debian
+        # Enable contrib repository for Debian native ZFS packages
         self._add_zfs_repository()
         
-        # Ensure ZFS packages are installed
-        self._run_chroot_command([
-            "apt-get", "install", "-y", "zfs-dkms", "zfsutils-linux"
-        ])
+        # Try to install ZFS packages with fallback options
+        zfs_install_success = False
         
-        # Build ZFS module for the kernel
-        # Mount required filesystems for DKMS
-        self._mount_pseudo_filesystems()
-        
+        # First attempt: Install standard ZFS packages
         try:
+            self.logger.info("Installing ZFS packages from Debian repositories...")
             self._run_chroot_command([
-                "dkms", "autoinstall", "-k", kernel_version
+                "apt-get", "install", "-y", "--no-install-recommends",
+                "zfsutils-linux", "zfs-dkms"
             ])
+            zfs_install_success = True
         except subprocess.CalledProcessError as e:
-            self.logger.warning(f"DKMS autoinstall failed: {e.stderr}")
+            self.logger.warning(f"Standard ZFS package installation failed: {e}")
             
-            # Try more direct approach
-            self._run_chroot_command([
-                "dkms", "install", "zfs/2.2.0", "-k", kernel_version
-            ], check=False)  # Don't fail if this doesn't work
-        finally:
-            # Always unmount the filesystems
-            self._unmount_pseudo_filesystems()
-            
-        # Verify ZFS module was installed
-        self.logger.info("Verifying ZFS module installation...")
-        modules_path = self.chroot_path / "lib" / "modules" / kernel_version / "updates" / "dkms" / "zfs"
+            # Second attempt: Try installing with --fix-missing
+            try:
+                self.logger.info("Retrying with --fix-missing...")
+                self._run_chroot_command([
+                    "apt-get", "install", "-y", "--fix-missing", "--no-install-recommends",
+                    "zfsutils-linux", "zfs-dkms"
+                ])
+                zfs_install_success = True
+            except subprocess.CalledProcessError as e2:
+                self.logger.warning(f"ZFS installation with --fix-missing failed: {e2}")
+                
+                # Third attempt: Install alternative packages
+                try:
+                    self.logger.info("Trying alternative ZFS packages...")
+                    self._run_chroot_command([
+                        "apt-get", "install", "-y", "--no-install-recommends",
+                        "zfs-modules", "zfs-initramfs"
+                    ])
+                    zfs_install_success = True
+                except subprocess.CalledProcessError as e3:
+                    self.logger.error(f"All ZFS installation attempts failed: {e3}")
         
-        if not modules_path.exists():
-            self.logger.warning(f"ZFS module directory {modules_path} not found, but continuing anyway")
-
+        if zfs_install_success:
+            # Build ZFS module for the kernel using DKMS
+            self._mount_pseudo_filesystems()
+            
+            try:
+                # Check if DKMS is available and working
+                dkms_check = self._run_chroot_command(["which", "dkms"], check=False)
+                if dkms_check.returncode == 0:
+                    # Try DKMS autoinstall
+                    self.logger.info(f"Building ZFS modules with DKMS for kernel {kernel_version}...")
+                    try:
+                        self._run_chroot_command([
+                            "dkms", "autoinstall", "-k", kernel_version
+                        ])
+                    except subprocess.CalledProcessError as e:
+                        self.logger.warning(f"DKMS autoinstall failed: {e}")
+                        # Try manual build
+                        self.logger.info("Attempting manual DKMS build...")
+                        # Find ZFS version
+                        try:
+                            zfs_version_result = self._run_chroot_command([
+                                "dpkg-query", "-W", "-f='${Version}'", "zfs-dkms"
+                            ])
+                            zfs_version = zfs_version_result.stdout.strip().strip("'").split('-')[0]
+                            self.logger.info(f"Found ZFS DKMS version: {zfs_version}")
+                            
+                            # Try to build manually
+                            self._run_chroot_command([
+                                "dkms", "build", "-m", "zfs", "-v", zfs_version, "-k", kernel_version
+                            ], check=False)
+                            self._run_chroot_command([
+                                "dkms", "install", "-m", "zfs", "-v", zfs_version, "-k", kernel_version
+                            ], check=False)
+                        except:
+                            self.logger.warning("Manual DKMS build also failed")
+                else:
+                    self.logger.warning("DKMS not available, skipping module build")
+            finally:
+                # Always unmount the filesystems
+                self._unmount_pseudo_filesystems()
+        else:
+            self.logger.warning("ZFS packages could not be installed, continuing without ZFS kernel modules")
+            self.logger.info("Dracut will attempt to include ZFS support if userspace tools are available")
+            
+        # Verify ZFS module was installed (but don't fail if not)
+        self.logger.info("Checking ZFS module installation...")
+        modules_path = self.chroot_path / "lib" / "modules" / kernel_version / "updates" / "dkms"
+        
+        if modules_path.exists():
+            zfs_modules = list(modules_path.glob("*/zfs.ko*"))
+            if zfs_modules:
+                self.logger.info(f"Found ZFS kernel modules: {[str(m.name) for m in zfs_modules]}")
+            else:
+                self.logger.warning("ZFS kernel modules not found in DKMS directory")
+        else:
+            self.logger.warning(f"DKMS modules directory not found: {modules_path}")
+            
+        # Check if ZFS userspace tools are available
+        zfs_check = self._run_chroot_command(["which", "zfs"], check=False)
+        if zfs_check.returncode == 0:
+            self.logger.info("ZFS userspace tools are available")
+        else:
+            self.logger.warning("ZFS userspace tools not found - ZFS support may be limited")
     def _find_installed_kernel_paths(self, kernel_version_str: str) -> Tuple[Optional[Path], Optional[Path]]:
         """
         Find paths to vmlinuz and initrd.img for the given kernel version.
