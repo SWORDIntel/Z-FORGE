@@ -39,14 +39,14 @@ class DracutConfig:
             # Install dracut packages
             self._install_dracut()
             
-            # Configure dracut
-            self._configure_dracut()
+            # Install custom toram module (if available) first
+            toram_module_installed = self._install_toram_module()
             
-            # Install custom toram module
-            self._install_toram_module()
+            # Configure dracut with knowledge of toram module availability
+            self._configure_dracut(toram_module_installed)
             
             # Generate initramfs with dracut
-            self._generate_initramfs()
+            self._generate_initramfs(toram_module_installed)
             
             return {
                 'status': 'success',
@@ -185,7 +185,7 @@ class DracutConfig:
                 except subprocess.CalledProcessError:
                     self.logger.warning(f"Optional package not available: {pkg}")
     
-    def _configure_dracut(self):
+    def _configure_dracut(self, toram_module_available=False):
         """Configure dracut for ZFS boot"""
         
         self.logger.info("Configuring dracut...")
@@ -205,10 +205,16 @@ add_dracutmodules+=" dracut-systemd fs-lib shutdown "
 
 # ZFS support
 add_dracutmodules+=" zfs "
-
-# Custom Z-Forge modules
-add_dracutmodules+=" 90zforge-toram "
-
+"""
+        
+        # Add custom Z-Forge modules only if available
+        if toram_module_available:
+            self.logger.info("Adding 90zforge-toram module to dracut configuration")
+            dracut_conf += '\n# Custom Z-Forge modules\nadd_dracutmodules+=" 90zforge-toram "\n'
+        else:
+            self.logger.info("Skipping 90zforge-toram module - not available")
+            
+        dracut_conf += """
 # Exclude problematic modules
 omit_dracutmodules+=" bluetooth nfs "
 
@@ -252,13 +258,19 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         self.logger.info("Dracut configuration completed")
 
     def _install_toram_module(self):
-        """Install custom toram dracut module"""
+        """Install custom toram dracut module if available"""
         
-        self.logger.info("Installing custom Z-Forge toram dracut module...")
+        self.logger.info("Checking for custom Z-Forge toram dracut module...")
         
         # Define module name and paths
         custom_module_name = "90zforge-toram"
         host_custom_module_src_dir = Path(__file__).parent.parent / "dracut_toram_module"
+        
+        # Check if source module exists
+        if not host_custom_module_src_dir.exists():
+            self.logger.warning(f"Custom toram module source not found at {host_custom_module_src_dir}")
+            self.logger.info("Skipping custom toram module installation - will use standard dracut")
+            return False
         
         # Check both possible dracut module directories
         possible_dirs = [
@@ -332,8 +344,9 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         
         # Don't add to config here - it's already added in _configure_dracut
         self.logger.info("Custom toram module installed successfully")
+        return True
     
-    def _generate_initramfs(self):
+    def _generate_initramfs(self, toram_module_available=False):
         """Generate initramfs with dracut"""
         
         self.logger.info("Generating initramfs with dracut...")

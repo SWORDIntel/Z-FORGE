@@ -50,6 +50,16 @@ class GPGBypass:
         """Create APT configuration to disable GPG checks"""
         self.logger.info("Creating APT configuration for GPG bypass...")
         
+        # CRITICAL: Create GPG trusted directory first to prevent keyring errors
+        trusted_gpg_dir = self.chroot_path / "etc/apt/trusted.gpg.d"
+        trusted_gpg_dir.mkdir(parents=True, exist_ok=True)
+        self.logger.info(f"Created GPG trusted directory: {trusted_gpg_dir}")
+        
+        # Create keyrings directory as well
+        keyrings_dir = self.chroot_path / "etc/apt/keyrings"
+        keyrings_dir.mkdir(parents=True, exist_ok=True)
+        self.logger.info(f"Created keyrings directory: {keyrings_dir}")
+        
         # Main APT config for GPG bypass
         apt_config = """// Z-Forge GPG Bypass Configuration
 // WARNING: This disables security checks - use only for building!
