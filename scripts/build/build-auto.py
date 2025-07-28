@@ -6,10 +6,13 @@ Runs the full build process without user interaction
 import sys
 import os
 import shutil
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'builder'))
-
-from core.builder import ZForgeBuilder
 from pathlib import Path
+
+# Fix import path - add project root to Python path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from builder.core.builder import ZForgeBuilder
 
 def main():
     """Run automated build"""
@@ -23,8 +26,8 @@ def main():
         print("[!] This script must be run as root (use sudo)")
         sys.exit(1)
     
-    # Use default build configuration
-    config_file = "build_spec.yml"
+    # Use config from environment or default
+    config_file = os.environ.get('ZFORGE_CONFIG', 'build_spec.yml')
     
     # Check if config exists
     if not Path(config_file).exists():
