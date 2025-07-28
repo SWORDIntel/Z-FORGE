@@ -763,8 +763,7 @@ CONFIG_ZLIB_DEFLATE=y
                     
                     # Write back the updated sources.list
                     with open(sources_list_path, 'w') as f:
-                        f.write('
-'.join(new_lines))
+                        f.write('\n'.join(new_lines))
                     
                     self.logger.info("Updated sources.list with contrib repository")
                 else:
