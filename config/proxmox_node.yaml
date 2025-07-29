@@ -1,0 +1,87 @@
+# Z-FORGE Proxmox VE Node Configuration
+# This configuration enables direct installation as a Proxmox VE node
+
+builder_config:
+  workspace_path: "/tmp/zforge_workspace"
+  debian_release: "bookworm"
+  iso_name: "zforge-proxmox-ve"
+  build_mode: "proxmox"
+
+# Proxmox VE specific configuration
+proxmox_config:
+  enabled: true
+  repository: "no-subscription"  # Options: enterprise|no-subscription|test
+  hostname: "pve"
+  domain: "local"
+  cluster_name: "pve-cluster"
+  
+  # Storage configuration
+  storage_config:
+    local:
+      type: "dir"
+      path: "/var/lib/vz"
+      content: ["iso", "vztmpl", "backup"]
+      maxfiles: 3
+    local-zfs:
+      type: "zfspool"
+      pool: "rpool/data"
+      content: ["images", "rootdir"]
+      nodes: "localhost"
+
+  # Network configuration
+  network_config:
+    management_bridge: "vmbr0"
+    cluster_network: false
+    vlan_aware: true
+
+  # Service configuration  
+  services:
+    web_port: 8006
+    enable_firewall: true
+    two_factor_auth: false
+
+# ZFS configuration optimized for Proxmox
+zfs_config:
+  version: "2.3.3"
+  build_from_source: false
+  enable_encryption: true
+  default_compression: "lz4"
+  
+  # VM-optimized settings
+  vm_zvol_settings:
+    volblocksize: "16k"
+    compression: "lz4"
+    sync: "standard"
+    
+  # Container-optimized settings
+  container_settings:
+    recordsize: "128k"
+    compression: "lz4"
+    atime: "off"
+
+# Kernel configuration for virtualization
+kernel_config:
+  enable_virtualization: true
+  enable_iommu: true
+  parameters:
+    intel_iommu: "on"
+    iommu: "pt"
+    nmi_watchdog: "0"
+
+# Build sequence for Proxmox
+build_sequence:
+  modules:
+    - SystemPrerequisites
+    - WorkspaceSetup
+    - Debootstrap
+    - ZFSBuild
+    - KernelAcquisition
+    - ProxmoxRepoSetup
+    - ProxmoxPackageInstall
+    - ProxmoxStorageConfig
+    - ProxmoxNetworkConfig
+    - ProxmoxServiceConfig
+    - ProxmoxClusterSetup
+    - LiveEnvironment  
+    - CalamaresIntegration
+    - ISOGeneration

@@ -1,0 +1,23 @@
+{
+  "standard_sequence": [
+    "SystemPrerequisites",
+    "WorkspaceSetup",
+    "Debootstrap",
+    "ZFSBuild",
+    "KernelAcquisition",
+    "LiveEnvironment"
+  ],
+  "proxmox_sequence": [
+    "SystemPrerequisites",
+    "WorkspaceSetup",
+    "Debootstrap",
+    "ZFSBuild",
+    "ProxmoxRepoSetup",
+    "ProxmoxPackageInstall",
+    "ProxmoxStorageConfig",
+    "ProxmoxNetworkConfig",
+    "ProxmoxServiceConfig",
+    "ProxmoxClusterSetup",
+    "LiveEnvironment"
+  ]
+}

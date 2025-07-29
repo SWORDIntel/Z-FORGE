@@ -1,0 +1,20 @@
+proxmox_config:
+  cluster_name: pve-cluster
+  domain: local
+  enabled: true
+  hostname: pve
+  repository: no-subscription
+  storage_config:
+    local:
+      content:
+      - iso
+      - vztmpl
+      - backup
+      path: /var/lib/vz
+      type: dir
+    local-zfs:
+      content:
+      - images
+      - rootdir
+      pool: rpool/data
+      type: zfspool

@@ -1,0 +1,144 @@
+cluster_support:
+  cluster_ready:
+    corosync: Pre-configured for easy cluster join
+    multicast: Enabled by default
+    ssh_keys: Generated during installation
+  ha_features:
+    fencing: Configured for ZFS pools
+    resources: HA manager configured
+    watchdog: Software watchdog enabled
+  single_node:
+    default: true
+    description: Standalone Proxmox node
+component_map:
+  kernel:
+    modifications_needed:
+    - Add Proxmox kernel repository
+    - Install pve-kernel instead of generic kernel
+    - Configure kernel parameters for virtualization
+    proxmox_requirement: pve-kernel
+    zforge_module: KernelAcquisition
+  network:
+    modifications_needed:
+    - Configure Linux bridge (vmbr0)
+    - Setup management network
+    - Configure cluster network if needed
+    proxmox_requirement: pve-network
+    zforge_module: NetworkConfig
+  storage:
+    modifications_needed:
+    - Configure ZFS for Proxmox storage backend
+    - Create default storage pools
+    - Setup zvol for VM disks
+    proxmox_requirement: pve-storage with ZFS
+    zforge_module: ZFSBuild
+installation_flow:
+- description: Install Debian base with ZFS root
+  modules:
+  - Debootstrap
+  - ZFSBuild
+  - KernelAcquisition
+  name: Base System Installation
+  step: 1
+- description: Add Proxmox VE repositories and keys
+  modules:
+  - ProxmoxRepoSetup
+  name: Proxmox Repository Setup
+  step: 2
+- description: Install Proxmox VE packages
+  modules:
+  - ProxmoxPackageInstall
+  name: Proxmox Package Installation
+  step: 3
+- description: Configure ZFS storage for Proxmox
+  modules:
+  - ProxmoxStorageConfig
+  name: Storage Configuration
+  step: 4
+- description: Setup Proxmox networking
+  modules:
+  - ProxmoxNetworkConfig
+  name: Network Configuration
+  step: 5
+- description: Configure and start Proxmox services
+  modules:
+  - ProxmoxServiceConfig
+  name: Service Configuration
+  step: 6
+integration_layers:
+  base_system:
+    components:
+    - kernel
+    - initramfs
+    - base-packages
+    - zfs-modules
+    description: Debian base with ZFS root
+  configuration:
+    components:
+    - network-config
+    - storage-config
+    - cluster-config
+    description: Proxmox configuration and setup
+  proxmox_packages:
+    components:
+    - pve-kernel
+    - pve-manager
+    - pve-cluster
+    - pve-storage
+    description: Proxmox VE packages and dependencies
+  services:
+    components:
+    - pveproxy
+    - pvedaemon
+    - pvestatd
+    - pvescheduler
+    description: Proxmox services and daemons
+network_architecture:
+  cluster_network:
+    autostart: true
+    interface: vmbr1
+    purpose: Corosync cluster communication
+    type: bridge
+  management_network:
+    autostart: true
+    bridge_ports: auto-detect
+    interface: vmbr0
+    type: bridge
+  storage_network:
+    autostart: true
+    interface: vmbr2
+    purpose: Storage replication and migration
+    type: bridge
+storage_architecture:
+  optimization:
+    container_dataset_settings:
+      atime: 'off'
+      compression: lz4
+      recordsize: 128k
+    vm_zvol_settings:
+      compression: lz4
+      sync: standard
+      volblocksize: 16k
+  pool_layout:
+    rpool:
+      datasets:
+        ROOT/pve-1: Root filesystem
+        data: VM/Container storage
+      description: Root pool for system
+    special_vdevs:
+      l2arc: Optional cache device
+      slog: Optional separate log device
+  storage_types:
+    local:
+      content:
+      - iso
+      - vztmpl
+      - backup
+      path: /var/lib/vz
+      type: dir
+    local-zfs:
+      content:
+      - images
+      - rootdir
+      pool: rpool/data
+      type: zfspool

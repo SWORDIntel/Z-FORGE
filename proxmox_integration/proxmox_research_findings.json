@@ -1,0 +1,126 @@
+{
+  "package_requirements": {
+    "repositories": {
+      "production": "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription",
+      "enterprise": "deb https://enterprise.proxmox.com/debian/pve bookworm pve-enterprise",
+      "test": "deb http://download.proxmox.com/debian/pve bookworm pvetest"
+    },
+    "key_packages": [
+      "proxmox-ve",
+      "pve-kernel-6.8",
+      "pve-manager",
+      "pve-cluster",
+      "pve-storage",
+      "corosync",
+      "qemu-server",
+      "lxc-pve"
+    ],
+    "dependencies": {
+      "base": [
+        "postfix",
+        "bridge-utils",
+        "ifupdown2"
+      ],
+      "optional": [
+        "zfs-zed",
+        "smartmontools",
+        "lm-sensors"
+      ]
+    }
+  },
+  "kernel_requirements": {
+    "kernel_features": [
+      "KVM virtualization support",
+      "IOMMU support for PCI passthrough",
+      "cgroups v2",
+      "namespace support",
+      "vhost-net support"
+    ],
+    "kernel_parameters": {
+      "intel_iommu": "on",
+      "iommu": "pt",
+      "nmi_watchdog": "0",
+      "transparent_hugepage": "always"
+    },
+    "modules": [
+      "kvm",
+      "kvm_intel/kvm_amd",
+      "vhost",
+      "vhost_net",
+      "bridge",
+      "vfio",
+      "vfio_pci"
+    ]
+  },
+  "storage_best_practices": {
+    "pool_configuration": {
+      "recommended_ashift": 12,
+      "recommended_recordsize": "128k for VMs",
+      "compression": "lz4 by default",
+      "dedup": "disabled for most workloads"
+    },
+    "dataset_layout": {
+      "vms": "rpool/data/vm",
+      "containers": "rpool/data/ct",
+      "templates": "rpool/data/template",
+      "backups": "rpool/backup"
+    },
+    "performance_settings": {
+      "arc_max": "50% of RAM",
+      "l2arc_write_max": "8M",
+      "sync": "standard for data safety"
+    }
+  },
+  "network_requirements": {
+    "bridge_configuration": {
+      "vmbr0": "Primary management bridge",
+      "mtu": "1500 or jumbo frames",
+      "stp": "off",
+      "fd": "0"
+    },
+    "vlan_support": {
+      "vlan_aware": true,
+      "vlan_protocol": "802.1q"
+    },
+    "bonding": {
+      "supported_modes": [
+        "balance-rr",
+        "active-backup",
+        "balance-xor",
+        "broadcast",
+        "802.3ad",
+        "balance-tlb",
+        "balance-alb"
+      ],
+      "recommended": "802.3ad (LACP) for redundancy"
+    }
+  },
+  "security_considerations": {
+    "firewall": {
+      "default_policy": "enabled at datacenter level",
+      "rules": "per-VM and cluster-wide",
+      "logging": "configurable per rule"
+    },
+    "authentication": {
+      "methods": [
+        "pam",
+        "pve",
+        "ldap",
+        "ad"
+      ],
+      "two_factor": "TOTP and YubiKey support"
+    },
+    "certificates": {
+      "acme": "Let's Encrypt integration",
+      "custom": "Custom certificate support"
+    }
+  },
+  "performance_tuning": {
+    "cpu_governor": "performance",
+    "numa": "enabled for multi-socket systems",
+    "huge_pages": "recommended for large VMs",
+    "cpu_units": "1024 default weight",
+    "io_throttling": "available per disk",
+    "network_throttling": "available per interface"
+  }
+}
