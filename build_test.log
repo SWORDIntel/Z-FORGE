@@ -1,0 +1,7 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                UltraThink ISO Rebuild System v2.0                 ║
+║          Complete Z-FORGE rebuild with perfect config             ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+❌ ERROR: This script must be run with sudo
+Please run: sudo python3 ultrathink_iso_rebuild.py

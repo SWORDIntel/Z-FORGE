@@ -76,8 +76,36 @@ class ZFSBuild:
                 with open(sources_list, 'w') as f:
                     f.write('\n'.join(new_lines))
         
-        # For Debian Trixie, ZFS is in contrib
-        # No need for backports as Trixie is testing/unstable
+        # Add Bookworm repositories as fallback for ZFS packages
+        self.logger.info("Adding Bookworm repositories as fallback for ZFS packages...")
+        zfs_fallback_list = self.chroot_path / "etc/apt/sources.list.d/zfs-fallback.list"
+        zfs_fallback_content = """# Fallback repositories for ZFS packages
+deb http://deb.debian.org/debian bookworm main contrib non-free-firmware
+deb http://deb.debian.org/debian bookworm-backports main contrib non-free-firmware
+"""
+        with open(zfs_fallback_list, 'w') as f:
+            f.write(zfs_fallback_content)
+        
+        # Set up apt preferences to prioritize ZFS from bookworm
+        preferences_dir = self.chroot_path / "etc/apt/preferences.d"
+        preferences_dir.mkdir(exist_ok=True)
+        zfs_prefs = preferences_dir / "zfs-packages"
+        prefs_content = """# Prefer ZFS packages from bookworm when not available in trixie
+Package: zfsutils-linux zfs-dkms zfs-zed libzfs4* libzpool5* libnvpair3* libuutil3*
+Pin: release n=bookworm-backports
+Pin-Priority: 990
+
+Package: zfsutils-linux zfs-dkms zfs-zed libzfs4* libzpool5* libnvpair3* libuutil3*
+Pin: release n=bookworm
+Pin-Priority: 980
+
+# Prevent other packages from bookworm
+Package: *
+Pin: release n=bookworm*
+Pin-Priority: 100
+"""
+        with open(zfs_prefs, 'w') as f:
+            f.write(prefs_content)
         
         # Update package lists
         try:
@@ -91,31 +119,38 @@ class ZFSBuild:
         except subprocess.CalledProcessError as e:
             self.logger.warning(f"Failed to update package lists: {e}")
         
+        # First ensure dracut is installed (not initramfs-tools)
+        self.logger.info("Ensuring dracut is installed...")
+        self._run_chroot_command(["apt-get", "remove", "-y", "initramfs-tools", "initramfs-tools-core"], check=False)
+        self._run_chroot_command(["apt-get", "install", "-y", "dracut", "dracut-core"], check=False)
+        
         # Install ZFS packages with proper error handling
         return self._install_zfs_packages_with_fallback()
     
     def _install_zfs_packages_with_fallback(self):
         """Try different ZFS package combinations"""
-        # Try different package combinations
-        package_sets = [
-            # Primary: Standard ZFS packages
-            ["zfsutils-linux", "zfs-dkms"],
-            # Fallback 1: Just userspace tools
-            ["zfsutils-linux"],
-            # Fallback 2: Alternative package names
-            ["zfs", "zfs-dkms"],
-            # Fallback 3: Minimal ZFS
-            ["zfs"],
+        # Standard ZFS packages
+        packages = ["zfsutils-linux", "zfs-dkms"]
+        
+        # Try different installation strategies
+        strategies = [
+            # Try default release first
+            ["apt-get", "install", "-y", "--no-install-recommends"],
+            # Try with explicit trixie target
+            ["apt-get", "install", "-y", "--no-install-recommends", "-t", "trixie"],
+            # Try with bookworm-backports
+            ["apt-get", "install", "-y", "--no-install-recommends", "-t", "bookworm-backports"],
+            # Try with bookworm
+            ["apt-get", "install", "-y", "--no-install-recommends", "-t", "bookworm"],
+            # Try with fix-missing
+            ["apt-get", "install", "-y", "--fix-missing", "--no-install-recommends"],
         ]
         
-        for i, packages in enumerate(package_sets):
+        for i, strategy in enumerate(strategies):
             try:
-                self.logger.info(f"Attempting to install ZFS packages (attempt {i+1}): {packages}")
+                self.logger.info(f"Attempting to install ZFS packages (strategy {i+1}): {' '.join(strategy)} {' '.join(packages)}")
                 
-                cmd = [
-                    "sudo", "chroot", str(self.chroot_path),
-                    "apt-get", "install", "-y", "--no-install-recommends"
-                ] + packages
+                cmd = ["sudo", "chroot", str(self.chroot_path)] + strategy + packages
                 
                 result = subprocess.run(
                     cmd,
@@ -124,45 +159,36 @@ class ZFSBuild:
                     check=True
                 )
                 
-                self.logger.info(f"Successfully installed ZFS packages: {packages}")
+                self.logger.info(f"Successfully installed ZFS packages using: {' '.join(strategy)}")
                 return True
                 
             except subprocess.CalledProcessError as e:
-                self.logger.warning(f"Failed to install {packages}: {e.stderr}")
-                
-                if i == len(package_sets) - 1:
-                    # Last attempt failed
-                    self.logger.error("All ZFS installation attempts failed")
-                    # Don't fail the build - ZFS might be optional
-                    return False
+                self.logger.warning(f"Failed with strategy {i+1}: {e.stderr}")
         
-        return False
+        # Final fallback: try just userspace tools
+        self.logger.info("Final fallback: Installing only ZFS userspace tools...")
+        try:
+            result = subprocess.run(
+                ["sudo", "chroot", str(self.chroot_path), "apt-get", "install", "-y", "--no-install-recommends", "zfsutils-linux"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            self.logger.warning("ZFS userspace tools installed (DKMS modules may be missing)")
+            return True
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"All ZFS installation attempts failed: {e.stderr}")
+            # Don't fail the build - ZFS might be optional
+            return False
 
     def _install_zfs_from_apt(self) -> str:
         """Install ZFS from APT as fallback if building from source fails."""
         self.logger.info("Installing ZFS from APT repositories...")
         
-        # First ensure dracut is installed (not initramfs-tools)
-        self.logger.info("Ensuring dracut is installed...")
-        self._run_chroot_command(["apt-get", "remove", "-y", "initramfs-tools", "initramfs-tools-core"], check=False)
-        self._run_chroot_command(["apt-get", "install", "-y", "dracut", "dracut-core"], check=False)
-        
-        # Install ZFS packages - only dracut-compatible ones
-        zfs_packages = [
-            "zfsutils-linux",
-            "zfs-dkms",
-            "zfs-dracut"  # NOT zfs-initramfs as it conflicts with dracut
-        ]
-        
-        cmd = ["apt-get", "install", "-y"] + zfs_packages
-        result = self._run_chroot_command(cmd, check=False)
-        
-        if result.returncode != 0:
-            self.logger.error(f"Failed to install ZFS packages: {result.stderr}")
-            # Try without zfs-dracut if it fails
-            self.logger.warning("Trying without zfs-dracut...")
-            basic_packages = ["zfsutils-linux", "zfs-dkms"]
-            self._run_chroot_command(["apt-get", "install", "-y"] + basic_packages)
+        # First setup ZFS repositories
+        if not self._setup_zfs_repositories():
+            self.logger.error("Failed to setup ZFS repositories")
+            return "unknown"
         
         # Get installed version
         version_result = self._run_chroot_command(["zfs", "version"], check=False)
