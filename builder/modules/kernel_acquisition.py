@@ -1246,19 +1246,158 @@ fi
                 except subprocess.CalledProcessError:
                     pass
                 
-                # Re-raise original error if all attempts failed
+                                
+                # Final fallback: Try initramfs-tools if dracut completely failed
+                self.logger.warning("All dracut attempts failed, falling back to initramfs-tools")
+                try:
+                    return self._generate_initramfs_tools(kernel_version, include_encryption)
+                except Exception as fallback_e:
+                    self.logger.error(f"initramfs-tools fallback also failed: {fallback_e}")
+                    # Continue with original dracut error
+# Re-raise original error if all attempts failed
                 self.logger.error("All dracut attempts failed")
                 raise e
+  
+    def _generate_initramfs_tools(self, kernel_version: str, include_encryption: bool = False) -> Tuple[Path, Path]:
+        """
+        Generate initramfs using initramfs-tools as a fallback when dracut fails.
+        
+        Args:
+            kernel_version: The kernel version to generate initramfs for.
+            include_encryption: Whether to include encryption support.
+            
+        Returns:
+            Paths to vmlinuz and initrd.img.
+        """
+        self.logger.info(f"Generating initramfs using initramfs-tools for kernel {kernel_version}...")
+        
+        # Define paths
+        vmlinuz_path = Path("/boot") / f"vmlinuz-{kernel_version}"
+        initrd_path = Path("/boot") / f"initrd.img-{kernel_version}"
+        
+        # Verify that vmlinuz exists
+        chroot_vmlinuz_path = self.chroot_path / vmlinuz_path.relative_to("/")
+        if not chroot_vmlinuz_path.exists():
+            raise FileNotFoundError(f"Kernel image {vmlinuz_path} not found in chroot")
+        
+        # Install initramfs-tools if not present
+        self.logger.info("Ensuring initramfs-tools is installed...")
+        try:
+            self._run_chroot_command([
+                "apt-get", "install", "-y", "--no-install-recommends",
+                "initramfs-tools", "initramfs-tools-core"
+            ])
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to install initramfs-tools: {e}")
+        
+        # Configure initramfs-tools for ZFS if needed
+        if self.config.get('zfs_config', {}).get('enable', True):
+            self.logger.info("Configuring initramfs-tools for ZFS support...")
+            
+            # Create hook script for ZFS
+            hook_content = """#!/bin/sh
+# ZFS hook for initramfs-tools
+PREREQ=""
+prereqs()
+{
+    echo "$PREREQ"
+}
+case $1 in
+prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+. /usr/share/initramfs-tools/hook-functions
+
+# Copy ZFS utilities
+copy_exec /sbin/zfs
+copy_exec /sbin/zpool
+copy_exec /sbin/mount.zfs
+
+# Ensure ZFS modules are included
+manual_add_modules zfs
+
+# Copy ZFS configuration
+if [ -f /etc/zfs/zpool.cache ]; then
+    cp -a /etc/zfs/zpool.cache "${DESTDIR}/etc/zfs/"
+fi
+"""
+            hook_path = self.chroot_path / "etc" / "initramfs-tools" / "hooks" / "zfs"
+            hook_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(hook_path, 'w') as f:
+                f.write(hook_content)
+            os.chmod(hook_path, 0o755)
+            
+            # Add ZFS modules to initramfs modules
+            modules_path = self.chroot_path / "etc" / "initramfs-tools" / "modules"
+            with open(modules_path, 'a') as f:
+                f.write("\n# ZFS modules\nzfs\n")
+        
+        # Add encryption support if needed
+        if include_encryption:
+            conf_path = self.chroot_path / "etc" / "initramfs-tools" / "initramfs.conf"
+            if conf_path.exists():
+                with open(conf_path, 'r') as f:
+                    conf_content = f.read()
+                
+                # Enable cryptsetup
+                if "CRYPTSETUP=n" in conf_content:
+                    conf_content = conf_content.replace("CRYPTSETUP=n", "CRYPTSETUP=y")
+                    with open(conf_path, 'w') as f:
+                        f.write(conf_content)
+        
+        # Mount required filesystems
+        self._mount_pseudo_filesystems()
+        
+        try:
+            # Run update-initramfs
+            self.logger.info(f"Running update-initramfs for kernel {kernel_version}...")
+            
+            # First, try to create the initramfs
+            initramfs_cmd = [
+                "update-initramfs",
+                "-c",  # Create
+                "-k", kernel_version,
+                "-v"   # Verbose
+            ]
+            
+            try:
+                self._run_chroot_command(initramfs_cmd)
+            except subprocess.CalledProcessError as e:
+                # If creation fails, try updating existing
+                self.logger.warning("Creation failed, trying update...")
+                update_cmd = [
+                    "update-initramfs",
+                    "-u",  # Update
+                    "-k", kernel_version,
+                    "-v"
+                ]
+                self._run_chroot_command(update_cmd)
+            
+            # Verify the initramfs was created
+            chroot_initrd_path = self.chroot_path / initrd_path.relative_to("/")
+            if not chroot_initrd_path.exists():
+                # Check for versioned initrd
+                alt_initrd_path = Path("/boot") / f"initrd.img-{kernel_version}"
+                chroot_alt_initrd = self.chroot_path / alt_initrd_path.relative_to("/")
+                if chroot_alt_initrd.exists():
+                    initrd_path = alt_initrd_path
+                else:
+                    raise FileNotFoundError(f"Failed to generate initramfs at {initrd_path}")
+            
+            self.logger.info(f"Successfully generated initramfs with initramfs-tools at {initrd_path}")
+            
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"update-initramfs failed: {e}")
+            self.logger.error(f"stdout: {e.stdout}")
+            self.logger.error(f"stderr: {e.stderr}")
+            raise
         finally:
             # Always unmount the filesystems
             self._unmount_pseudo_filesystems()
-
-        # Verify the initramfs was created
-        chroot_initrd_path = self.chroot_path / initrd_path.relative_to("/")
-        if not chroot_initrd_path.exists():
-            raise FileNotFoundError(f"Failed to generate initramfs at {initrd_path}")
-
-        self.logger.info(f"Successfully generated dracut initramfs with ZFS support at {initrd_path}")
+        
         return vmlinuz_path, initrd_path
     
     def _install_dracut_emergency(self):
