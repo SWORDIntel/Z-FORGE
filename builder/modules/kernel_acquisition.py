@@ -1070,7 +1070,7 @@ export KERNEL_VERSION="$KVER"
 export PATH="/usr/sbin:/usr/bin:/sbin:/bin"
 
 # Function to run dracut with error handling
-run_dracut() {
+run_dracut() {{
     local args="$@"
     echo "Running: dracut $args"
     
@@ -1090,7 +1090,7 @@ run_dracut() {
         
         return $exit_code
     fi
-}
+}}
 
 # Try different dracut invocation methods
 echo "Method 1: Standard dracut with kernel version"
@@ -1246,7 +1246,7 @@ fi
                 except subprocess.CalledProcessError:
                     pass
                 
-                                
+                
                 # Final fallback: Try initramfs-tools if dracut completely failed
                 self.logger.warning("All dracut attempts failed, falling back to initramfs-tools")
                 try:
@@ -1254,10 +1254,22 @@ fi
                 except Exception as fallback_e:
                     self.logger.error(f"initramfs-tools fallback also failed: {fallback_e}")
                     # Continue with original dracut error
-# Re-raise original error if all attempts failed
+                
+                # Re-raise original error if all attempts failed
                 self.logger.error("All dracut attempts failed")
                 raise e
-  
+        finally:
+            # Always unmount the filesystems
+            self._unmount_pseudo_filesystems()
+
+        # Verify the initramfs was created
+        chroot_initrd_path = self.chroot_path / initrd_path.relative_to("/")
+        if not chroot_initrd_path.exists():
+            raise FileNotFoundError(f"Failed to generate initramfs at {initrd_path}")
+
+        self.logger.info(f"Successfully generated dracut initramfs with ZFS support at {initrd_path}")
+        return vmlinuz_path, initrd_path
+    
     def _generate_initramfs_tools(self, kernel_version: str, include_encryption: bool = False) -> Tuple[Path, Path]:
         """
         Generate initramfs using initramfs-tools as a fallback when dracut fails.
