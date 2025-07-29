@@ -49,6 +49,95 @@ class ZFSBuild:
         self.zfs_repo_url: str = "https://github.com/openzfs/zfs.git"
         self.chroot_path: Path = self.workspace / "chroot"
         
+
+    def _setup_zfs_repositories(self):
+        """Setup repositories for ZFS packages"""
+        self.logger.info("Setting up ZFS repositories...")
+        
+        # Update sources.list to include contrib and non-free-firmware
+        sources_list = self.chroot_path / "etc/apt/sources.list"
+        if sources_list.exists():
+            with open(sources_list, 'r') as f:
+                sources_content = f.read()
+            
+            # Check if contrib is already enabled
+            if 'contrib' not in sources_content:
+                self.logger.info("Adding contrib and non-free-firmware to sources.list...")
+                lines = sources_content.split('\n')
+                new_lines = []
+                
+                for line in lines:
+                    if line.strip() and not line.strip().startswith('#'):
+                        if 'deb ' in line and 'main' in line and 'contrib' not in line:
+                            # Add contrib and non-free-firmware
+                            line = line.rstrip() + ' contrib non-free-firmware'
+                    new_lines.append(line)
+                
+                with open(sources_list, 'w') as f:
+                    f.write('\n'.join(new_lines))
+        
+        # For Debian Trixie, ZFS is in contrib
+        # No need for backports as Trixie is testing/unstable
+        
+        # Update package lists
+        try:
+            result = subprocess.run(
+                ["sudo", "chroot", str(self.chroot_path), "apt-get", "update"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            self.logger.info("Package lists updated successfully")
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to update package lists: {e}")
+        
+        # Install ZFS packages with proper error handling
+        return self._install_zfs_packages_with_fallback()
+    
+    def _install_zfs_packages_with_fallback(self):
+        """Try different ZFS package combinations"""
+        # Try different package combinations
+        package_sets = [
+            # Primary: Standard ZFS packages
+            ["zfsutils-linux", "zfs-dkms"],
+            # Fallback 1: Just userspace tools
+            ["zfsutils-linux"],
+            # Fallback 2: Alternative package names
+            ["zfs", "zfs-dkms"],
+            # Fallback 3: Minimal ZFS
+            ["zfs"],
+        ]
+        
+        for i, packages in enumerate(package_sets):
+            try:
+                self.logger.info(f"Attempting to install ZFS packages (attempt {i+1}): {packages}")
+                
+                cmd = [
+                    "sudo", "chroot", str(self.chroot_path),
+                    "apt-get", "install", "-y", "--no-install-recommends"
+                ] + packages
+                
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                
+                self.logger.info(f"Successfully installed ZFS packages: {packages}")
+                return True
+                
+            except subprocess.CalledProcessError as e:
+                self.logger.warning(f"Failed to install {packages}: {e.stderr}")
+                
+                if i == len(package_sets) - 1:
+                    # Last attempt failed
+                    self.logger.error("All ZFS installation attempts failed")
+                    # Don't fail the build - ZFS might be optional
+                    return False
+        
+        return False
+
     def _install_zfs_from_apt(self) -> str:
         """Install ZFS from APT as fallback if building from source fails."""
         self.logger.info("Installing ZFS from APT repositories...")
