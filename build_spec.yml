@@ -59,7 +59,8 @@ proxmox_config:
 
 zfs_config:
   version: "2.3.3"  # Explicitly use ZFS 2.3.3
-  build_from_source: true
+  build_from_source: false  # Use pre-built packages to avoid compilation issues
+  use_github_release: true  # Download from https://github.com/openzfs/zfs/releases/tag/zfs-2.3.3
   enable_encryption: true
   default_compression: lz4
   # Arc size will be auto-detected based on RAM
@@ -67,6 +68,10 @@ zfs_config:
   # ZFS 2.3.x features
   enable_block_cloning: true
   enable_vdev_properties: true
+  # Fallback repositories for ZFS packages
+  fallback_repositories:
+    - "deb http://deb.debian.org/debian bookworm main contrib non-free-firmware"
+    - "deb http://deb.debian.org/debian bookworm-backports main contrib non-free-firmware"
 
 bootloader_config:
   primary: zfsbootmenu

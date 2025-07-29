@@ -233,17 +233,40 @@ class ZFSBuild:
             self.logger.info(f"Target ZFS version for build: {target_zfs_version}")
 
             try:
-                # Step 1: Install ZFS build dependencies within the chroot.
-                self._install_build_dependencies()
-                
-                # Step 2: Clone ZFS repository and checkout the target version.
-                zfs_source_dir: Path = self._clone_zfs_repository(target_zfs_version)
-                
-                # Step 3: Build and install ZFS from source.
-                self._build_and_install_zfs(zfs_source_dir)
-                
-                # Step 4: Configure DKMS for ZFS. (Often handled by ZFS install script, but verify)
-                self._configure_dkms_for_zfs() # This might be more of a verification step.
+                # ENHANCED: Use prebuilt ZFS installer as primary method
+                prebuilt_installer_path = self.workspace.parent / "scripts/fixes/prebuilt_zfs_installer.py"
+                if prebuilt_installer_path.exists():
+                    self.logger.info("Using enhanced prebuilt ZFS installer...")
+                    result = subprocess.run([
+                        "python3", str(prebuilt_installer_path), 
+                        str(self.chroot_path), target_zfs_version
+                    ], capture_output=True, text=True)
+                    
+                    if result.returncode == 0:
+                        self.logger.info("Prebuilt ZFS installer succeeded")
+                        # Verify installation
+                        validator_path = self.workspace.parent / "scripts/fixes/build_checkpoint_validator.py"
+                        if validator_path.exists():
+                            subprocess.run([
+                                "python3", str(validator_path), 
+                                str(self.chroot_path), "post-zfs"
+                            ], check=False)
+                    else:
+                        self.logger.warning(f"Prebuilt installer failed: {result.stderr}")
+                        raise Exception("Prebuilt ZFS installation failed")
+                else:
+                    # FALLBACK: Original method
+                    # Step 1: Install ZFS build dependencies within the chroot.
+                    self._install_build_dependencies()
+                    
+                    # Step 2: Clone ZFS repository and checkout the target version.
+                    zfs_source_dir: Path = self._clone_zfs_repository(target_zfs_version)
+                    
+                    # Step 3: Build and install ZFS from source.
+                    self._build_and_install_zfs(zfs_source_dir)
+                    
+                    # Step 4: Configure DKMS for ZFS. (Often handled by ZFS install script, but verify)
+                    self._configure_dkms_for_zfs() # This might be more of a verification step.
                 
                 # Step 5: Set up dracut for ZFS support in initramfs.
                 self._setup_dracut_for_zfs()
