@@ -181,6 +181,49 @@ Pin-Priority: 100
             # Don't fail the build - ZFS might be optional
             return False
 
+    def _install_prebuilt_packages(self) -> str:
+        """Install ZFS from pre-built packages"""
+        self.logger.info("Installing ZFS from pre-built packages...")
+        
+        prebuilt_dir = Path("/opt/github/Z-FORGE/prebuilt_packages")
+        
+        # Look for installer scripts
+        installers = [
+            prebuilt_dir / "install_zfs_downloaded.sh",
+            prebuilt_dir / "install_zfs_kernel_built.sh",
+            prebuilt_dir / "install_zfs_prebuilt.sh"
+        ]
+        
+        installer = None
+        for script in installers:
+            if script.exists():
+                installer = script
+                break
+                
+        if not installer:
+            raise Exception("No ZFS installer script found in prebuilt_packages")
+            
+        # Run installer
+        self.logger.info(f"Running installer: {installer}")
+        result = subprocess.run(
+            ["bash", str(installer), str(self.chroot_path)],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            self.logger.error(f"Pre-built package installation failed: {result.stderr}")
+            raise Exception(f"Failed to install pre-built packages: {result.stderr}")
+            
+        self.logger.info("Pre-built ZFS packages installed successfully")
+        
+        # Get version
+        version_result = self._run_chroot_command(["zfs", "version"], check=False)
+        if version_result.returncode == 0:
+            version_line = version_result.stdout.strip().split('\n')[0]
+            return version_line.split()[-1] if version_line else "2.2.2"
+        return "2.2.2"
+    
     def _install_zfs_from_apt(self) -> str:
         """Install ZFS from APT as fallback if building from source fails."""
         self.logger.info("Installing ZFS from APT repositories...")
@@ -225,9 +268,15 @@ Pin-Priority: 100
             build_from_source = zfs_config.get('build_from_source', True)
             
             if not build_from_source:
-                # Install from APT directly
-                self.logger.info("Installing ZFS from APT repositories (build_from_source=false)")
-                zfs_version = self._install_zfs_from_apt()
+                # Check for pre-built packages first
+                prebuilt_dir = Path("/opt/github/Z-FORGE/prebuilt_packages")
+                if prebuilt_dir.exists() and list(prebuilt_dir.glob("*.deb")):
+                    self.logger.info("Found pre-built ZFS packages, installing...")
+                    zfs_version = self._install_prebuilt_packages()
+                else:
+                    # Install from APT directly
+                    self.logger.info("Installing ZFS from APT repositories (build_from_source=false)")
+                    zfs_version = self._install_zfs_from_apt()
                 
                 # Set up dracut for ZFS support
                 self._setup_dracut_for_zfs()
