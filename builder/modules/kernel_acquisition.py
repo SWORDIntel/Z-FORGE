@@ -1103,14 +1103,19 @@ elif [[ "$KVER" == *"+"* ]]; then
     if run_dracut --force --verbose --kver "$ESCAPED_KVER" "$OUTPUT"; then
         echo "Success with method 2"
     else
-        echo "Method 3: Trying without explicit kernel version"
-        # This will use the running kernel version as fallback
-        if run_dracut --force --verbose "$OUTPUT"; then
+        echo "Method 3: Trying with quoted kernel version"
+        QUOTED_KVER="\"$KVER\""
+        if run_dracut --force --verbose --kver $QUOTED_KVER "$OUTPUT"; then
             echo "Success with method 3"
         else
-            echo "Method 4: Minimal dracut invocation"
-            if run_dracut --force "$OUTPUT"; then
+            echo "Method 4: Trying with explicit module path"
+            if run_dracut --force --verbose --kver "$KVER" --kmoddir "/lib/modules/$KVER" "$OUTPUT"; then
                 echo "Success with method 4"
+            else
+                echo "All methods failed - kernel version $KVER may be invalid"
+                echo "Available kernel modules:"
+                ls -la "/lib/modules/" || echo "No modules directory found"
+                return 1
             fi
         fi
     fi

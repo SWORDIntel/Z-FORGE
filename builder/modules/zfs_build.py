@@ -233,6 +233,23 @@ class ZFSBuild:
             self.logger.info(f"Target ZFS version for build: {target_zfs_version}")
 
             try:
+                # ENHANCED: Setup ZFS repositories first
+                enhanced_repo_script = self.workspace.parent / "scripts/fixes/enhanced_zfs_repo_setup.sh"
+                if enhanced_repo_script.exists():
+                    self.logger.info("Setting up enhanced ZFS repositories...")
+                    repo_result = subprocess.run([
+                        "bash", str(enhanced_repo_script), 
+                        str(self.chroot_path), target_zfs_version.replace("zfs-", "")
+                    ], capture_output=True, text=True)
+                    
+                    if repo_result.returncode == 0:
+                        self.logger.info("Enhanced ZFS repository setup completed")
+                    else:
+                        self.logger.warning(f"Enhanced repo setup failed: {repo_result.stderr}")
+                        # Continue with prebuilt installer as fallback
+                else:
+                    self.logger.warning("Enhanced ZFS repository setup script not found, using fallback methods")
+
                 # ENHANCED: Use prebuilt ZFS installer as primary method
                 prebuilt_installer_path = self.workspace.parent / "scripts/fixes/prebuilt_zfs_installer.py"
                 if prebuilt_installer_path.exists():
