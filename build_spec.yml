@@ -59,7 +59,7 @@ proxmox_config:
 
 zfs_config:
   version: "2.3.3"  # Explicitly use ZFS 2.3.3
-  build_from_source: false  # Use pre-built packages to avoid compilation issues
+  build_from_source: false  # Will try prebuilt, then chroot build with modules
   use_github_release: true  # Download from https://github.com/openzfs/zfs/releases/tag/zfs-2.3.3
   enable_encryption: true
   default_compression: lz4

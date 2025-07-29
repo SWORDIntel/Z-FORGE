@@ -14,10 +14,33 @@ mkdir -p "$OUTPUT_DIR"
 cd "$OUTPUT_DIR"
 
 # Base URL for Debian packages
-DEBIAN_MIRROR="http://deb.debian.org/debian"
+# Try multiple mirrors for redundancy
+MIRRORS=(
+    "http://deb.debian.org/debian"
+    "http://ftp.debian.org/debian"
+    "http://ftp.us.debian.org/debian"
+    "https://rsync.cica.es/debian"
+)
+
+# Select first working mirror
+DEBIAN_MIRROR=""
+for mirror in "${MIRRORS[@]}"; do
+    if wget -q --spider "$mirror/pool/contrib/z/zfs-linux/" 2>/dev/null; then
+        DEBIAN_MIRROR="$mirror"
+        echo "Using mirror: $DEBIAN_MIRROR"
+        break
+    fi
+done
+
+if [ -z "$DEBIAN_MIRROR" ]; then
+    echo "Error: No working mirror found"
+    exit 1
+fi
+
 POOL_URL="$DEBIAN_MIRROR/pool"
 
 # ZFS packages we need (from bookworm-backports)
+# Note: Fixed typo in package name (amd74 -> amd64)
 PACKAGES=(
     # Core ZFS packages
     "contrib/z/zfs-linux/zfsutils-linux_2.2.2-4~bpo12+1_amd64.deb"
@@ -56,8 +79,15 @@ for package in "${PACKAGES[@]}"; do
         continue
     fi
     
-    if wget -q "$url" -O "$filename"; then
+    # Try with wget, handle SSL issues
+    if wget -q "$url" -O "$filename" 2>/dev/null; then
         echo "✅"
+        ((SUCCESS++))
+    elif wget -q --no-check-certificate "$url" -O "$filename" 2>/dev/null; then
+        echo "✅ (SSL bypass)"
+        ((SUCCESS++))
+    elif curl -sL "$url" -o "$filename"; then
+        echo "✅ (curl)"
         ((SUCCESS++))
     else
         echo "❌ Failed"

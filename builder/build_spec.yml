@@ -1,0 +1,169 @@
+builder_config:
+  debian_release: trixie
+  kernel_version: latest
+  output_iso_name: zforge-universal-proxmox-v3.iso
+  enable_debug: true
+  workspace_path: /tmp/zforge_workspace
+  cache_packages: true
+  auto_detect_hardware: true
+  safe_optimization: -O2
+proxmox_config:
+  version: latest
+  minimal_install: true
+  build_from_source: false
+  include_packages:
+  - proxmox-ve
+  - pve-kernel-6.8
+  - zfs-dkms
+  - zfsutils-linux
+  - pve-zsync
+  - ipmitool
+  - openipmi
+  - lm-sensors
+  - nvme-cli
+  - smartmontools
+  - ethtool
+  - fio
+  - mdadm
+  - snmp
+  - intel-microcode
+  - amd64-microcode
+  - thermald
+  - powertop
+  - i7z
+  - megacli
+  - megactl
+  - megaraid-status
+  - storcli
+  - sas2ircu
+  - perccli
+  - ssacli
+  - arcconf
+zfs_config:
+  version: 2.3.3
+  repository: https://github.com/openzfs/zfs.git
+  build_from_source: true
+  build_flags:
+  - -O2
+  enable_encryption: true
+  compression:
+    default: lz4
+    algorithm: auto
+  encryption:
+    default_enabled: true
+    default_algorithm: aes-256-gcm
+    pbkdf_iterations: 350000
+    prompt_during_install: true
+bootloader_config:
+  primary: zfsbootmenu
+  enable_isolinux: true
+  enable_opencore: true
+  opencore_flexible: true
+  opencore_drivers:
+  - NvmExpressDxe.efi
+  - OpenRuntime.efi
+  encryption_support: true
+hardware_detection:
+  enabled: true
+  database_path: builder/modules/hardware_db.py
+  profiles:
+  - dell_servers
+  - hp_servers
+  - supermicro_servers
+  - workstations
+  - storage_systems
+  - raid_controllers
+  enforce_zfs_mode: true
+modules:
+- name: WorkspaceSetup
+  enabled: true
+- name: GPGBypass
+  enabled: true
+- name: UniversalHardwareDetect
+  enabled: true
+- name: Debootstrap
+  enabled: true
+- name: KernelAcquisition
+  enabled: true
+- name: ZFSBuild
+  enabled: true
+- name: LiveEnvironment
+  enabled: true
+- name: DracutConfig
+  enabled: true
+- name: ZFSBootMenuInstall
+  enabled: true
+- name: BootloaderSetup
+  enabled: true
+- name: ProxmoxIntegration
+  enabled: true
+- name: SecurityHardening
+  enabled: true
+- name: ZFSEncryption
+  enabled: true
+- name: OpenCoreNVME
+  enabled: true
+- name: CalamaresIntegration
+  enabled: true
+- name: ZFSCompressionOptimizer
+  enabled: true
+- name: HardwareProfilerIntegration
+  enabled: true
+- name: AutoOptimizer
+  enabled: true
+- name: CleanupHandler
+  enabled: true
+- name: ISOGeneration
+  enabled: true
+calamares_config:
+  sequence:
+  - show:
+    - welcome
+    - hardwaredetect
+    - telemetryconsent
+    - locale
+    - keyboard
+    - raidcontroller
+    - zfsrichconfig
+  - exec:
+    - partition
+    - mount
+    - zfsrootselect
+    - unpackfs
+    - machineid
+    - fstab
+    - locale
+    - keyboard
+    - localecfg
+    - users
+    - displaymanager
+    - networkcfg
+    - securityhardening
+    - hwclock
+    - initramfscfg
+    - initramfs
+    - grubcfg
+    - bootloader
+    - opencoreinstall
+    - umount
+    - telemetryjob
+  - show:
+    - finished
+universal_config:
+  detect_at_build: true
+  detect_at_boot: true
+  apply_optimal_settings: true
+  use_hardware_db: true
+  supported_vendors:
+  - Dell
+  - HP/HPE
+  - Lenovo
+  - IBM
+  - Supermicro
+  - Intel
+  - AMD
+  - ASUS
+  - Gigabyte
+  - MSI
+  - ASRock
+  unknown_hardware_mode: safe

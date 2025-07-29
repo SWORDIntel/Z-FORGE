@@ -181,14 +181,53 @@ Pin-Priority: 100
             # Don't fail the build - ZFS might be optional
             return False
 
+    def _check_kernel_modules_support(self) -> bool:
+        """Check if kernel supports loadable modules (CONFIG_MODULES)"""
+        try:
+            # Check various locations for kernel config
+            config_files = [
+                "/proc/config.gz",
+                f"/lib/modules/{os.uname().release}/config",
+                f"/boot/config-{os.uname().release}"
+            ]
+            
+            for config_file in config_files:
+                if os.path.exists(config_file):
+                    if config_file.endswith('.gz'):
+                        import gzip
+                        with gzip.open(config_file, 'rt') as f:
+                            content = f.read()
+                    else:
+                        with open(config_file, 'r') as f:
+                            content = f.read()
+                    
+                    for line in content.split('\n'):
+                        if line.startswith('CONFIG_MODULES='):
+                            return line.split('=')[1].strip() == 'y'
+            
+            self.logger.warning("Could not detect CONFIG_MODULES - assuming no module support")
+            return False
+            
+        except Exception as e:
+            self.logger.warning(f"Error checking kernel config: {e}")
+            return False
+
     def _install_prebuilt_packages(self) -> str:
         """Install ZFS from pre-built packages"""
         self.logger.info("Installing ZFS from pre-built packages...")
         
+        # Check if kernel supports modules
+        has_modules = self._check_kernel_modules_support()
+        self.logger.info(f"Kernel module support: {'available' if has_modules else 'not available'}")
+        if not has_modules:
+            self.logger.info("Will use userspace-only ZFS packages")
+        
         prebuilt_dir = Path("/opt/github/Z-FORGE/prebuilt_packages")
         
-        # Look for installer scripts
+        # Look for installer scripts (prefer ZFS 2.3.3)
         installers = [
+            prebuilt_dir / "install_zfs_2_3_3.sh",  # ZFS 2.3.3 preferred
+            prebuilt_dir / "install_zfs_userspace.sh",
             prebuilt_dir / "install_zfs_downloaded.sh",
             prebuilt_dir / "install_zfs_kernel_built.sh",
             prebuilt_dir / "install_zfs_prebuilt.sh"
@@ -240,6 +279,36 @@ Pin-Priority: 100
             return version_line.split()[-1] if version_line else "unknown"
         return "unknown"
     
+    def _build_zfs_in_chroot(self) -> str:
+        """Build ZFS with kernel modules inside chroot environment"""
+        self.logger.info("Building ZFS with kernel modules in chroot...")
+        
+        # Check if chroot build script exists
+        chroot_build_script = Path("/opt/github/Z-FORGE/build_zfs_233_chroot_modules.sh")
+        if not chroot_build_script.exists():
+            raise Exception("Chroot build script not found: build_zfs_233_chroot_modules.sh")
+        
+        # Run the chroot build script
+        self.logger.info(f"Running chroot ZFS build: {chroot_build_script}")
+        result = subprocess.run(
+            ["bash", str(chroot_build_script), str(self.chroot_path)],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            self.logger.error(f"Chroot ZFS build failed: {result.stderr}")
+            raise Exception(f"Failed to build ZFS in chroot: {result.stderr}")
+        
+        self.logger.info("ZFS built successfully in chroot with kernel modules")
+        
+        # Verify installation
+        version_result = self._run_chroot_command(["zfs", "version"], check=False)
+        if version_result.returncode == 0:
+            version_line = version_result.stdout.strip().split('\n')[0]
+            return version_line.split()[-1] if version_line else "2.3.3"
+        return "2.3.3"
+    
     def execute(self, resume_data: Optional[Dict[str, Any]] = None, lockfile: Optional[BuildLockfile] = None) -> Dict[str, Any]:
         """
         Execute the ZFS build and installation process.
@@ -270,13 +339,19 @@ Pin-Priority: 100
             if not build_from_source:
                 # Check for pre-built packages first
                 prebuilt_dir = Path("/opt/github/Z-FORGE/prebuilt_packages")
-                if prebuilt_dir.exists() and list(prebuilt_dir.glob("*.deb")):
+                if prebuilt_dir.exists() and (list(prebuilt_dir.glob("*.deb")) or list(prebuilt_dir.glob("*.tar.gz"))):
                     self.logger.info("Found pre-built ZFS packages, installing...")
                     zfs_version = self._install_prebuilt_packages()
                 else:
-                    # Install from APT directly
-                    self.logger.info("Installing ZFS from APT repositories (build_from_source=false)")
-                    zfs_version = self._install_zfs_from_apt()
+                    # For live ISO, try chroot build first (gets kernel modules)
+                    self.logger.info("No pre-built packages found, trying chroot build for live ISO...")
+                    try:
+                        zfs_version = self._build_zfs_in_chroot()
+                    except Exception as e:
+                        self.logger.warning(f"Chroot build failed: {e}")
+                        # Fallback to APT installation
+                        self.logger.info("Falling back to APT repositories")
+                        zfs_version = self._install_zfs_from_apt()
                 
                 # Set up dracut for ZFS support
                 self._setup_dracut_for_zfs()
@@ -300,8 +375,8 @@ Pin-Priority: 100
                 target_zfs_version = self._get_latest_zfs_release_tag()
                 self.logger.info(f"Latest ZFS release tag: {target_zfs_version}")
             else:
-                # Default to a known stable version if not specified.
-                target_zfs_version = zfs_config.get('version', 'zfs-2.2.4') # Ensure tag format
+                # Default to ZFS 2.3.3 for Z-FORGE builds
+                target_zfs_version = zfs_config.get('version', 'zfs-2.3.3') # Updated default
                 if not target_zfs_version.startswith("zfs-"): # Basic validation for tag format
                     target_zfs_version = f"zfs-{target_zfs_version}"
 

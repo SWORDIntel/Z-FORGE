@@ -60,3 +60,4 @@ logs/zforge_build_20250722_220719.log
 logs/zforge_build_20250722_235911.log
 logs/zforge_build_20250723_004607.log
 *.iso
+*.lock
