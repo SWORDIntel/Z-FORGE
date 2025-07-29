@@ -1043,41 +1043,99 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool /lib/udev/zvol_id /lib/udev/vdev_id
                     
                 # Create a wrapper script for dracut with the problematic kernel version
                 wrapper_script = f"""#!/bin/bash
-# Dracut wrapper to handle kernel version with special characters
-set -e
+set -e  # Exit on any error
+set -x  # Show commands being executed
 
 KVER="{kernel_version}"
 OUTPUT="{initrd_path}"
 
 echo "Running dracut for kernel version: $KVER"
+echo "Output path: $OUTPUT"
 
-# Export the kernel version for dracut
+# Ensure output directory exists
+mkdir -p "$(dirname "$OUTPUT")"
+
+# Run depmod first to ensure module dependencies are up to date
+echo "Running depmod for $KVER..."
+depmod "$KVER" || echo "Warning: depmod failed (may be okay)"
+
+# Check if kernel modules directory exists
+if [ ! -d "/lib/modules/$KVER" ]; then
+    echo "Error: Kernel modules directory not found: /lib/modules/$KVER"
+    exit 1
+fi
+
+# Export environment variables for dracut
 export KERNEL_VERSION="$KVER"
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Create a temporary symlink without special characters if needed
-if [[ "$KVER" == *"+"* ]]; then
-    SAFE_KVER=$(echo "$KVER" | tr '+' '_')
-    if [ ! -e "/lib/modules/$SAFE_KVER" ]; then
-        ln -sf "/lib/modules/$KVER" "/lib/modules/$SAFE_KVER" || true
+# Function to run dracut with error handling
+run_dracut() {
+    local args="$@"
+    echo "Running: dracut $args"
+    
+    if dracut $args; then
+        echo "Dracut completed successfully"
+        return 0
+    else
+        local exit_code=$?
+        echo "Dracut failed with exit code: $exit_code"
+        
+        # Show more diagnostic info
+        echo "Checking dracut modules..."
+        dracut --list-modules 2>&1 | head -20
+        
+        echo "Checking kernel modules..."
+        ls -la "/lib/modules/$KVER/" | head -10
+        
+        return $exit_code
     fi
-    
-    # Try with safe version first
-    dracut --force --verbose --kver "$SAFE_KVER" "$OUTPUT" || \\
-    dracut --force --verbose --kver "$KVER" "$OUTPUT" || \\
-    dracut --force --verbose "$OUTPUT"
-    
-    # Clean up symlink
-    rm -f "/lib/modules/$SAFE_KVER"
+}
+
+# Try different dracut invocation methods
+echo "Method 1: Standard dracut with kernel version"
+if run_dracut --force --verbose --kver "$KVER" "$OUTPUT"; then
+    echo "Success with method 1"
+elif [[ "$KVER" == *"+"* ]]; then
+    # Handle special characters in kernel version
+    echo "Method 2: Trying with escaped kernel version"
+    ESCAPED_KVER=$(printf '%q' "$KVER")
+    if run_dracut --force --verbose --kver "$ESCAPED_KVER" "$OUTPUT"; then
+        echo "Success with method 2"
+    else
+        echo "Method 3: Trying without explicit kernel version"
+        # This will use the running kernel version as fallback
+        if run_dracut --force --verbose "$OUTPUT"; then
+            echo "Success with method 3"
+        else
+            echo "Method 4: Minimal dracut invocation"
+            if run_dracut --force "$OUTPUT"; then
+                echo "Success with method 4"
+            fi
+        fi
+    fi
 else
-    dracut --force --verbose --kver "$KVER" "$OUTPUT"
+    echo "All standard methods failed"
 fi
 
 # Verify the output was created
 if [ -f "$OUTPUT" ]; then
     echo "Successfully created initramfs at $OUTPUT"
+    ls -lh "$OUTPUT"
     exit 0
 else
     echo "Failed to create initramfs"
+    
+    # Final diagnostic information
+    echo "=== Diagnostic Information ==="
+    echo "Kernel version: $KVER"
+    echo "Dracut version:"
+    dracut --version || echo "Failed to get dracut version"
+    echo "Available dracut modules:"
+    dracut --list-modules 2>&1 | head -10 || echo "Failed to list modules"
+    echo "Kernel modules directory:"
+    ls -la "/lib/modules/$KVER/" 2>&1 | head -5 || echo "Failed to list kernel modules"
+    
     exit 1
 fi
 """
@@ -1203,6 +1261,23 @@ fi
         self.logger.info(f"Successfully generated dracut initramfs with ZFS support at {initrd_path}")
         return vmlinuz_path, initrd_path
     
+    def _install_dracut_emergency(self):
+        """Emergency installation of dracut if missing"""
+        self.logger.warning("Attempting emergency dracut installation...")
+        try:
+            self._run_chroot_command([
+                "apt-get", "update"
+            ], timeout=300)
+            
+            self._run_chroot_command([
+                "apt-get", "install", "-y", "--no-install-recommends",
+                "dracut", "dracut-core"
+            ], timeout=600)
+            
+            self.logger.info("Emergency dracut installation completed")
+        except Exception as e:
+            self.logger.error(f"Emergency dracut installation failed: {e}")
+
     def _mount_pseudo_filesystems(self):
         """Mount required pseudo filesystems for chroot operations."""
         mounts = [
