@@ -1,0 +1,92 @@
+{
+  "diagnosis": {
+    "timestamp": "2025-07-29T05:21:25.817811",
+    "chroot_exists": true,
+    "debian_version": {
+      "codename": "trixie",
+      "version": "13"
+    },
+    "apt_sources": {
+      "configured": true,
+      "has_contrib": true,
+      "using_testing": true,
+      "sources": [
+        "# Debian Testing (Trixie) repositories - will get 6.12.x kernel",
+        "deb http://deb.debian.org/debian testing main contrib non-free-firmware",
+        "deb-src http://deb.debian.org/debian testing main contrib non-free-firmware",
+        "",
+        "deb http://deb.debian.org/debian-security testing-security main contrib non-free-firmware"
+      ]
+    },
+    "kernel_status": {
+      "installed_kernels": [],
+      "available_kernel": "6.12.38-1",
+      "has_headers": true
+    },
+    "dpkg_status": {
+      "has_errors": false,
+      "error_output": null
+    },
+    "zfs_status": {
+      "installed": true,
+      "packages": [
+        "libzfs6linux:amd64",
+        "zfs-dkms",
+        "zfsutils-linux"
+      ],
+      "dkms_status": ""
+    },
+    "problems_found": []
+  },
+  "repair": {
+    "dpkg_fixed": false,
+    "apt_fixed": false,
+    "locks_removed": true,
+    "actions_taken": [
+      "Removed lock: lock",
+      "Removed lock: lock-frontend",
+      "Removed lock: lock",
+      "Removed lock: lock"
+    ]
+  },
+  "repository": {
+    "sources_updated": true,
+    "cache_cleared": true,
+    "index_updated": true,
+    "kernel_available": "6.12.x kernel found"
+  },
+  "kernel_installation": {
+    "metapackage": {
+      "strategy": "metapackage",
+      "success": false,
+      "kernel_installed": null,
+      "error": "E: Could not get lock /var/lib/dpkg/lock-frontend. It is held by process 631619\nE: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?\n"
+    },
+    "latest_available": {
+      "strategy": "latest_available",
+      "success": false,
+      "kernel_installed": null,
+      "error": "E: Could not get lock /var/lib/dpkg/lock-frontend. It is held by process 631619\nE: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?\n"
+    },
+    "specific_612": {
+      "strategy": "specific_612",
+      "success": false,
+      "kernel_installed": null,
+      "error": "perl: warning: Setting locale failed.\nperl: warning: Please check that your locale settings:\n\tLANGUAGE = (unset),\n\tLC_ALL = \"en_US.utf8\",\n\tLC_CTYPE = (unset),\n\tLC_NUMERIC = (unset),\n\tLC_COLLATE = (unset),\n\tLC_TIME = \"en_GB.UTF-8\",\n\tLC_MESSAGES = (unset),\n\tLC_MONETARY = (unset),\n\tLC_ADDRESS = (unset),\n\tLC_IDENTIFICATION = (unset),\n\tLC_MEASUREMENT = (unset),\n\tLC_PAPER = (unset),\n\tLC_TELEPHONE = (unset),\n\tLC_NAME = (unset),\n\tLANG = \"en_US.utf8\"\n    are supported and installed on your system.\nperl: warning: Falling back to the standard locale (\"C\").\nlocale: Cannot set LC_CTYPE to default locale: No such file or directory\nlocale: Cannot set LC_MESSAGES to default locale: No such file or directory\nlocale: Cannot set LC_ALL to default locale: No such file or directory\nE: Can not write log (Is /dev/pts mounted?) - posix_openpt (19: No such device)\n/etc/kernel/postinst.d/dkms:\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\n/etc/kernel/postinst.d/dracut:\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\n/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory\nfindmnt: can't read /proc/mounts: No such file or directory\ndracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-cloud-amd64 6.12.38+deb13-cloud-amd64\ndracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!\ndracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!\ndracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!\ndracut[E]: Module 'crypt' cannot be installed.\nrun-parts: /etc/kernel/postinst.d/dracut exited with return code 1\ndpkg: error processing package linux-image-6.12.38+deb13-cloud-amd64 (--configure):\n installed linux-image-6.12.38+deb13-cloud-amd64 package post-installation script subprocess returned error exit status 1\n/etc/kernel/postinst.d/dkms:\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\n/etc/kernel/postinst.d/dracut:\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\n/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory\nfindmnt: can't read /proc/mounts: No such file or directory\ndracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64\ndracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!\ndracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!\ndracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!\ndracut[E]: Module 'crypt' cannot be installed.\nrun-parts: /etc/kernel/postinst.d/dracut exited with return code 1\ndpkg: error processing package linux-image-6.12.38+deb13-amd64 (--configure):\n installed linux-image-6.12.38+deb13-amd64 package post-installation script subprocess returned error exit status 1\ndpkg: dependency problems prevent configuration of linux-headers-6.12.38+deb13-cloud-amd64:\n linux-headers-6.12.38+deb13-cloud-amd64 depends on linux-image-6.12.38+deb13-cloud-amd64 (= 6.12.38-1) | linux-image-6.12.38+deb13-cloud-amd64-unsigned (= 6.12.38-1); however:\n  Package linux-image-6.12.38+deb13-cloud-amd64 is not configured yet.\n  Package linux-image-6.12.38+deb13-cloud-amd64-unsigned is not installed.\n\ndpkg: error processing package linux-headers-6.12.38+deb13-cloud-amd64 (--configure):\n dependency problems - leaving unconfigured\ndpkg: dependency problems prevent configuration of linux-image-amd64:\n linux-image-amd64 depends on linux-image-6.12.38+deb13-amd64 (= 6.12.38-1); however:\n  Package linux-image-6.12.38+deb13-amd64 is not configured yet.\n\ndpkg: error processing package linux-image-amd64 (--configure):\n dependency problems - leaving unconfigured\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\n/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory\nfindmnt: can't read /proc/mounts: No such file or directory\ndracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64\ndracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!\ndracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!\ndracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!\ndracut[E]: Module 'crypt' cannot be installed.\ndpkg: error processing package dracut (--configure):\n installed dracut package post-installation script subprocess returned error exit status 1\nErrors were encountered while processing:\n linux-image-6.12.38+deb13-cloud-amd64\n linux-image-6.12.38+deb13-amd64\n linux-headers-6.12.38+deb13-cloud-amd64\n linux-image-amd64\n dracut\nE: Sub-process /usr/bin/dpkg returned an error code (1)\n"
+    }
+  },
+  "zfs": {
+    "success": false,
+    "packages_installed": [],
+    "dkms_built": false,
+    "error": "perl: warning: Setting locale failed.\nperl: warning: Please check that your locale settings:\n\tLANGUAGE = (unset),\n\tLC_ALL = \"en_US.utf8\",\n\tLC_CTYPE = (unset),\n\tLC_NUMERIC = (unset),\n\tLC_COLLATE = (unset),\n\tLC_TIME = \"en_GB.UTF-8\",\n\tLC_MESSAGES = (unset),\n\tLC_MONETARY = (unset),\n\tLC_ADDRESS = (unset),\n\tLC_IDENTIFICATION = (unset),\n\tLC_MEASUREMENT = (unset),\n\tLC_PAPER = (unset),\n\tLC_TELEPHONE = (unset),\n\tLC_NAME = (unset),\n\tLANG = \"en_US.utf8\"\n    are supported and installed on your system.\nperl: warning: Falling back to the standard locale (\"C\").\nlocale: Cannot set LC_CTYPE to default locale: No such file or directory\nlocale: Cannot set LC_MESSAGES to default locale: No such file or directory\nlocale: Cannot set LC_ALL to default locale: No such file or directory\nE: Can not write log (Is /dev/pts mounted?) - posix_openpt (19: No such device)\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\nlocale: Cannot set LC_CTYPE to default locale: No such file or directory\nlocale: Cannot set LC_MESSAGES to default locale: No such file or directory\nlocale: Cannot set LC_ALL to default locale: No such file or directory\nOk, aborting, since ZFS is not designed for 32-bit kernels.\n/etc/kernel/postinst.d/dkms:\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\n/etc/kernel/postinst.d/dracut:\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\n/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory\nfindmnt: can't read /proc/mounts: No such file or directory\ndracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-cloud-amd64 6.12.38+deb13-cloud-amd64\ndracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!\ndracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!\ndracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!\ndracut[E]: Module 'crypt' cannot be installed.\nrun-parts: /etc/kernel/postinst.d/dracut exited with return code 1\ndpkg: error processing package linux-image-6.12.38+deb13-cloud-amd64 (--configure):\n installed linux-image-6.12.38+deb13-cloud-amd64 package post-installation script subprocess returned error exit status 1\n/etc/kernel/postinst.d/dkms:\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\n/etc/kernel/postinst.d/dracut:\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\n/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory\nfindmnt: can't read /proc/mounts: No such file or directory\ndracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64\ndracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!\ndracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!\ndracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!\ndracut[E]: Module 'crypt' cannot be installed.\nrun-parts: /etc/kernel/postinst.d/dracut exited with return code 1\ndpkg: error processing package linux-image-6.12.38+deb13-amd64 (--configure):\n installed linux-image-6.12.38+deb13-amd64 package post-installation script subprocess returned error exit status 1\ndpkg: dependency problems prevent configuration of linux-headers-6.12.38+deb13-cloud-amd64:\n linux-headers-6.12.38+deb13-cloud-amd64 depends on linux-image-6.12.38+deb13-cloud-amd64 (= 6.12.38-1) | linux-image-6.12.38+deb13-cloud-amd64-unsigned (= 6.12.38-1); however:\n  Package linux-image-6.12.38+deb13-cloud-amd64 is not configured yet.\n  Package linux-image-6.12.38+deb13-cloud-amd64-unsigned is not installed.\n\ndpkg: error processing package linux-headers-6.12.38+deb13-cloud-amd64 (--configure):\n dependency problems - leaving unconfigured\ndpkg: dependency problems prevent configuration of linux-image-amd64:\n linux-image-amd64 depends on linux-image-6.12.38+deb13-amd64 (= 6.12.38-1); however:\n  Package linux-image-6.12.38+deb13-amd64 is not configured yet.\n\ndpkg: error processing package linux-image-amd64 (--configure):\n dependency problems - leaving unconfigured\nmodprobe: FATAL: Module zfs not found in directory /lib/modules/6.14.5-mtl-pve\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nRunning in chroot, ignoring request.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nRunning in chroot, ignoring request.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nRunning in chroot, ignoring request.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nRunning in chroot, ignoring request.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nCreated symlink '/etc/systemd/system/zfs-import.target.wants/zfs-import-cache.service' \u2192 '/usr/lib/systemd/system/zfs-import-cache.service'.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nCreated symlink '/etc/systemd/system/zfs.target.wants/zfs-import.target' \u2192 '/usr/lib/systemd/system/zfs-import.target'.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nCreated symlink '/etc/systemd/system/zfs-mount.service.wants/zfs-load-module.service' \u2192 '/usr/lib/systemd/system/zfs-load-module.service'.\nCreated symlink '/etc/systemd/system/zfs.target.wants/zfs-load-module.service' \u2192 '/usr/lib/systemd/system/zfs-load-module.service'.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nCreated symlink '/etc/systemd/system/zfs.target.wants/zfs-mount.service' \u2192 '/usr/lib/systemd/system/zfs-mount.service'.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nCreated symlink '/etc/systemd/system/zfs.target.wants/zfs-share.service' \u2192 '/usr/lib/systemd/system/zfs-share.service'.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nCreated symlink '/etc/systemd/system/zfs-volumes.target.wants/zfs-volume-wait.service' \u2192 '/usr/lib/systemd/system/zfs-volume-wait.service'.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nCreated symlink '/etc/systemd/system/zfs.target.wants/zfs-volumes.target' \u2192 '/usr/lib/systemd/system/zfs-volumes.target'.\n\u26a0\ufe0f /proc/ is not mounted. This is not a supported mode of operation. Please fix\nyour invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.\nYour mileage may vary.\nCreated symlink '/etc/systemd/system/multi-user.target.wants/zfs.target' \u2192 '/usr/lib/systemd/system/zfs.target'.\n/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory\n/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory\nfindmnt: can't read /proc/mounts: No such file or directory\ndracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64\ndracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!\ndracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!\ndracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!\ndracut[E]: Module 'crypt' cannot be installed.\ndpkg: error processing package dracut (--configure):\n installed dracut package post-installation script subprocess returned error exit status 1\nErrors were encountered while processing:\n linux-image-6.12.38+deb13-cloud-amd64\n linux-image-6.12.38+deb13-amd64\n linux-headers-6.12.38+deb13-cloud-amd64\n linux-image-amd64\n dracut\nE: Sub-process /usr/bin/dpkg returned an error code (1)\n"
+  },
+  "verification": {
+    "kernel_correct": false,
+    "zfs_ready": true,
+    "system_healthy": false,
+    "details": {
+      "running_kernel": "6.14.5-mtl-pve"
+    }
+  }
+}

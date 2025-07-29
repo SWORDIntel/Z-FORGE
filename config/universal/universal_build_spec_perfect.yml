@@ -1,0 +1,110 @@
+apt_config:
+  enable_contrib: true
+  enable_non_free: true
+  enable_security: true
+  primary_release: trixie
+  sources:
+  - deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
+  - deb-src http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
+  - deb http://deb.debian.org/debian-security trixie-security main contrib non-free
+    non-free-firmware
+  - deb-src http://deb.debian.org/debian-security trixie-security main contrib non-free
+    non-free-firmware
+bootloader_config:
+  enable_opencore: true
+  enable_two_stage: true
+  primary: zfsbootmenu
+  uefi_mode: auto
+builder_config:
+  auto_detect_hardware: true
+  cache_packages: true
+  debian_release: trixie
+  enable_debug: true
+  force_clean_build: true
+  kernel_version: latest
+  output_iso_name: zforge-universal-proxmox-v3-perfect.iso
+  workspace_path: /tmp/zforge_workspace_perfect
+kernel_config:
+  install_dkms: true
+  install_headers: true
+  metapackage_fallback: true
+  prefer_signed: true
+  target_version: 6.12.x
+modules:
+- enabled: true
+  name: WorkspaceSetup
+- enabled: true
+  name: GPGBypass
+- enabled: true
+  name: UniversalHardwareDetect
+- enabled: true
+  name: PerfectDebootstrap
+- enabled: true
+  name: PerfectKernelAcquisition
+- enabled: true
+  name: PerfectZFSBuild
+- enabled: true
+  name: LiveEnvironment
+- enabled: true
+  name: DracutConfig
+- enabled: true
+  name: ZFSBootMenuInstall
+- enabled: true
+  name: BootloaderSetup
+- enabled: true
+  name: ProxmoxIntegration
+- enabled: true
+  name: SecurityHardening
+- enabled: true
+  name: ZFSEncryption
+- enabled: true
+  name: OpenCoreNVME
+- enabled: true
+  name: CalamaresIntegration
+- enabled: true
+  name: HardwareProfilerIntegration
+- enabled: true
+  name: AutoOptimizer
+- enabled: true
+  name: ZFSCompressionOptimizer
+- enabled: true
+  name: CleanupHandler
+- enabled: true
+  name: ISOGeneration
+proxmox_config:
+  build_from_source: false
+  include_packages:
+  - proxmox-ve
+  - pve-kernel-6.8
+  - zfs-dkms
+  - zfsutils-linux
+  - pve-zsync
+  - ipmitool
+  - openipmi
+  - lm-sensors
+  - nvme-cli
+  - smartmontools
+  - ethtool
+  - fio
+  - mdadm
+  - snmp
+  - intel-microcode
+  - amd64-microcode
+  - thermald
+  - powertop
+  - i7z
+  - build-essential
+  - dkms
+  minimal_install: true
+  use_beta_iso: false
+  version: latest
+system:
+  desktop_environment: minimal
+zfs_config:
+  arc_auto_size: true
+  build_from_source: false
+  default_compression: lz4
+  enable_block_cloning: true
+  enable_encryption: true
+  enable_vdev_properties: true
+  version: 2.3.3

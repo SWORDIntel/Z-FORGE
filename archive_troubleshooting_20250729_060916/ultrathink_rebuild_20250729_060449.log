@@ -1,0 +1,52 @@
+2025-07-29 06:04:52,827 - [RebuildCoordinator] INFO - 🚀 UltraThink ISO Rebuild System Starting
+2025-07-29 06:04:52,828 - [RebuildCoordinator] INFO - ============================================================
+2025-07-29 06:04:52,828 - [RebuildCoordinator] INFO - Phase 1: Configuration Analysis
+2025-07-29 06:04:52,828 - [ConfigAnalysis] INFO - Analyzing current Z-FORGE configuration issues
+2025-07-29 06:04:52,849 - [ConfigAnalysis] INFO - ✓ universal_build_spec.yml correctly uses Trixie
+2025-07-29 06:04:53,609 - [RebuildCoordinator] INFO - Issues identified: 6
+2025-07-29 06:04:53,609 - [RebuildCoordinator] INFO -   - Corrupted workspace with mixed Debian versions
+2025-07-29 06:04:53,609 - [RebuildCoordinator] INFO -   - Kernel version mismatch (Bookworm 6.1.x vs Trixie 6.12.x)
+2025-07-29 06:04:53,609 - [RebuildCoordinator] INFO -   - APT sources configuration inconsistency
+2025-07-29 06:04:53,609 - [RebuildCoordinator] INFO -   - DPKG database corruption in chroot
+2025-07-29 06:04:53,609 - [RebuildCoordinator] INFO -   - ZFS/kernel compatibility issues
+2025-07-29 06:04:53,609 - [RebuildCoordinator] INFO -   - Mixed stable/testing repositories
+2025-07-29 06:04:53,609 - [RebuildCoordinator] INFO - 
+Phase 2: Perfect Configuration Creation
+2025-07-29 06:04:53,609 - [PerfectConfig] INFO - Creating perfect Z-FORGE configuration
+2025-07-29 06:04:53,614 - [PerfectConfig] INFO - Created perfect config: /opt/github/Z-FORGE/config/universal/universal_build_spec_perfect.yml
+2025-07-29 06:04:53,615 - [PerfectConfig] INFO - Created perfect kernel acquisition module: /opt/github/Z-FORGE/builder/modules/kernel_acquisition_perfect.py
+2025-07-29 06:04:53,615 - [PerfectConfig] INFO - Created perfect ZFS build module: /opt/github/Z-FORGE/builder/modules/zfs_build_perfect.py
+2025-07-29 06:04:53,615 - [PerfectConfig] INFO - Created perfect build script: /opt/github/Z-FORGE/perfect_build.sh
+2025-07-29 06:04:53,615 - [RebuildCoordinator] INFO - Configurations created: 2
+2025-07-29 06:04:53,615 - [RebuildCoordinator] INFO - 
+Phase 3: Complete Workspace Cleanup
+2025-07-29 06:04:53,615 - [WorkspaceCleanup] INFO - Performing complete workspace cleanup
+2025-07-29 06:04:53,619 - [WorkspaceCleanup] INFO - Removing workspace: /tmp/zforge_workspace
+2025-07-29 06:04:56,600 - [WorkspaceCleanup] INFO - Cleanup completed. Freed 7854 MB
+2025-07-29 06:04:56,601 - [RebuildCoordinator] INFO - Workspaces removed: 1
+2025-07-29 06:04:56,601 - [RebuildCoordinator] INFO - Space freed: 7854 MB
+2025-07-29 06:04:56,601 - [RebuildCoordinator] INFO - 
+Phase 4: Perfect Build Execution
+2025-07-29 06:04:56,601 - [BuildOrchestration] INFO - Starting perfect build orchestration
+2025-07-29 06:04:56,601 - [BuildOrchestration] INFO - Executing perfect build script...
+2025-07-29 06:04:58,324 - [BuildOrchestration] ERROR - Build failed: 
+2025-07-29 06:04:58,324 - [RebuildCoordinator] INFO - 
+============================================================
+2025-07-29 06:04:58,324 - [RebuildCoordinator] INFO - 🎯 ULTRATHINK ISO REBUILD FINAL REPORT
+2025-07-29 06:04:58,325 - [RebuildCoordinator] INFO - ============================================================
+2025-07-29 06:04:58,325 - [RebuildCoordinator] INFO - ❌ FAILED: Build did not complete successfully
+2025-07-29 06:04:58,325 - [RebuildCoordinator] INFO - 
+📊 Detailed Results:
+2025-07-29 06:04:58,325 - [RebuildCoordinator] INFO - Issues identified: 6
+2025-07-29 06:04:58,325 - [RebuildCoordinator] INFO - Perfect configs created: 2
+2025-07-29 06:04:58,326 - [RebuildCoordinator] INFO - Workspaces cleaned: 1
+2025-07-29 06:04:58,326 - [RebuildCoordinator] INFO - Space freed: 7854 MB
+2025-07-29 06:04:58,326 - [RebuildCoordinator] INFO - Build time: 0.0 minutes
+2025-07-29 06:04:58,327 - [RebuildCoordinator] INFO - 
+📁 Full results saved to: /opt/github/Z-FORGE/ultrathink_rebuild_results_20250729_060458.json
+2025-07-29 06:04:58,327 - [RebuildCoordinator] INFO - 
+🔧 Next Steps:
+2025-07-29 06:04:58,327 - [RebuildCoordinator] INFO - 1. Check the build error above
+2025-07-29 06:04:58,327 - [RebuildCoordinator] INFO - 2. Review the full log file
+2025-07-29 06:04:58,327 - [RebuildCoordinator] INFO - 3. Check perfect config files were created
+2025-07-29 06:04:58,327 - [RebuildCoordinator] INFO - 4. Consider manual build with perfect config

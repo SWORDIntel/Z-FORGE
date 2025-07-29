@@ -1,0 +1,713 @@
+[2025-07-29 05:30:44] Starting UltraThink Fallback Fix
+[2025-07-29 05:30:44] Log file: /opt/github/Z-FORGE/ultrathink_fallback_20250729_053044.log
+[2025-07-29 05:30:44] Starting comprehensive fallback fix...
+[2025-07-29 05:30:44] === Fixing DPKG Issues ===
+[2025-07-29 05:30:44] Killing any stuck apt/dpkg processes...
+[2025-07-29 05:30:46] Removing lock files...
+[2025-07-29 05:30:46] Configuring dpkg...
+Setting up dracut (106-6) ...
+update-initramfs: deferring update (trigger activated)
+Setting up linux-image-6.12.38+deb13-cloud-amd64 (6.12.38-1) ...
+I: /initrd.img is now a symlink to boot/initrd.img-6.12.38+deb13-cloud-amd64
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-cloud-amd64 6.12.38+deb13-cloud-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-cloud-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-cloud-amd64 package post-installation script subprocess returned error exit status 1
+Setting up linux-image-6.12.38+deb13-amd64 (6.12.38-1) ...
+I: /initrd.img.old is now a symlink to boot/initrd.img-6.12.38+deb13-amd64
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-amd64 package post-installation script subprocess returned error exit status 1
+dpkg: dependency problems prevent configuration of linux-headers-6.12.38+deb13-cloud-amd64:
+ linux-headers-6.12.38+deb13-cloud-amd64 depends on linux-image-6.12.38+deb13-cloud-amd64 (= 6.12.38-1) | linux-image-6.12.38+deb13-cloud-amd64-unsigned (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-cloud-amd64 is not configured yet.
+  Package linux-image-6.12.38+deb13-cloud-amd64-unsigned is not installed.
+
+dpkg: error processing package linux-headers-6.12.38+deb13-cloud-amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of linux-image-amd64:
+ linux-image-amd64 depends on linux-image-6.12.38+deb13-amd64 (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-amd64 is not configured yet.
+
+dpkg: error processing package linux-image-amd64 (--configure):
+ dependency problems - leaving unconfigured
+Processing triggers for dracut (106-6) ...
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+dpkg: error processing package dracut (--configure):
+ installed dracut package post-installation script subprocess returned error exit status 1
+Errors were encountered while processing:
+ linux-image-6.12.38+deb13-cloud-amd64
+ linux-image-6.12.38+deb13-amd64
+ linux-headers-6.12.38+deb13-cloud-amd64
+ linux-image-amd64
+ dracut
+[2025-07-29 05:31:07] Fixing broken packages...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  initramfs-tools-bin klibc-utils libklibc tiny-initramfs-core
+Use 'sudo apt autoremove' to remove them.
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = "en_US.utf8",
+	LC_CTYPE = (unset),
+	LC_NUMERIC = (unset),
+	LC_COLLATE = (unset),
+	LC_TIME = "en_GB.UTF-8",
+	LC_MESSAGES = (unset),
+	LC_MONETARY = (unset),
+	LC_ADDRESS = (unset),
+	LC_IDENTIFICATION = (unset),
+	LC_MEASUREMENT = (unset),
+	LC_PAPER = (unset),
+	LC_TELEPHONE = (unset),
+	LC_NAME = (unset),
+	LANG = "en_US.utf8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+locale: Cannot set LC_CTYPE to default locale: No such file or directory
+locale: Cannot set LC_MESSAGES to default locale: No such file or directory
+locale: Cannot set LC_ALL to default locale: No such file or directory
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+5 not fully installed or removed.
+After this operation, 0 B of additional disk space will be used.
+E: Can not write log (Is /dev/pts mounted?) - posix_openpt (19: No such device)
+Setting up dracut (106-6) ...
+update-initramfs: deferring update (trigger activated)
+Setting up linux-image-6.12.38+deb13-cloud-amd64 (6.12.38-1) ...
+I: /initrd.img is now a symlink to boot/initrd.img-6.12.38+deb13-cloud-amd64
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-cloud-amd64 6.12.38+deb13-cloud-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-cloud-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-cloud-amd64 package post-installation script subprocess returned error exit status 1
+Setting up linux-image-6.12.38+deb13-amd64 (6.12.38-1) ...
+I: /initrd.img.old is now a symlink to boot/initrd.img-6.12.38+deb13-amd64
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-amd64 package post-installation script subprocess returned error exit status 1
+dpkg: dependency problems prevent configuration of linux-headers-6.12.38+deb13-cloud-amd64:
+ linux-headers-6.12.38+deb13-cloud-amd64 depends on linux-image-6.12.38+deb13-cloud-amd64 (= 6.12.38-1) | linux-image-6.12.38+deb13-cloud-amd64-unsigned (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-cloud-amd64 is not configured yet.
+  Package linux-image-6.12.38+deb13-cloud-amd64-unsigned is not installed.
+
+dpkg: error processing package linux-headers-6.12.38+deb13-cloud-amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of linux-image-amd64:
+ linux-image-amd64 depends on linux-image-6.12.38+deb13-amd64 (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-amd64 is not configured yet.
+
+dpkg: error processing package linux-image-amd64 (--configure):
+ dependency problems - leaving unconfigured
+Processing triggers for dracut (106-6) ...
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+dpkg: error processing package dracut (--configure):
+ installed dracut package post-installation script subprocess returned error exit status 1
+Errors were encountered while processing:
+ linux-image-6.12.38+deb13-cloud-amd64
+ linux-image-6.12.38+deb13-amd64
+ linux-headers-6.12.38+deb13-cloud-amd64
+ linux-image-amd64
+ dracut
+E: Sub-process /usr/bin/dpkg returned an error code (1)
+[2025-07-29 05:31:31] Cleaning package cache...
+[2025-07-29 05:31:36] DPKG fix completed
+[2025-07-29 05:31:36] === Fixing APT Repositories ===
+[2025-07-29 05:31:36] Creating Trixie APT sources...
+[2025-07-29 05:31:36] Removing APT pinning...
+[2025-07-29 05:31:36] Clearing entire APT cache...
+[2025-07-29 05:31:36] Updating package lists...
+Get:1 http://deb.debian.org/debian testing InRelease [168 kB]
+Get:2 http://deb.debian.org/debian-security testing-security InRelease [43.4 kB]
+Get:3 http://deb.debian.org/debian trixie InRelease [168 kB]
+Get:4 http://deb.debian.org/debian testing-updates InRelease [45.1 kB]
+Get:5 http://deb.debian.org/debian bookworm InRelease [151 kB]
+Get:6 http://deb.debian.org/debian bookworm-backports InRelease [59.4 kB]
+Get:7 https://linux.dell.com/repo/community/openmanage/11100/jammy jammy InRelease [2509 B]
+Ign:1 http://deb.debian.org/debian testing InRelease
+Ign:2 http://deb.debian.org/debian-security testing-security InRelease
+Ign:3 http://deb.debian.org/debian trixie InRelease
+Ign:4 http://deb.debian.org/debian testing-updates InRelease
+Ign:5 http://deb.debian.org/debian bookworm InRelease
+Ign:6 http://deb.debian.org/debian bookworm-backports InRelease
+Get:8 http://deb.debian.org/debian testing/non-free Sources [75.8 kB]
+Ign:7 https://linux.dell.com/repo/community/openmanage/11100/jammy jammy InRelease
+Get:9 http://deb.debian.org/debian testing/non-free-firmware Sources [6536 B]
+Get:10 http://deb.debian.org/debian testing/main Sources [10.5 MB]
+Get:11 https://linux.dell.com/repo/community/openmanage/11100/jammy jammy/main amd64 Packages [7069 B]
+Get:12 http://deb.debian.org/debian testing/contrib Sources [52.5 kB]
+Get:13 http://deb.debian.org/debian testing/main amd64 Packages [9669 kB]
+Get:14 http://deb.debian.org/debian testing/main Translation-en [6485 kB]
+Get:15 http://deb.debian.org/debian testing/contrib amd64 Packages [54.0 kB]
+Get:16 http://deb.debian.org/debian testing/contrib Translation-en [50.1 kB]
+Get:17 http://deb.debian.org/debian testing/non-free amd64 Packages [100 kB]
+Get:18 http://deb.debian.org/debian testing/non-free Translation-en [67.1 kB]
+Get:19 http://deb.debian.org/debian testing/non-free-firmware amd64 Packages [6868 B]
+Get:20 http://deb.debian.org/debian testing/non-free-firmware Translation-en [4704 B]
+Get:21 http://deb.debian.org/debian-security testing-security/main Sources [12.2 kB]
+Get:22 http://deb.debian.org/debian-security testing-security/main amd64 Packages [5304 B]
+Get:23 http://deb.debian.org/debian-security testing-security/main Translation-en [6724 B]
+Get:24 http://deb.debian.org/debian trixie/non-free Sources [75.8 kB]
+Get:25 http://deb.debian.org/debian trixie/main Sources [10.5 MB]
+Get:26 http://deb.debian.org/debian trixie/non-free-firmware Sources [6536 B]
+Get:27 http://deb.debian.org/debian trixie/contrib Sources [52.5 kB]
+Get:28 http://deb.debian.org/debian trixie/main amd64 Packages [9669 kB]
+Get:29 http://deb.debian.org/debian trixie/main Translation-en [6485 kB]
+Get:30 http://deb.debian.org/debian trixie/contrib amd64 Packages [54.0 kB]
+Get:31 http://deb.debian.org/debian trixie/contrib Translation-en [50.1 kB]
+Get:32 http://deb.debian.org/debian trixie/non-free amd64 Packages [100 kB]
+Get:33 http://deb.debian.org/debian trixie/non-free Translation-en [67.1 kB]
+Get:34 http://deb.debian.org/debian trixie/non-free-firmware amd64 Packages [6868 B]
+Get:35 http://deb.debian.org/debian trixie/non-free-firmware Translation-en [4704 B]
+Get:36 http://deb.debian.org/debian bookworm/main amd64 Packages [8793 kB]
+Get:37 http://deb.debian.org/debian bookworm/main Translation-en [6109 kB]
+Get:38 http://deb.debian.org/debian bookworm/contrib amd64 Packages [53.5 kB]
+Get:39 http://deb.debian.org/debian bookworm/contrib Translation-en [48.4 kB]
+Get:40 http://deb.debian.org/debian bookworm/non-free-firmware amd64 Packages [6372 B]
+Get:41 http://deb.debian.org/debian bookworm/non-free-firmware Translation-en [20.9 kB]
+Get:42 http://deb.debian.org/debian bookworm-backports/main amd64 Packages [302 kB]
+Get:43 http://deb.debian.org/debian bookworm-backports/main Translation-en [256 kB]
+Get:44 http://deb.debian.org/debian bookworm-backports/contrib amd64 Packages [5848 B]
+Get:45 http://deb.debian.org/debian bookworm-backports/contrib Translation-en [5864 B]
+Get:46 http://deb.debian.org/debian bookworm-backports/non-free-firmware amd64 Packages [3828 B]
+Get:47 http://deb.debian.org/debian bookworm-backports/non-free-firmware Translation-en [2860 B]
+Fetched 70.5 MB in 14s (5184 kB/s)
+Reading package lists...
+W: OpenPGP signature verification failed: http://deb.debian.org/debian testing InRelease: List of files can't be created as '/etc/apt/trusted.gpg.d/' is not a directory The signatures couldn't be verified because no keyring is specified
+W: The repository 'http://deb.debian.org/debian testing InRelease' is not signed.
+W: OpenPGP signature verification failed: http://deb.debian.org/debian-security testing-security InRelease: List of files can't be created as '/etc/apt/trusted.gpg.d/' is not a directory The signatures couldn't be verified because no keyring is specified
+W: The repository 'http://deb.debian.org/debian-security testing-security InRelease' is not signed.
+W: OpenPGP signature verification failed: http://deb.debian.org/debian trixie InRelease: List of files can't be created as '/etc/apt/trusted.gpg.d/' is not a directory The signatures couldn't be verified because no keyring is specified
+W: The repository 'http://deb.debian.org/debian trixie InRelease' is not signed.
+W: OpenPGP signature verification failed: http://deb.debian.org/debian testing-updates InRelease: List of files can't be created as '/etc/apt/trusted.gpg.d/' is not a directory The signatures couldn't be verified because no keyring is specified
+W: The repository 'http://deb.debian.org/debian testing-updates InRelease' is not signed.
+W: OpenPGP signature verification failed: http://deb.debian.org/debian bookworm InRelease: List of files can't be created as '/etc/apt/trusted.gpg.d/' is not a directory The signatures couldn't be verified because no keyring is specified
+W: The repository 'http://deb.debian.org/debian bookworm InRelease' is not signed.
+W: OpenPGP signature verification failed: http://deb.debian.org/debian bookworm-backports InRelease: List of files can't be created as '/etc/apt/trusted.gpg.d/' is not a directory The signatures couldn't be verified because no keyring is specified
+W: The repository 'http://deb.debian.org/debian bookworm-backports InRelease' is not signed.
+W: OpenPGP signature verification failed: https://linux.dell.com/repo/community/openmanage/11100/jammy jammy InRelease: Sub-process /usr/bin/sqv returned an error code (123), error message is:
+[2025-07-29 05:31:53] Repository fix completed
+[2025-07-29 05:31:53] === Installing Trixie Kernel ===
+[2025-07-29 05:31:53] Removing any old kernels...
+[2025-07-29 05:31:54] Installing prerequisites...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+build-essential is already the newest version (12.12).
+dkms is already the newest version (3.2.0-1).
+linux-base is already the newest version (4.12).
+bc is already the newest version (1.07.1-4).
+kmod is already the newest version (34.2-2).
+cpio is already the newest version (2.15+dfsg-2).
+The following package was automatically installed and is no longer required:
+  tiny-initramfs-core
+Use 'sudo apt autoremove' to remove it.
+The following additional packages will be installed:
+  busybox initramfs-tools-core
+The following packages will be REMOVED:
+  dracut
+The following NEW packages will be installed:
+  busybox initramfs-tools initramfs-tools-core
+0 upgraded, 3 newly installed, 1 to remove and 0 not upgraded.
+5 not fully installed or removed.
+Need to get 553 kB of archives.
+After this operation, 1094 kB of additional disk space will be used.
+WARNING: The following packages cannot be authenticated!
+  initramfs-tools-core initramfs-tools busybox
+Authentication warning overridden.
+Get:1 http://deb.debian.org/debian testing/main amd64 initramfs-tools-core all 0.148.3 [50.5 kB]
+Get:2 http://deb.debian.org/debian testing/main amd64 initramfs-tools all 0.148.3 [17.3 kB]
+Get:3 http://deb.debian.org/debian testing/main amd64 busybox amd64 1:1.37.0-6+b2 [485 kB]
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = "en_US.utf8",
+	LC_CTYPE = (unset),
+	LC_NUMERIC = (unset),
+	LC_COLLATE = (unset),
+	LC_TIME = "en_GB.UTF-8",
+	LC_MESSAGES = (unset),
+	LC_MONETARY = (unset),
+	LC_ADDRESS = (unset),
+	LC_IDENTIFICATION = (unset),
+	LC_MEASUREMENT = (unset),
+	LC_PAPER = (unset),
+	LC_TELEPHONE = (unset),
+	LC_NAME = (unset),
+	LANG = "en_US.utf8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+locale: Cannot set LC_CTYPE to default locale: No such file or directory
+locale: Cannot set LC_MESSAGES to default locale: No such file or directory
+locale: Cannot set LC_ALL to default locale: No such file or directory
+Fetched 553 kB in 1s (1035 kB/s)
+E: Can not write log (Is /dev/pts mounted?) - posix_openpt (19: No such device)
+Selecting previously unselected package initramfs-tools-core.
+(Reading database ... 56764 files and directories currently installed.)
+Preparing to unpack .../initramfs-tools-core_0.148.3_all.deb ...
+Unpacking initramfs-tools-core (0.148.3) ...
+dpkg: dracut: dependency problems, but removing anyway as you requested:
+ linux-image-6.12.38+deb13-cloud-amd64 depends on initramfs-tools (>= 0.120+deb8u2) | linux-initramfs-tool; however:
+  Package initramfs-tools is not installed.
+  Package linux-initramfs-tool is not installed.
+  Package tiny-initramfs which provides linux-initramfs-tool is not installed.
+  Package initramfs-tools which provides linux-initramfs-tool is not installed.
+  Package dracut which provides linux-initramfs-tool is to be removed.
+ linux-image-6.12.38+deb13-amd64 depends on initramfs-tools (>= 0.120+deb8u2) | linux-initramfs-tool; however:
+  Package initramfs-tools is not installed.
+  Package linux-initramfs-tool is not installed.
+  Package tiny-initramfs which provides linux-initramfs-tool is not installed.
+  Package initramfs-tools which provides linux-initramfs-tool is not installed.
+  Package dracut which provides linux-initramfs-tool is to be removed.
+
+(Reading database ... 56809 files and directories currently installed.)
+Removing dracut (106-6) ...
+Selecting previously unselected package initramfs-tools.
+(Reading database ... 56805 files and directories currently installed.)
+Preparing to unpack .../initramfs-tools_0.148.3_all.deb ...
+Unpacking initramfs-tools (0.148.3) ...
+Selecting previously unselected package busybox.
+Preparing to unpack .../busybox_1%3a1.37.0-6+b2_amd64.deb ...
+Unpacking busybox (1:1.37.0-6+b2) ...
+Setting up busybox (1:1.37.0-6+b2) ...
+Setting up initramfs-tools-core (0.148.3) ...
+Setting up initramfs-tools (0.148.3) ...
+update-initramfs: deferring update (trigger activated)
+Setting up linux-image-6.12.38+deb13-amd64 (6.12.38-1) ...
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-amd64 package post-installation script subprocess returned error exit status 1
+Setting up linux-image-6.12.38+deb13-cloud-amd64 (6.12.38-1) ...
+I: /initrd.img is now a symlink to boot/initrd.img-6.12.38+deb13-cloud-amd64
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-cloud-amd64 6.12.38+deb13-cloud-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-cloud-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-cloud-amd64 package post-installation script subprocess returned error exit status 1
+dpkg: dependency problems prevent configuration of linux-image-amd64:
+ linux-image-amd64 depends on linux-image-6.12.38+deb13-amd64 (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-amd64 is not configured yet.
+
+dpkg: error processing package linux-image-amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of linux-headers-6.12.38+deb13-cloud-amd64:
+ linux-headers-6.12.38+deb13-cloud-amd64 depends on linux-image-6.12.38+deb13-cloud-amd64 (= 6.12.38-1) | linux-image-6.12.38+deb13-cloud-amd64-unsigned (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-cloud-amd64 is not configured yet.
+  Package linux-image-6.12.38+deb13-cloud-amd64-unsigned is not installed.
+
+dpkg: error processing package linux-headers-6.12.38+deb13-cloud-amd64 (--configure):
+ dependency problems - leaving unconfigured
+Processing triggers for initramfs-tools (0.148.3) ...
+Errors were encountered while processing:
+ linux-image-6.12.38+deb13-amd64
+ linux-image-6.12.38+deb13-cloud-amd64
+ linux-image-amd64
+ linux-headers-6.12.38+deb13-cloud-amd64
+E: Sub-process /usr/bin/dpkg returned an error code (1)
+[2025-07-29 05:32:17] Trying specific 6.12 kernel...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+linux-image-6.12.38+deb13-amd64 is already the newest version (6.12.38-1).
+linux-headers-6.12.38+deb13-amd64 is already the newest version (6.12.38-1).
+The following package was automatically installed and is no longer required:
+  tiny-initramfs-core
+Use 'sudo apt autoremove' to remove it.
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = "en_US.utf8",
+	LC_CTYPE = (unset),
+	LC_NUMERIC = (unset),
+	LC_COLLATE = (unset),
+	LC_TIME = "en_GB.UTF-8",
+	LC_MESSAGES = (unset),
+	LC_MONETARY = (unset),
+	LC_ADDRESS = (unset),
+	LC_IDENTIFICATION = (unset),
+	LC_MEASUREMENT = (unset),
+	LC_PAPER = (unset),
+	LC_TELEPHONE = (unset),
+	LC_NAME = (unset),
+	LANG = "en_US.utf8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+locale: Cannot set LC_CTYPE to default locale: No such file or directory
+locale: Cannot set LC_MESSAGES to default locale: No such file or directory
+locale: Cannot set LC_ALL to default locale: No such file or directory
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+4 not fully installed or removed.
+After this operation, 0 B of additional disk space will be used.
+E: Can not write log (Is /dev/pts mounted?) - posix_openpt (19: No such device)
+Setting up linux-image-6.12.38+deb13-cloud-amd64 (6.12.38-1) ...
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-cloud-amd64 6.12.38+deb13-cloud-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-cloud-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-cloud-amd64 package post-installation script subprocess returned error exit status 1
+Setting up linux-image-6.12.38+deb13-amd64 (6.12.38-1) ...
+I: /initrd.img.old is now a symlink to boot/initrd.img-6.12.38+deb13-amd64
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-amd64 package post-installation script subprocess returned error exit status 1
+dpkg: dependency problems prevent configuration of linux-headers-6.12.38+deb13-cloud-amd64:
+ linux-headers-6.12.38+deb13-cloud-amd64 depends on linux-image-6.12.38+deb13-cloud-amd64 (= 6.12.38-1) | linux-image-6.12.38+deb13-cloud-amd64-unsigned (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-cloud-amd64 is not configured yet.
+  Package linux-image-6.12.38+deb13-cloud-amd64-unsigned is not installed.
+
+dpkg: error processing package linux-headers-6.12.38+deb13-cloud-amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of linux-image-amd64:
+ linux-image-amd64 depends on linux-image-6.12.38+deb13-amd64 (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-amd64 is not configured yet.
+
+dpkg: error processing package linux-image-amd64 (--configure):
+ dependency problems - leaving unconfigured
+Errors were encountered while processing:
+ linux-image-6.12.38+deb13-cloud-amd64
+ linux-image-6.12.38+deb13-amd64
+ linux-headers-6.12.38+deb13-cloud-amd64
+ linux-image-amd64
+E: Sub-process /usr/bin/dpkg returned an error code (1)
+[2025-07-29 05:32:36] SUCCESS: Installed 6.12.38 kernel
+[2025-07-29 05:32:36] Kernel installation successful
+[2025-07-29 05:32:36] === Installing ZFS ===
+[2025-07-29 05:32:36] Removing conflicting packages...
+[2025-07-29 05:32:53] Installing ZFS packages...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+zfsutils-linux is already the newest version (2.3.2-2).
+zfs-dkms is already the newest version (2.3.2-2).
+The following package was automatically installed and is no longer required:
+  tiny-initramfs-core
+Use 'sudo apt autoremove' to remove it.
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = "en_US.utf8",
+	LC_CTYPE = (unset),
+	LC_NUMERIC = (unset),
+	LC_COLLATE = (unset),
+	LC_TIME = "en_GB.UTF-8",
+	LC_MESSAGES = (unset),
+	LC_MONETARY = (unset),
+	LC_ADDRESS = (unset),
+	LC_IDENTIFICATION = (unset),
+	LC_MEASUREMENT = (unset),
+	LC_PAPER = (unset),
+	LC_TELEPHONE = (unset),
+	LC_NAME = (unset),
+	LANG = "en_US.utf8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+locale: Cannot set LC_CTYPE to default locale: No such file or directory
+locale: Cannot set LC_MESSAGES to default locale: No such file or directory
+locale: Cannot set LC_ALL to default locale: No such file or directory
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+4 not fully installed or removed.
+After this operation, 0 B of additional disk space will be used.
+E: Can not write log (Is /dev/pts mounted?) - posix_openpt (19: No such device)
+Setting up linux-image-6.12.38+deb13-cloud-amd64 (6.12.38-1) ...
+I: /initrd.img is now a symlink to boot/initrd.img-6.12.38+deb13-cloud-amd64
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-cloud-amd64 6.12.38+deb13-cloud-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-cloud-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-cloud-amd64 package post-installation script subprocess returned error exit status 1
+Setting up linux-image-6.12.38+deb13-amd64 (6.12.38-1) ...
+I: /initrd.img.old is now a symlink to boot/initrd.img-6.12.38+deb13-amd64
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-amd64 package post-installation script subprocess returned error exit status 1
+dpkg: dependency problems prevent configuration of linux-headers-6.12.38+deb13-cloud-amd64:
+ linux-headers-6.12.38+deb13-cloud-amd64 depends on linux-image-6.12.38+deb13-cloud-amd64 (= 6.12.38-1) | linux-image-6.12.38+deb13-cloud-amd64-unsigned (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-cloud-amd64 is not configured yet.
+  Package linux-image-6.12.38+deb13-cloud-amd64-unsigned is not installed.
+
+dpkg: error processing package linux-headers-6.12.38+deb13-cloud-amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of linux-image-amd64:
+ linux-image-amd64 depends on linux-image-6.12.38+deb13-amd64 (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-amd64 is not configured yet.
+
+dpkg: error processing package linux-image-amd64 (--configure):
+ dependency problems - leaving unconfigured
+Errors were encountered while processing:
+ linux-image-6.12.38+deb13-cloud-amd64
+ linux-image-6.12.38+deb13-amd64
+ linux-headers-6.12.38+deb13-cloud-amd64
+ linux-image-amd64
+E: Sub-process /usr/bin/dpkg returned an error code (1)
+[2025-07-29 05:33:14] ZFS base packages installed
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  busybox initramfs-tools-bin initramfs-tools-core klibc-utils libklibc
+  tiny-initramfs-core
+Use 'sudo apt autoremove' to remove them.
+The following additional packages will be installed:
+  dracut
+The following packages will be REMOVED:
+  initramfs-tools
+The following NEW packages will be installed:
+  dracut zfs-dracut
+0 upgraded, 2 newly installed, 1 to remove and 0 not upgraded.
+4 not fully installed or removed.
+Need to get 46.1 kB of archives.
+After this operation, 86.0 kB of additional disk space will be used.
+WARNING: The following packages cannot be authenticated!
+  dracut zfs-dracut
+Authentication warning overridden.
+Get:1 http://deb.debian.org/debian testing/main amd64 dracut all 106-6 [8976 B]
+Get:2 http://deb.debian.org/debian testing/contrib amd64 zfs-dracut all 2.3.2-2 [37.1 kB]
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = "en_US.utf8",
+	LC_CTYPE = (unset),
+	LC_NUMERIC = (unset),
+	LC_COLLATE = (unset),
+	LC_TIME = "en_GB.UTF-8",
+	LC_MESSAGES = (unset),
+	LC_MONETARY = (unset),
+	LC_ADDRESS = (unset),
+	LC_IDENTIFICATION = (unset),
+	LC_MEASUREMENT = (unset),
+	LC_PAPER = (unset),
+	LC_TELEPHONE = (unset),
+	LC_NAME = (unset),
+	LANG = "en_US.utf8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+locale: Cannot set LC_CTYPE to default locale: No such file or directory
+locale: Cannot set LC_MESSAGES to default locale: No such file or directory
+locale: Cannot set LC_ALL to default locale: No such file or directory
+Fetched 46.1 kB in 0s (108 kB/s)
+E: Can not write log (Is /dev/pts mounted?) - posix_openpt (19: No such device)
+dpkg: initramfs-tools: dependency problems, but removing anyway as you requested:
+ linux-image-6.12.38+deb13-cloud-amd64 depends on initramfs-tools (>= 0.120+deb8u2) | linux-initramfs-tool; however:
+  Package initramfs-tools is to be removed.
+  Package linux-initramfs-tool is not installed.
+  Package tiny-initramfs which provides linux-initramfs-tool is not installed.
+  Package initramfs-tools which provides linux-initramfs-tool is to be removed.
+  Package dracut which provides linux-initramfs-tool is not installed.
+ linux-image-6.12.38+deb13-amd64 depends on initramfs-tools (>= 0.120+deb8u2) | linux-initramfs-tool; however:
+  Package initramfs-tools is to be removed.
+  Package linux-initramfs-tool is not installed.
+  Package tiny-initramfs which provides linux-initramfs-tool is not installed.
+  Package initramfs-tools which provides linux-initramfs-tool is to be removed.
+  Package dracut which provides linux-initramfs-tool is not installed.
+ linux-image-6.12.38+deb13-cloud-amd64 depends on initramfs-tools (>= 0.120+deb8u2) | linux-initramfs-tool; however:
+  Package initramfs-tools is to be removed.
+  Package linux-initramfs-tool is not installed.
+  Package tiny-initramfs which provides linux-initramfs-tool is not installed.
+  Package initramfs-tools which provides linux-initramfs-tool is to be removed.
+  Package dracut which provides linux-initramfs-tool is not installed.
+ linux-image-6.12.38+deb13-amd64 depends on initramfs-tools (>= 0.120+deb8u2) | linux-initramfs-tool; however:
+  Package initramfs-tools is to be removed.
+  Package linux-initramfs-tool is not installed.
+  Package tiny-initramfs which provides linux-initramfs-tool is not installed.
+  Package initramfs-tools which provides linux-initramfs-tool is to be removed.
+  Package dracut which provides linux-initramfs-tool is not installed.
+
+(Reading database ... 56826 files and directories currently installed.)
+Removing initramfs-tools (0.148.3) ...
+Selecting previously unselected package dracut.
+(Reading database ... 56816 files and directories currently installed.)
+Preparing to unpack .../archives/dracut_106-6_all.deb ...
+Unpacking dracut (106-6) ...
+Selecting previously unselected package zfs-dracut.
+Preparing to unpack .../zfs-dracut_2.3.2-2_all.deb ...
+Unpacking zfs-dracut (2.3.2-2) ...
+Setting up dracut (106-6) ...
+update-initramfs: deferring update (trigger activated)
+Setting up linux-image-6.12.38+deb13-cloud-amd64 (6.12.38-1) ...
+I: /initrd.img is now a symlink to boot/initrd.img-6.12.38+deb13-cloud-amd64
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-cloud-amd64 6.12.38+deb13-cloud-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-cloud-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-cloud-amd64 package post-installation script subprocess returned error exit status 1
+Setting up zfs-dracut (2.3.2-2) ...
+Setting up linux-image-6.12.38+deb13-amd64 (6.12.38-1) ...
+I: /initrd.img.old is now a symlink to boot/initrd.img-6.12.38+deb13-amd64
+/etc/kernel/postinst.d/dkms:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/etc/kernel/postinst.d/dracut:
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+run-parts: /etc/kernel/postinst.d/dracut exited with return code 1
+dpkg: error processing package linux-image-6.12.38+deb13-amd64 (--configure):
+ installed linux-image-6.12.38+deb13-amd64 package post-installation script subprocess returned error exit status 1
+dpkg: dependency problems prevent configuration of linux-headers-6.12.38+deb13-cloud-amd64:
+ linux-headers-6.12.38+deb13-cloud-amd64 depends on linux-image-6.12.38+deb13-cloud-amd64 (= 6.12.38-1) | linux-image-6.12.38+deb13-cloud-amd64-unsigned (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-cloud-amd64 is not configured yet.
+  Package linux-image-6.12.38+deb13-cloud-amd64-unsigned is not installed.
+
+dpkg: error processing package linux-headers-6.12.38+deb13-cloud-amd64 (--configure):
+ dependency problems - leaving unconfigured
+dpkg: dependency problems prevent configuration of linux-image-amd64:
+ linux-image-amd64 depends on linux-image-6.12.38+deb13-amd64 (= 6.12.38-1); however:
+  Package linux-image-6.12.38+deb13-amd64 is not configured yet.
+
+dpkg: error processing package linux-image-amd64 (--configure):
+ dependency problems - leaving unconfigured
+Processing triggers for dracut (106-6) ...
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+/usr/bin/dracut: line 1099: /sys/module/firmware_class/parameters/path: No such file or directory
+findmnt: can't read /proc/mounts: No such file or directory
+dracut[I]: Executing: /usr/bin/dracut --force /boot/initrd.img-6.12.38+deb13-amd64 6.12.38+deb13-amd64
+dracut[I]: 62bluetooth: Could not find any command of '/usr/lib/bluetooth/bluetoothd /usr/libexec/bluetooth/bluetoothd'!
+dracut[I]: 90crypt: Could not find any command of '/usr/lib/systemd/systemd-cryptsetup cryptsetup'!
+dracut[I]: 95nfs: Could not find any command of 'rpcbind portmap'!
+dracut[E]: Module 'crypt' cannot be installed.
+dpkg: error processing package dracut (--configure):
+ installed dracut package post-installation script subprocess returned error exit status 1
+Errors were encountered while processing:
+ linux-image-6.12.38+deb13-cloud-amd64
+ linux-image-6.12.38+deb13-amd64
+ linux-headers-6.12.38+deb13-cloud-amd64
+ linux-image-amd64
+ dracut
+E: Sub-process /usr/bin/dpkg returned an error code (1)
+[2025-07-29 05:33:36] ZFS dracut support installed
+[2025-07-29 05:33:36] Checking DKMS status...
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.utf8): No such file or directory
+[2025-07-29 05:33:36] === System Verification ===
+[2025-07-29 05:33:36] === Fix Summary ===
+[2025-07-29 05:33:36] Log file saved to: /opt/github/Z-FORGE/ultrathink_fallback_20250729_053044.log
+[2025-07-29 05:33:36] System still has issues - manual intervention required

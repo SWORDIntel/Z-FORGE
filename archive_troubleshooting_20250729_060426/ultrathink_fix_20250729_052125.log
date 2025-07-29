@@ -1,0 +1,59 @@
+2025-07-29 05:21:25,815 - [Coordinator] INFO - === UltraThink Multi-Agent System Starting ===
+2025-07-29 05:21:25,817 - [Coordinator] INFO - Phase 1: Comprehensive Diagnosis
+2025-07-29 05:21:25,817 - [DiagnosticAgent] INFO - Starting comprehensive diagnosis
+2025-07-29 05:21:27,653 - [Coordinator] INFO - Problems found: []
+2025-07-29 05:21:27,653 - [Coordinator] INFO - Phase 2: System Repair
+2025-07-29 05:21:27,653 - [RepairAgent] INFO - Starting system repair
+2025-07-29 05:21:27,654 - [RepairAgent] INFO - Fixing DPKG database...
+2025-07-29 05:22:09,327 - [Coordinator] INFO - Phase 3: Repository Configuration
+2025-07-29 05:22:09,328 - [RepositoryAgent] INFO - Fixing APT repositories for Trixie
+2025-07-29 05:22:09,395 - [RepositoryAgent] INFO - Sources.list updated successfully
+2025-07-29 05:22:09,396 - [RepositoryAgent] INFO - Clearing APT cache...
+2025-07-29 05:22:09,519 - [RepositoryAgent] INFO - Updating package index...
+2025-07-29 05:22:23,005 - [Coordinator] INFO - Phase 4: Parallel Kernel Installation Strategies
+2025-07-29 05:22:23,006 - [KernelAgent-specific_612] INFO - Installing kernel using strategy: specific_612
+2025-07-29 05:22:23,007 - [KernelAgent-metapackage] INFO - Installing kernel using strategy: metapackage
+2025-07-29 05:22:23,008 - [KernelAgent-latest_available] INFO - Installing kernel using strategy: latest_available
+2025-07-29 05:22:45,483 - [Coordinator] INFO - Phase 5: ZFS Installation
+2025-07-29 05:22:45,484 - [ZFSAgent] INFO - Installing ZFS packages
+2025-07-29 05:23:35,915 - [Coordinator] INFO - Phase 6: System Verification
+2025-07-29 05:23:35,915 - [VerificationAgent] INFO - Verifying system state
+2025-07-29 05:23:36,095 - [Coordinator] INFO - 
+=== UltraThink Multi-Agent System Report ===
+2025-07-29 05:23:36,095 - [Coordinator] INFO - ❌ SYSTEM STILL HAS ISSUES
+2025-07-29 05:23:36,095 - [Coordinator] INFO - 
+Detailed Results:
+2025-07-29 05:23:36,095 - [Coordinator] INFO - 
+1. Diagnosis:
+2025-07-29 05:23:36,095 - [Coordinator] INFO -    - Debian Version: trixie
+2025-07-29 05:23:36,095 - [Coordinator] INFO -    - Problems Found: []
+2025-07-29 05:23:36,095 - [Coordinator] INFO - 
+2. Repair Actions:
+2025-07-29 05:23:36,096 - [Coordinator] INFO -    - Removed lock: lock
+2025-07-29 05:23:36,096 - [Coordinator] INFO -    - Removed lock: lock-frontend
+2025-07-29 05:23:36,096 - [Coordinator] INFO -    - Removed lock: lock
+2025-07-29 05:23:36,096 - [Coordinator] INFO -    - Removed lock: lock
+2025-07-29 05:23:36,096 - [Coordinator] INFO - 
+3. Repository Fix:
+2025-07-29 05:23:36,096 - [Coordinator] INFO -    - Sources Updated: True
+2025-07-29 05:23:36,096 - [Coordinator] INFO -    - Kernel Available: 6.12.x kernel found
+2025-07-29 05:23:36,096 - [Coordinator] INFO - 
+4. Kernel Installation:
+2025-07-29 05:23:36,096 - [Coordinator] INFO -    - All strategies failed
+2025-07-29 05:23:36,096 - [Coordinator] INFO - 
+5. ZFS Installation:
+2025-07-29 05:23:36,097 - [Coordinator] INFO -    - Success: False
+2025-07-29 05:23:36,097 - [Coordinator] INFO -    - Packages: []
+2025-07-29 05:23:36,097 - [Coordinator] INFO - 
+6. Final Verification:
+2025-07-29 05:23:36,097 - [Coordinator] INFO -    - Kernel Correct: False
+2025-07-29 05:23:36,097 - [Coordinator] INFO -    - ZFS Ready: True
+2025-07-29 05:23:36,097 - [Coordinator] INFO -    - System Healthy: False
+2025-07-29 05:23:36,099 - [Coordinator] INFO - 
+Full results saved to: /opt/github/Z-FORGE/ultrathink_results_20250729_052336.json
+2025-07-29 05:23:36,099 - [Coordinator] INFO - 
+⚠️  Manual intervention may be required:
+2025-07-29 05:23:36,099 - [Coordinator] INFO - 1. Check the log file for detailed errors
+2025-07-29 05:23:36,099 - [Coordinator] INFO - 2. Verify chroot environment exists and is accessible
+2025-07-29 05:23:36,100 - [Coordinator] INFO - 3. Ensure you have sudo privileges
+2025-07-29 05:23:36,100 - [Coordinator] INFO - 4. Try running individual fix scripts manually
