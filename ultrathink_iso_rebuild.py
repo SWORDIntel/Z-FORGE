@@ -529,10 +529,10 @@ mkdir -p /tmp/zforge_workspace_perfect
 
 # Run the build with perfect config
 echo "🔨 Starting build with perfect configuration..."
-cd /opt/github/Z-FORGE
+cd /opt/github/Z-FORGE/builder
 
-# Use the perfect config
-python3 build.py --config="$CONFIG_FILE" --clean --verbose
+# Use the z-forge.py builder with the perfect config
+sudo python3 z-forge.py --config="$CONFIG_FILE" --clean --verbose
 
 echo "✅ Perfect build completed!"
 '''
@@ -640,16 +640,33 @@ class BuildOrchestrationAgent(BaseRebuildAgent):
         start_time = datetime.now()
         
         try:
-            # Check if perfect build script exists
-            build_script = Path('/opt/github/Z-FORGE/perfect_build.sh')
-            if not build_script.exists():
-                raise Exception("Perfect build script not found")
+            # Use the Z-FORGE builder directly
+            builder_path = Path('/opt/github/Z-FORGE/builder/z-forge.py')
+            if not builder_path.exists():
+                raise Exception(f"Z-FORGE builder not found at {builder_path}")
+            
+            # Check for perfect config
+            perfect_config = Path('/opt/github/Z-FORGE/config/universal/universal_build_spec_perfect.yml')
+            
+            # Build command
+            build_cmd = ['sudo', 'python3', str(builder_path)]
+            
+            if perfect_config.exists():
+                build_cmd.extend(['--config', str(perfect_config)])
+                self.logger.info(f"Using perfect config: {perfect_config}")
+            else:
+                self.logger.info("Using default Z-FORGE configuration")
+            
+            build_cmd.extend(['--clean', '--verbose'])
             
             # Start the build
-            self.logger.info("Executing perfect build script...")
+            self.logger.info("Executing Z-FORGE builder...")
             build_results['build_started'] = True
             
-            result = self.run_command(['bash', str(build_script)], timeout=3600)  # 1 hour timeout
+            # Change to builder directory
+            os.chdir('/opt/github/Z-FORGE/builder')
+            
+            result = self.run_command(build_cmd, timeout=3600)  # 1 hour timeout
             
             if result.returncode == 0:
                 build_results['build_completed'] = True
