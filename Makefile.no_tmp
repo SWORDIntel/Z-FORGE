@@ -1,0 +1,92 @@
+# Z-FORGE Makefile - No /tmp version
+# This version avoids /tmp completely
+
+.PHONY: all build check clean help
+
+# Set workspace to home directory by default
+WORKSPACE ?= $(HOME)/zforge_workspace
+export ZFORGE_WORKSPACE := $(WORKSPACE)
+export TMPDIR := $(WORKSPACE)/temp
+export TEMP := $(WORKSPACE)/temp
+export TMP := $(WORKSPACE)/temp
+
+# Default target
+all: build
+
+# Run the full build without /tmp
+build: setup check
+	@echo "Starting Z-FORGE build (no-/tmp version)..."
+	@echo "Workspace: $(ZFORGE_WORKSPACE)"
+	@echo "Temp: $(TMPDIR)"
+	@sudo ZFORGE_WORKSPACE=$(ZFORGE_WORKSPACE) TMPDIR=$(TMPDIR) TEMP=$(TEMP) TMP=$(TMP) python3 scripts/build/build-auto.py
+
+# Setup workspace
+setup:
+	@echo "Setting up workspace..."
+	@mkdir -p $(WORKSPACE)/{chroot,cache,output,temp,logs}
+	@mkdir -p $(WORKSPACE)/cache/debootstrap
+	@echo "Workspace ready at: $(WORKSPACE)"
+
+# Check build environment (simplified)
+check:
+	@echo "Checking build environment..."
+	@echo "✓ Workspace: $(WORKSPACE)"
+	@echo "✓ Temp directory: $(TMPDIR)"
+	@test -d $(WORKSPACE) || (echo "✗ Workspace not found" && exit 1)
+	@test -w $(WORKSPACE) || (echo "✗ Workspace not writable" && exit 1)
+	@echo "✓ All checks passed"
+
+# Clean build artifacts
+clean:
+	@echo "Cleaning build workspace..."
+	@rm -rf $(WORKSPACE)/chroot
+	@rm -rf $(WORKSPACE)/temp/*
+	@rm -f $(WORKSPACE)/logs/*.log
+	@echo "Cleanup complete"
+
+# Install dependencies
+deps:
+	@echo "Installing build dependencies..."
+	@sudo apt-get update
+	@sudo apt-get install -y \
+		debootstrap \
+		squashfs-tools \
+		xorriso \
+		isolinux \
+		syslinux-common \
+		grub-pc-bin \
+		grub-efi-amd64-bin \
+		mtools \
+		dosfstools \
+		python3 \
+		python3-yaml
+	@echo "Dependencies installed"
+
+# Build with custom config
+build-custom:
+	@echo "Building with custom config..."
+	@sudo ZFORGE_CONFIG=build_spec_no_tmp.yml $(MAKE) build
+
+# Help
+help:
+	@echo "Z-FORGE Build System (No-/tmp Version)"
+	@echo "======================================"
+	@echo ""
+	@echo "This version avoids /tmp completely to prevent noexec issues"
+	@echo ""
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@echo "  build       - Run the full build (default)"
+	@echo "  setup       - Create workspace directories"
+	@echo "  check       - Verify build environment"
+	@echo "  clean       - Clean build artifacts"
+	@echo "  deps        - Install build dependencies"
+	@echo "  help        - Show this help"
+	@echo ""
+	@echo "Environment:"
+	@echo "  WORKSPACE   - Set custom workspace (default: ~/zforge_workspace)"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make build"
+	@echo "  WORKSPACE=/var/lib/zforge make build"

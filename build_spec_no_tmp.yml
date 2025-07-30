@@ -1,0 +1,125 @@
+# Z-FORGE Build Specification - No /tmp Usage
+# This configuration avoids /tmp entirely
+
+# Basic settings
+name: "Z-FORGE"
+version: "3.0"
+codename: "phoenix"
+architecture: "amd64"
+debian_release: "trixie"
+kernel_package: "linux-image-amd64"
+
+# Workspace configuration - using home directory
+workspace:
+  # Use home directory workspace instead of /tmp
+  base_path: "${HOME}/zforge_workspace"
+  # Or use /var/lib for system-wide builds
+  # base_path: "/var/lib/zforge_workspace"
+  
+  # Subdirectories
+  paths:
+    chroot: "${workspace.base_path}/chroot"
+    cache: "${workspace.base_path}/cache"
+    output: "${workspace.base_path}/output"
+    temp: "${workspace.base_path}/temp"
+    logs: "${workspace.base_path}/logs"
+
+# Build modules
+build_modules:
+  - name: "WorkspaceSetup"
+    enabled: true
+    config:
+      # Avoid /tmp completely
+      temp_dir: "${workspace.paths.temp}"
+      
+  - name: "Debootstrap"
+    enabled: true
+    config:
+      mirror: "http://deb.debian.org/debian"
+      components: ["main", "contrib", "non-free-firmware"]
+      # Use our workspace cache
+      cache_dir: "${workspace.paths.cache}/debootstrap"
+      
+  - name: "SystemConfiguration"
+    enabled: true
+    config:
+      hostname: "zforge-live"
+      locale: "en_US.UTF-8"
+      timezone: "UTC"
+      
+  - name: "KernelInstallation"
+    enabled: true
+    config:
+      kernel_package: "${kernel_package}"
+      
+  - name: "PackageInstallation"
+    enabled: true
+    config:
+      # Essential packages
+      packages:
+        - "systemd"
+        - "systemd-sysv"
+        - "live-boot"
+        - "live-config"
+        - "live-config-systemd"
+        - "sudo"
+        - "bash"
+        - "coreutils"
+        - "util-linux"
+        - "procps"
+        - "iproute2"
+        - "iputils-ping"
+        - "nano"
+        - "vim-tiny"
+        - "less"
+        
+  - name: "ZFSInstallation"
+    enabled: true
+    config:
+      # Use our custom package
+      install_method: "custom_package"
+      package_path: "${HOME}/github/Z-FORGE/live_cd_packages/zfsutils-userspace_2.3.3-1_amd64.deb"
+      # Or use Debian packages
+      # install_method: "debian_packages"
+      
+  - name: "ProxmoxIntegration"
+    enabled: true
+    config:
+      repository: "deb http://download.proxmox.com/debian/pve trixie pve-no-subscription"
+      key_url: "https://enterprise.proxmox.com/debian/proxmox-release-bullseye.gpg"
+      
+  - name: "LiveEnvironment"
+    enabled: true
+    config:
+      autologin: true
+      user: "zforge"
+      
+  - name: "ISOGeneration"
+    enabled: true
+    config:
+      output_dir: "${workspace.paths.output}"
+      iso_name: "zforge-${version}-${architecture}.iso"
+      compression: "xz"
+      
+# Hardware optimizations
+hardware_profiles:
+  generic:
+    cpu_governor: "performance"
+    kernel_parameters: "quiet splash"
+    
+# Security settings
+security:
+  enable_root: false
+  password_hash: "$6$rounds=4096$defaultsalt$defaulthash"
+  
+# Output settings
+output:
+  iso_dir: "${workspace.paths.output}"
+  log_dir: "${workspace.paths.logs}"
+  
+# Environment variables to set
+environment:
+  # Ensure all tools use our workspace instead of /tmp
+  TMPDIR: "${workspace.paths.temp}"
+  TEMP: "${workspace.paths.temp}"
+  TMP: "${workspace.paths.temp}"
