@@ -1,96 +1,115 @@
-# Z-FORGE Documentation Hub
+# Z-FORGE Documentation
 
-**AI Agent Navigation Guide** - All project documentation organized for easy access
+Welcome to the Z-FORGE documentation. This directory contains all project documentation organized by category.
 
-## Quick Navigation
+## Documentation Structure
 
-| Category | Directory | Contents |
-|----------|-----------|----------|
-| 🏗️ **Build System** | [`build/`](./build/) | Build process, readiness checks, recovery procedures |
-| 🔧 **Hardware** | [`hardware/`](./hardware/) | Hardware support, integrations, compatibility |
-| 💾 **ZFS** | [`zfs/`](./zfs/) | ZFS configuration, RAID, integration details |
-| 🔗 **Integration** | [`integration/`](./integration/) | System integration verification and summaries |
-| 📁 **Project** | [`project/`](./project/) | Core project documentation and instructions |
-| 📊 **Reports** | [`reports/`](./reports/) | Build reports, progress summaries, status updates |
+### 📁 [build/](build/)
+Build process documentation, environment setup guides, and build-related instructions.
+- `BUILD_ENVIRONMENT_SETUP_GUIDE.md` - Complete build environment setup
+- `BUILD_ORDER_OPTIMIZATION.md` - Build process optimization guide
+- `BUILD_READY.md` - Build readiness checklist
+- `NEXT_STEPS_AFTER_BOOTSTRAP.md` - Post-bootstrap instructions
+- `PACKAGE_SOLUTION.md` - Package management solutions
+- `POST_REBOOT_RESUME.md` - Post-reboot resumption guide
 
-## Essential Files for AI Agents
+### 📁 [checkpoints/](checkpoints/)
+Build checkpoints and status snapshots documenting the project progress.
+- `CHECKPOINT_BOOTSTRAP_SOLUTION.md` - Bootstrap solution checkpoint
+- `CHECKPOINT_COMPLETE_STATUS_20250730.md` - Latest complete status
+- `CHECKPOINT_NO_TMP_BUILD_REDESIGN.md` - Non-/tmp build redesign
+- `CHECKPOINT_ZFS_DEB_PACKAGES.md` - ZFS package checkpoint
+- Historical checkpoints from various dates
 
-### Project Core
-- **[`project/CLAUDE.md`](./project/CLAUDE.md)** - Complete build system instructions and fixes
-- **[`project/README.md`](./project/README.md)** - Main project overview
+### 📁 [features/](features/)
+Advanced features and capabilities documentation.
+- `ADVANCED_FEATURES.md` - Complete advanced features guide
 
-### Build System
-- **[`build/BUILD_READY.md`](./build/BUILD_READY.md)** - Current build readiness status
-- **[`build/POST_REBOOT_RESUME.md`](./build/POST_REBOOT_RESUME.md)** - Post-reboot recovery instructions
+### 📁 [hardware/](hardware/)
+Hardware support documentation, compatibility lists, and hardware-specific guides.
+- `HARDWARE_SPECIFIC_OPTIMIZATIONS.md` - Hardware optimization guide
+- `SUPPORTED_HARDWARE.md` - List of supported hardware
+- `STORAGE_SUPPORT_INVENTORY.md` - Storage device support
+- `SAS_INTEGRATION_VERIFICATION.md` - SAS integration guide
+- `CALAMARES_HARDWARE_INTEGRATION.md` - Hardware integration with Calamares
 
-### Hardware Support
-- **[`hardware/SUPPORTED_HARDWARE.md`](./hardware/SUPPORTED_HARDWARE.md)** - Complete hardware compatibility list
-- **[`hardware/HARDWARE_DATABASE_INVENTORY.md`](./hardware/HARDWARE_DATABASE_INVENTORY.md)** - Hardware detection database
+### 📁 [integration/](integration/)
+Integration guides for various systems and components.
+- `PROXMOX_BUILD_OPTIONS.md` - Proxmox build configuration
+- `PROXMOX_INTEGRATION.md` - Complete Proxmox integration guide
+- `MODULE_IMPLEMENTATION_SUMMARY.md` - Module implementation overview
+- `calamares_*.md` - Calamares module integration guides
+- `FINAL_INTEGRATION_VERIFICATION.md` - Integration verification checklist
 
-### Integration Status
-- **[`integration/FINAL_INTEGRATION_VERIFICATION.md`](./integration/FINAL_INTEGRATION_VERIFICATION.md)** - Latest integration status
-- **[`integration/FULL_INTEGRATION_SUMMARY.md`](./integration/FULL_INTEGRATION_SUMMARY.md)** - Complete integration overview
+### 📁 [MODULE_PROPOSALS/](MODULE_PROPOSALS/)
+Proposed modules and feature enhancements.
+- GPU passthrough, hardware health, network configuration modules
+- Post-install checklist and storage layout proposals
 
-## Directory Structure
+### 📁 [planning/](planning/)
+Planning documents and future roadmap.
+- `FUTURE_TODO.md` - Future development tasks
+- `FINAL_PREP_CHECKLIST.md` - Final preparation checklist
 
-```
-docs/
-├── README.md                    # This navigation file
-├── build/                      # Build system documentation
-│   ├── BUILD_READY.md          # Build readiness status
-│   └── POST_REBOOT_RESUME.md   # Recovery procedures
-├── hardware/                   # Hardware support docs
-│   ├── CALAMARES_HARDWARE_INTEGRATION.md
-│   ├── HARDWARE_DATABASE_INVENTORY.md
-│   ├── SAS_INTEGRATION_VERIFICATION.md
-│   ├── STORAGE_SUPPORT_INVENTORY.md
-│   └── SUPPORTED_HARDWARE.md
-├── integration/                # Integration documentation
-│   ├── FINAL_INTEGRATION_VERIFICATION.md
-│   └── FULL_INTEGRATION_SUMMARY.md
-├── project/                    # Core project files
-│   ├── CLAUDE.md              # Build system instructions
-│   └── README.md              # Project overview
-├── reports/                    # Historical reports
-│   └── [Various progress reports]
-└── zfs/                       # ZFS-specific docs
-    ├── ZFS_2.3.3_INTEGRATION.md
-    ├── ZFS_BUILD_COMPLIANCE.md
-    └── ZFS_RAID_CONFIGURATION.md
-```
+### 📁 [project/](project/)
+Project-level documentation and guidelines.
+- `CLAUDE.md` - AI assistant guidelines and context
+- `README.md` - Project overview
 
-## For AI Agents: Key Information
+### 📁 [reports/](reports/)
+Analysis reports, summaries, and progress tracking.
+- `ANALYSIS_REPORT_ZFS_FIXES.md` - ZFS fixes analysis
+- `ULTRATHINK_REBUILD_README.md` - AI agent rebuild documentation
+- Progress reports and implementation summaries
+- `cleanup-process.md` - Cleanup process documentation
 
-### Build System Status
-- **Last Known Issue**: DracutConfig module failure - 90zforge-toram module missing
-- **Critical Files**: [`project/CLAUDE.md`](./project/CLAUDE.md) contains complete fix history
-- **Recovery**: [`build/POST_REBOOT_RESUME.md`](./build/POST_REBOOT_RESUME.md) for network issues
+### 📁 [zfs/](zfs/)
+ZFS-specific documentation and configuration guides.
+- `ZFS_BUILD_SUMMARY.md` - ZFS build process summary
+- `ZFS_WITHOUT_KERNEL_MODULES.md` - Userspace ZFS guide
+- `ZFS_WEB_GUI_PROPOSAL.md` - Web GUI proposal
+- `zfs_configuration_guide_outline.md` - Configuration guide outline
+- `ZFS_2.3.3_INTEGRATION.md` - ZFS 2.3.3 integration details
+- `ZFS_BUILD_COMPLIANCE.md` - Build compliance documentation
+- `ZFS_RAID_CONFIGURATION.md` - RAID configuration guide
 
-### Hardware Support
-- **Dell Servers**: R730xd, R420, R320 with specific optimizations
-- **Storage**: RAID, NVMe, ZFS pools with hardware detection
-- **Integration**: Calamares installer with hardware-aware modules
+## Key Documents
 
-### Current Focus Areas
-1. **Dracut Module Installation** - Primary build blocker
-2. **Network Configuration** - USB tether DNS issues resolved
-3. **Hardware Detection** - Auto-optimization system active
+### Getting Started
+1. Start with [project/README.md](project/README.md) for project overview
+2. Read [build/BUILD_ENVIRONMENT_SETUP_GUIDE.md](build/BUILD_ENVIRONMENT_SETUP_GUIDE.md) for setup
+3. Check [checkpoints/](checkpoints/) for current project status
 
-## Quick Commands for AI Agents
+### For Developers
+- [integration/MODULE_IMPLEMENTATION_SUMMARY.md](integration/MODULE_IMPLEMENTATION_SUMMARY.md) - Module development guide
+- [reports/IMPLEMENTED_FIXES_SUMMARY.md](reports/IMPLEMENTED_FIXES_SUMMARY.md) - Applied fixes
+- [zfs/ZFS_BUILD_COMPLIANCE.md](zfs/ZFS_BUILD_COMPLIANCE.md) - ZFS build standards
 
-```bash
-# View current build status
-cat docs/build/BUILD_READY.md
+### For System Integrators
+- [hardware/SUPPORTED_HARDWARE.md](hardware/SUPPORTED_HARDWARE.md) - Hardware compatibility
+- [integration/PROXMOX_INTEGRATION.md](integration/PROXMOX_INTEGRATION.md) - Proxmox setup
+- [features/ADVANCED_FEATURES.md](features/ADVANCED_FEATURES.md) - Advanced capabilities
 
-# Check hardware support
-cat docs/hardware/SUPPORTED_HARDWARE.md
+## Document Naming Convention
 
-# Review latest integration
-cat docs/integration/FINAL_INTEGRATION_VERIFICATION.md
+- `CHECKPOINT_*.md` - Build checkpoints and status snapshots
+- `*_GUIDE.md` - Step-by-step guides
+- `*_SUMMARY.md` - Overview and summary documents
+- `*_INTEGRATION.md` - Integration documentation
+- `README.md` - Directory-specific documentation
 
-# Access build instructions
-cat docs/project/CLAUDE.md
-```
+## Contributing
 
----
-*This documentation hub is organized for efficient AI agent navigation and human readability.*
+When adding new documentation:
+1. Place it in the appropriate category directory
+2. Follow the naming convention
+3. Update this README if adding a significant document
+4. Keep documentation concise and well-structured
+
+## Quick Links
+
+- [Latest Status](checkpoints/CHECKPOINT_COMPLETE_STATUS_20250730.md)
+- [Build Guide](build/BUILD_ENVIRONMENT_SETUP_GUIDE.md)
+- [Hardware Support](hardware/SUPPORTED_HARDWARE.md)
+- [ZFS Integration](zfs/ZFS_2.3.3_INTEGRATION.md)
+- [Proxmox Setup](integration/PROXMOX_INTEGRATION.md)

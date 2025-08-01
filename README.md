@@ -1,106 +1,200 @@
-# Z-FORGE - ZFS-Optimized Replication & Generation Engine
+# Z-FORGE - ZFS-Enabled Linux Distribution Builder
 
-A comprehensive build system for creating ZFS-enabled Linux distributions with hardware-specific optimizations.
+Z-FORGE is a comprehensive tool for building custom Linux distributions with native ZFS support, advanced hardware optimization, and enterprise-grade features.
 
 ## 🚀 Quick Start
 
+### TUI Launcher (New!)
 ```bash
-# Check build environment
-make check
+# Launch the interactive TUI
+./zforge-launcher.sh
 
-# Install dependencies
-make deps
-
-# Build ISO
-make build
-
-# Clean build artifacts
-make clean
+# Or install system-wide
+sudo ln -s $(pwd)/zforge /usr/local/bin/
+zforge
 ```
 
-## 📋 Features
+### Command Line Build
+```bash
+git clone [repository-url] /opt/github/Z-FORGE
+cd /opt/github/Z-FORGE
+sudo ./scripts/chroot/complete_zfs_install.sh
+sudo make -f Makefile.no_tmp build
+```
 
-- **ZFS 2.3.3 Integration** - Full ZFS support with kernel modules
-- **Hardware Detection** - Automatic optimization for detected hardware
-- **Proxmox VE Support** - Build as Proxmox VE node
-- **Multiple Boot Options** - UEFI/BIOS with ZFSBootMenu
-- **Debian Trixie Based** - Latest Debian testing as base
+**→ [See QUICKSTART.md for complete quick guide](QUICKSTART.md)**
 
-## 📁 Project Structure
+### For First-Time Users
+**→ [See START_FROM_SCRATCH.md for detailed setup guide](START_FROM_SCRATCH.md)**
+
+### Having Issues?
+**→ [See TROUBLESHOOTING.md for common problems and solutions](TROUBLESHOOTING.md)**
+
+## 📋 What Z-FORGE Builds
+
+- **ZFS-Native Linux Distribution** with ZFS 2.3.3+ support
+- **Hardware-Optimized ISOs** for Dell servers, workstations, and generic systems  
+- **Enterprise Features**: Proxmox integration, hardware health monitoring, GPU passthrough
+- **Advanced Boot Options**: ZFSBootMenu, OpenCore UEFI, multiple bootloaders
+- **Automated Installation**: Calamares installer with ZFS root support
+
+## 🏗️ Project Structure
 
 ```
 Z-FORGE/
-├── Makefile              # Main build system
-├── build_spec.yml        # Primary build configuration
-├── builder/              # Core build system
-│   ├── core/            # Core builder classes
-│   └── modules/         # Build modules
-├── scripts/             # Organized scripts
-│   ├── build/          # Build scripts
-│   ├── fix/            # Fix scripts
-│   ├── test/           # Test scripts
-│   └── agents/         # UltraThink agents
-├── config/              # Hardware configs
-├── docs/               # Documentation
-└── logs/               # Build logs
+├── scripts/           # All executable scripts, organized by function
+│   ├── build/         # Build process scripts
+│   ├── chroot/        # Chroot management (recommended entry point)
+│   ├── workspace/     # Workspace management
+│   └── ...           # See DIRECTORY_STRUCTURE.md
+├── docs/             # Complete documentation
+├── config/           # Hardware-specific configurations
+├── builder/          # Python build modules
+├── checkpoint/       # Project checkpoints and references
+├── build.py          # Main Python build script
+├── Makefile*         # Build system makefiles
+└── *.md             # Quick reference guides
 ```
 
-## 🔧 Configuration
+## 🎯 Key Features
 
-Edit `build_spec.yml` to customize:
-- Debian release
-- ZFS version
-- Hardware optimizations
-- Package selection
+### ZFS Integration
+- Native ZFS root filesystem support
+- ZFS 2.3.3+ with kernel module and userspace tools
+- Automatic pool detection and configuration
+- ZFS encryption and compression optimization
 
-## 🛠️ Build Modules
+### Hardware Support  
+- Dell PowerEdge servers (R320, R420, R730xd, T30)
+- RAID controller optimization (H710, H730)
+- NVMe and SAS storage optimization
+- GPU passthrough support
 
-The build system uses modular architecture:
-- **WorkspaceSetup** - Prepare build environment
-- **Debootstrap** - Bootstrap Debian system
-- **KernelAcquisition** - Install kernel
-- **ZFSBuild** - Build/install ZFS
-- **LiveEnvironment** - Configure live system
-- **ISOGeneration** - Create bootable ISO
+### Enterprise Features
+- Proxmox VE integration
+- Hardware health monitoring
+- Network configuration automation
+- Security hardening profiles
 
-## 📊 Hardware Support
+### Build System
+- Arch-chroot support with automatic fallback
+- HOME workspace support (avoids /tmp limitations)
+- Comprehensive error handling and recovery
+- Hardware-specific build profiles
 
-Optimized configurations for:
-- Dell PowerEdge R420/R730xd
-- Dell Precision T30
-- Generic x86_64 systems
-- Proxmox VE clusters
+## 🔧 Essential Commands
 
-## 🐛 Troubleshooting
-
-Check logs in `logs/` directory:
+### Setup and Installation
 ```bash
-tail -f logs/zforge_build_*.log
+# Complete setup (recommended)
+sudo ./scripts/chroot/complete_zfs_install.sh
+
+# Enter chroot environment
+sudo ./scripts/chroot/use_arch_chroot.sh
+
+# Bootstrap chroot manually
+sudo ./scripts/chroot/bootstrap_chroot.sh auto
 ```
 
-Common issues:
-- **Package failures**: Run `scripts/fix/fix_live_environment_packages.py`
-- **ZFS modules**: Use `scripts/build/build_zfs_233_smart.sh`
-- **Repository issues**: Apply `scripts/fix/fix_chroot_complete.sh`
+### Building
+```bash
+# Recommended: Non-/tmp build
+sudo make -f Makefile.no_tmp build
 
-## 📖 Documentation
+# Standard build
+sudo make build
 
-- [PROXMOX_INTEGRATION.md](PROXMOX_INTEGRATION.md) - Proxmox VE features
-- [ZFS_BUILD_SUMMARY.md](ZFS_BUILD_SUMMARY.md) - ZFS implementation
-- [FUTURE_TODO.md](FUTURE_TODO.md) - Roadmap
-- See `docs/` for detailed documentation
+# Python build with options
+sudo python3 build.py
+```
+
+### Troubleshooting
+```bash
+# Fix common network issues
+sudo ./scripts/fixes/fix_chroot_network.sh
+
+# Fix workspace permissions
+sudo ./scripts/workspace/fix_workspace_noexec.sh
+
+# Complete clean restart
+sudo rm -rf ~/zforge_workspace && sudo ./scripts/chroot/complete_zfs_install.sh
+```
+
+## 📚 Documentation
+
+### Getting Started
+- **[QUICKSTART.md](QUICKSTART.md)** - Fastest path to building an ISO
+- **[START_FROM_SCRATCH.md](START_FROM_SCRATCH.md)** - Complete setup guide
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
+
+### Reference
+- **[DIRECTORY_STRUCTURE.md](DIRECTORY_STRUCTURE.md)** - Project organization
+- **[docs/README.md](docs/README.md)** - Complete documentation index
+- **[checkpoint/QUICK_REFERENCE.md](checkpoint/QUICK_REFERENCE.md)** - Command reference
+
+### Specialized Guides
+- **[docs/build/](docs/build/)** - Build process documentation
+- **[docs/hardware/](docs/hardware/)** - Hardware support and optimization
+- **[docs/integration/](docs/integration/)** - Proxmox and system integration
+- **[docs/zfs/](docs/zfs/)** - ZFS configuration and optimization
+
+## 🎛️ Configuration
+
+### Hardware Profiles
+- `config/r730xd/` - Dell PowerEdge R730xd
+- `config/t30/` - Dell Precision T30
+- `config/universal/` - Generic hardware
+
+### Build Specifications
+- `build_spec.yml` - Standard build configuration
+- `build_spec_no_tmp.yml` - Non-/tmp build (recommended)
+- `build_spec_r730xd.yml` - R730xd-optimized build
+
+## 🔍 Current Status
+
+The project has recently undergone major reorganization and enhancement:
+
+- ✅ **Complete arch-chroot implementation** with automatic fallback
+- ✅ **Clean project structure** with organized scripts and documentation  
+- ✅ **HOME workspace support** avoiding /tmp noexec issues
+- ✅ **Comprehensive error handling** and recovery mechanisms
+- ✅ **Updated documentation** with clear navigation
+
+**Latest Checkpoint:** `checkpoint/CHECKPOINT_20250730_PROJECT_REORGANIZATION.md`
+
+## 🚨 System Requirements
+
+- Debian-based Linux system (Debian 12+ or Ubuntu 22.04+)
+- 20GB+ free disk space
+- 4GB+ RAM (8GB+ recommended)
+- Internet connection for package downloads
+- sudo/root access
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create feature branch
-3. Test changes with `make build`
-4. Submit pull request
+1. Read the project documentation in `docs/`
+2. Check existing issues and solutions in `checkpoint/`
+3. Follow the directory structure guidelines
+4. Test changes with different hardware profiles
+5. Update documentation for significant changes
 
-## 📄 License
+## 📞 Support
 
-[License information to be added]
+1. **Check documentation first**: Start with `docs/README.md`
+2. **Try troubleshooting guide**: See `TROUBLESHOOTING.md`
+3. **Review checkpoints**: Check `checkpoint/` for known issues
+4. **Examine logs**: Look in `logs/` for detailed error information
+
+## 🔄 Recent Changes
+
+- Major project reorganization with clean directory structure
+- Implementation of arch-chroot support with fallback mechanisms
+- Complete documentation consolidation and organization
+- Enhanced error handling and recovery scripts
+- HOME workspace prioritization for better compatibility
+
+See `checkpoint/CHECKPOINT_20250730_PROJECT_REORGANIZATION.md` for complete details.
 
 ---
 
-Built with ❤️ using UltraThink AI agent technology
+**Ready to build your ZFS-enabled Linux distribution? Start with [QUICKSTART.md](QUICKSTART.md)!**

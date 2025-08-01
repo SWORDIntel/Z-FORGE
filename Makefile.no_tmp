@@ -1,53 +1,159 @@
-# Z-FORGE Makefile - No /tmp version
-# This version avoids /tmp completely
+# Z-FORGE Makefile - Optimized No-/tmp Version
+# Build system for Z-FORGE avoiding /tmp to prevent noexec mount issues
 
-.PHONY: all build check clean help
+# Shell configuration
+SHELL := /bin/bash
+.SHELLFLAGS := -euo pipefail -c
 
-# Set workspace to home directory by default
+# Make configuration
+MAKEFLAGS += --warn-undefined-variables
+MAKEFLAGS += --no-builtin-rules
+.DELETE_ON_ERROR:
+.SUFFIXES:
+
+# Version and build info
+VERSION := 1.0.0
+BUILD_DATE := $(shell date -u +%Y%m%d-%H%M%S)
+BUILD_ID := $(shell git rev-parse --short HEAD 2>/dev/null || echo "nogit")
+
+# Workspace configuration with validation
 WORKSPACE ?= $(HOME)/zforge_workspace
+ifeq ($(WORKSPACE),)
+$(error WORKSPACE cannot be empty)
+endif
+
+# Export environment variables
 export ZFORGE_WORKSPACE := $(WORKSPACE)
 export TMPDIR := $(WORKSPACE)/temp
 export TEMP := $(WORKSPACE)/temp
 export TMP := $(WORKSPACE)/temp
+export ZFORGE_BUILD_DATE := $(BUILD_DATE)
+export ZFORGE_BUILD_ID := $(BUILD_ID)
+
+# Configuration files
+DEFAULT_CONFIG := build_spec_no_tmp.yml
+ZFORGE_CONFIG ?= $(DEFAULT_CONFIG)
+
+# Parallel jobs (auto-detect CPU count)
+JOBS ?= $(shell nproc 2>/dev/null || echo 1)
+
+# Logging configuration
+LOG_DIR := $(WORKSPACE)/logs
+LOG_FILE := $(LOG_DIR)/build-$(BUILD_DATE).log
+
+# Required directories
+REQUIRED_DIRS := $(WORKSPACE)/chroot \
+                 $(WORKSPACE)/cache \
+                 $(WORKSPACE)/output \
+                 $(WORKSPACE)/temp \
+                 $(LOG_DIR) \
+                 $(WORKSPACE)/cache/debootstrap
+
+# Color output
+NO_COLOR := \033[0m
+OK_COLOR := \033[32;01m
+ERROR_COLOR := \033[31;01m
+WARN_COLOR := \033[33;01m
+
+# Helper functions
+define log
+	@echo -e "$(OK_COLOR)[$(shell date +%H:%M:%S)]$(NO_COLOR) $(1)" | tee -a $(LOG_FILE)
+endef
+
+define error
+	@echo -e "$(ERROR_COLOR)[ERROR]$(NO_COLOR) $(1)" | tee -a $(LOG_FILE)
+	@exit 1
+endef
+
+define warn
+	@echo -e "$(WARN_COLOR)[WARN]$(NO_COLOR) $(1)" | tee -a $(LOG_FILE)
+endef
+
+# Phony targets
+.PHONY: all build build-parallel check clean deps help setup validate-config
+.PHONY: build-zfs build-proxmox build-sources build-debian13 build-debian13-no-sources
+.PHONY: build-custom test version workspace-info clean-deep clean-cache
 
 # Default target
 all: build
 
-# Run the full build without /tmp
-build: setup check
-	@echo "Starting Z-FORGE build (no-/tmp version)..."
-	@echo "Workspace: $(ZFORGE_WORKSPACE)"
-	@echo "Temp: $(TMPDIR)"
-	@sudo ZFORGE_WORKSPACE=$(ZFORGE_WORKSPACE) TMPDIR=$(TMPDIR) TEMP=$(TEMP) TMP=$(TMP) python3 scripts/build/build-auto.py
+# Main build target with dependency checking
+build: validate-deps setup check validate-config
+	$(call log,"Starting Z-FORGE build v$(VERSION)")
+	$(call log,"Build ID: $(BUILD_ID)")
+	$(call log,"Workspace: $(ZFORGE_WORKSPACE)")
+	$(call log,"Config: $(ZFORGE_CONFIG)")
+	$(call log,"CPUs: $(JOBS)")
+	@sudo -E ZFORGE_WORKSPACE=$(ZFORGE_WORKSPACE) \
+		TMPDIR=$(TMPDIR) \
+		TEMP=$(TEMP) \
+		TMP=$(TMP) \
+		ZFORGE_CONFIG=$(ZFORGE_CONFIG) \
+		JOBS=$(JOBS) \
+		python3 scripts/build/build-auto.py 2>&1 | tee -a $(LOG_FILE)
+	$(call log,"Build completed successfully")
 
-# Setup workspace
+# Parallel build variant
+build-parallel: export ZFORGE_PARALLEL=1
+build-parallel: build
+
+# Setup workspace with proper permissions
 setup:
-	@echo "Setting up workspace..."
-	@mkdir -p $(WORKSPACE)/{chroot,cache,output,temp,logs}
-	@mkdir -p $(WORKSPACE)/cache/debootstrap
-	@echo "Workspace ready at: $(WORKSPACE)"
+	$(call log,"Setting up workspace directories...")
+	@mkdir -p $(REQUIRED_DIRS)
+	@chmod 755 $(WORKSPACE)
+	@chmod 755 $(WORKSPACE)/temp
+	@touch $(LOG_FILE)
+	$(call log,"Workspace initialized at $(WORKSPACE)")
 
-# Check build environment (simplified)
-check:
-	@echo "Checking build environment..."
-	@echo "✓ Workspace: $(WORKSPACE)"
-	@echo "✓ Temp directory: $(TMPDIR)"
-	@test -d $(WORKSPACE) || (echo "✗ Workspace not found" && exit 1)
-	@test -w $(WORKSPACE) || (echo "✗ Workspace not writable" && exit 1)
-	@echo "✓ All checks passed"
+# Comprehensive environment check
+check: setup
+	$(call log,"Running environment checks...")
+	@# Check workspace
+	@test -d $(WORKSPACE) || $(call error,"Workspace directory does not exist")
+	@test -w $(WORKSPACE) || $(call error,"Workspace is not writable")
+	@# Check disk space (minimum 50GB)
+	@available=$$(df -BG $(WORKSPACE) | awk 'NR==2 {print $$4}' | sed 's/G//'); \
+	if [ $$available -lt 50 ]; then \
+		$(call error,"Insufficient disk space: $$available GB available, 50GB required"); \
+	fi
+	@# Check required commands
+	@for cmd in python3 sudo debootstrap xorriso; do \
+		command -v $$cmd >/dev/null 2>&1 || $(call error,"Required command not found: $$cmd"); \
+	done
+	@# Check Python version
+	@python_version=$$(python3 -c 'import sys; print(sys.version_info.major, sys.version_info.minor)' 2>/dev/null); \
+	if [ "$$python_version" \< "3 8" ]; then \
+		$(call error,"Python 3.8+ required, found: $$python_version"); \
+	fi
+	$(call log,"All environment checks passed")
 
-# Clean build artifacts
-clean:
-	@echo "Cleaning build workspace..."
-	@rm -rf $(WORKSPACE)/chroot
-	@rm -rf $(WORKSPACE)/temp/*
-	@rm -f $(WORKSPACE)/logs/*.log
-	@echo "Cleanup complete"
+# Validate configuration file
+validate-config:
+	@if [ ! -f "$(ZFORGE_CONFIG)" ]; then \
+		$(call error,"Configuration file not found: $(ZFORGE_CONFIG)"); \
+	fi
+	@python3 -c "import yaml; yaml.safe_load(open('$(ZFORGE_CONFIG)'))" 2>/dev/null || \
+		$(call error,"Invalid YAML configuration: $(ZFORGE_CONFIG)")
+	$(call log,"Configuration validated: $(ZFORGE_CONFIG)")
 
-# Install dependencies
+# Check if dependencies are installed
+validate-deps:
+	@missing_deps=""; \
+	for pkg in debootstrap squashfs-tools xorriso isolinux syslinux-common \
+	           grub-pc-bin grub-efi-amd64-bin mtools dosfstools python3-yaml; do \
+		dpkg -l $$pkg >/dev/null 2>&1 || missing_deps="$$missing_deps $$pkg"; \
+	done; \
+	if [ -n "$$missing_deps" ]; then \
+		$(call warn,"Missing dependencies:$$missing_deps"); \
+		$(call log,"Installing missing dependencies..."); \
+		$(MAKE) deps; \
+	fi
+
+# Install dependencies with error handling
 deps:
-	@echo "Installing build dependencies..."
-	@sudo apt-get update
+	$(call log,"Installing build dependencies...")
+	@sudo apt-get update || $(call error,"Failed to update package lists")
 	@sudo apt-get install -y \
 		debootstrap \
 		squashfs-tools \
@@ -59,34 +165,130 @@ deps:
 		mtools \
 		dosfstools \
 		python3 \
-		python3-yaml
-	@echo "Dependencies installed"
+		python3-yaml \
+		python3-pip \
+		git \
+		build-essential \
+		|| $(call error,"Failed to install dependencies")
+	$(call log,"Dependencies installed successfully")
+
+# Build ZFS from Proxmox source
+build-zfs: check
+	$(call log,"Building ZFS 2.3.3 from Proxmox source...")
+	@test -x scripts/build/build_zfs_on_host.sh || $(call error,"ZFS build script not found or not executable")
+	@sudo -E ./scripts/build/build_zfs_on_host.sh 2>&1 | tee -a $(LOG_FILE)
+	$(call log,"ZFS build completed")
+
+# Build Proxmox from source
+build-proxmox: check
+	$(call log,"Building Proxmox VE 9.0 beta from source...")
+	@test -x scripts/build/build_proxmox_on_host.sh || $(call error,"Proxmox build script not found or not executable")
+	@sudo -E ./scripts/build/build_proxmox_on_host.sh 2>&1 | tee -a $(LOG_FILE)
+	$(call log,"Proxmox build completed")
+
+# Build both ZFS and Proxmox from source
+build-sources: build-zfs build-proxmox
+	$(call log,"Source builds completed")
+
+# Build with Debian 13 config (with source builds)
+build-debian13: build-sources
+	$(call log,"Building Z-FORGE with Debian 13 (Trixie) base...")
+	@$(MAKE) build
+
+# Build with Debian 13 config (skip source builds)
+build-debian13-no-sources:
+	$(call log,"Building Z-FORGE with Debian 13 (pre-built sources)...")
+	@$(MAKE) build
 
 # Build with custom config
 build-custom:
-	@echo "Building with custom config..."
-	@sudo ZFORGE_CONFIG=build_spec_no_tmp.yml $(MAKE) build
+	@test -n "$(CONFIG)" || $(call error,"CONFIG variable must be set for custom build")
+	$(call log,"Building with custom config: $(CONFIG)")
+	@ZFORGE_CONFIG=$(CONFIG) $(MAKE) build
 
-# Help
+# Run tests
+test: setup
+	$(call log,"Running test suite...")
+	@python3 -m pytest tests/ -v 2>&1 | tee -a $(LOG_FILE) || $(call warn,"Some tests failed")
+
+# Clean build artifacts
+clean:
+	$(call log,"Cleaning build workspace...")
+	@sudo rm -rf $(WORKSPACE)/chroot
+	@rm -rf $(WORKSPACE)/temp/*
+	@rm -f $(LOG_DIR)/*.log
+	@# Clean any mount points
+	@for mount in $$(mount | grep $(WORKSPACE) | awk '{print $$3}'); do \
+		sudo umount -l $$mount 2>/dev/null || true; \
+	done
+	$(call log,"Cleanup completed")
+
+# Deep clean including cache
+clean-deep: clean clean-cache
+	$(call log,"Deep clean completed")
+
+# Clean cache separately
+clean-cache:
+	$(call log,"Cleaning cache...")
+	@rm -rf $(WORKSPACE)/cache/*
+	$(call log,"Cache cleaned")
+
+# Show version information
+version:
+	@echo "Z-FORGE Build System v$(VERSION)"
+	@echo "Build ID: $(BUILD_ID)"
+	@echo "Config: $(ZFORGE_CONFIG)"
+
+# Show workspace information
+workspace-info:
+	@echo "Workspace: $(WORKSPACE)"
+	@echo "Temp: $(TMPDIR)"
+	@echo "Logs: $(LOG_DIR)"
+	@echo "Disk usage:"
+	@du -sh $(WORKSPACE)/* 2>/dev/null | sort -h
+
+# Help target
 help:
-	@echo "Z-FORGE Build System (No-/tmp Version)"
-	@echo "======================================"
+	@echo "Z-FORGE Build System v$(VERSION) (No-/tmp Version)"
+	@echo "================================================="
 	@echo ""
-	@echo "This version avoids /tmp completely to prevent noexec issues"
+	@echo "This version avoids /tmp to prevent noexec mount issues"
 	@echo ""
-	@echo "Usage: make [target]"
+	@echo "Usage: make [target] [VARIABLE=value]"
 	@echo ""
-	@echo "Targets:"
-	@echo "  build       - Run the full build (default)"
-	@echo "  setup       - Create workspace directories"
-	@echo "  check       - Verify build environment"
-	@echo "  clean       - Clean build artifacts"
-	@echo "  deps        - Install build dependencies"
-	@echo "  help        - Show this help"
+	@echo "Main Targets:"
+	@echo "  build                    - Run the full build (default)"
+	@echo "  build-parallel           - Run build with parallel jobs"
+	@echo "  build-debian13           - Build with Debian 13 + source builds"
+	@echo "  build-debian13-no-sources- Build with Debian 13 (pre-built sources)"
+	@echo "  build-custom CONFIG=file - Build with custom config file"
 	@echo ""
-	@echo "Environment:"
-	@echo "  WORKSPACE   - Set custom workspace (default: ~/zforge_workspace)"
+	@echo "Component Targets:"
+	@echo "  build-zfs               - Build ZFS from Proxmox source"
+	@echo "  build-proxmox           - Build Proxmox from source"
+	@echo "  build-sources           - Build both ZFS and Proxmox"
+	@echo ""
+	@echo "Utility Targets:"
+	@echo "  setup                   - Create workspace directories"
+	@echo "  check                   - Verify build environment"
+	@echo "  deps                    - Install build dependencies"
+	@echo "  test                    - Run test suite"
+	@echo "  clean                   - Clean build artifacts"
+	@echo "  clean-deep              - Clean everything including cache"
+	@echo "  version                 - Show version information"
+	@echo "  workspace-info          - Show workspace details"
+	@echo "  help                    - Show this help"
+	@echo ""
+	@echo "Variables:"
+	@echo "  WORKSPACE               - Set custom workspace (default: ~/zforge_workspace)"
+	@echo "  ZFORGE_CONFIG           - Build configuration file (default: build_spec_no_tmp.yml)"
+	@echo "  JOBS                    - Parallel jobs (default: auto-detect CPUs)"
+	@echo "  CONFIG                  - Config file for build-custom target"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build"
+	@echo "  make build-parallel JOBS=8"
 	@echo "  WORKSPACE=/var/lib/zforge make build"
+	@echo "  make build-custom CONFIG=my_custom_spec.yml"
+	@echo ""
+	@echo "Logs are saved to: $(LOG_DIR)/build-*.log"

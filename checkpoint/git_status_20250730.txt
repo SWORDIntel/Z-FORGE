@@ -1,0 +1,124 @@
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	deleted:    ANALYSIS_REPORT_ZFS_FIXES.md
+	deleted:    BUILD_ENVIRONMENT_SETUP_GUIDE.md
+	deleted:    CHECKPOINT_BOOTSTRAP_SOLUTION.md
+	deleted:    CHECKPOINT_COMPLETE_STATUS_20250730.md
+	deleted:    CHECKPOINT_NO_TMP_BUILD_REDESIGN.md
+	deleted:    CHECKPOINT_ZFS_DEB_PACKAGES.md
+	deleted:    FINAL_PREP_CHECKLIST.md
+	deleted:    FUTURE_TODO.md
+	deleted:    NEXT_STEPS_AFTER_BOOTSTRAP.md
+	deleted:    PACKAGE_SOLUTION.md
+	deleted:    PROXMOX_INTEGRATION.md
+	deleted:    README.md
+	deleted:    REBUILD_NOW.sh
+	deleted:    ULTRATHINK_REBUILD_README.md
+	deleted:    ZFS_BUILD_SUMMARY.md
+	deleted:    ZFS_WITHOUT_KERNEL_MODULES.md
+	deleted:    add_proxmox_repo_to_chroot.sh
+	deleted:    add_zfs_kernel_module_support.sh
+	deleted:    apt_download_packages.sh
+	deleted:    bootstrap_chroot.sh
+	deleted:    build.sh
+	deleted:    build_additional_packages.sh
+	deleted:    build_for_host_system.sh
+	deleted:    build_zfs_debs_for_iso.sh
+	deleted:    build_zfs_host_quick.sh
+	deleted:    build_zfs_instructions.sh
+	deleted:    build_zfs_userspace_debs.sh
+	deleted:    cleanup_root_dir.sh
+	deleted:    cleanup_root_directory.sh
+	deleted:    compare_bootstrap_tools.sh
+	deleted:    comprehensive_package_download.sh
+	deleted:    direct_package_download.sh
+	deleted:    docs/ADVANCED_FEATURES.md
+	deleted:    docs/BUILD_ORDER_OPTIMIZATION.md
+	deleted:    docs/HARDWARE_SPECIFIC_OPTIMIZATIONS.md
+	deleted:    docs/MODULE_IMPLEMENTATION_SUMMARY.md
+	deleted:    docs/PROXMOX_BUILD_OPTIONS.md
+	modified:   docs/README.md
+	deleted:    docs/ZFS_WEB_GUI_PROPOSAL.md
+	deleted:    docs/calamares_securityhardening_integration.md
+	deleted:    docs/calamares_telemetry_integration.md
+	deleted:    docs/cleanup-process.md
+	deleted:    docs/new_modules_documentation_outline.md
+	deleted:    docs/zfs_configuration_guide_outline.md
+	deleted:    docs/zfs_module_refinements.txt
+	deleted:    extract_from_debian_iso.sh
+	deleted:    fix_proxmox_repo_gpg.sh
+	deleted:    fix_workspace_noexec.sh
+	deleted:    install_available_packages.sh
+	deleted:    install_our_zfs_package.sh
+	deleted:    install_proxmox_in_chroot.sh
+	deleted:    move_workspace.sh
+	deleted:    perfect_build.sh
+	deleted:    quick_fix_workspace.sh
+	deleted:    run_build_with_custom_workspace.sh
+	deleted:    run_zfs_build.sh
+	modified:   scripts/build/build.sh
+	modified:   scripts/build/run_zfs_build.sh
+	deleted:    setup_dev_environment.sh
+	deleted:    setup_no_tmp_build.sh
+	deleted:    simple_apt_download.sh
+	deleted:    snapshot_download_fixed.sh
+	deleted:    snapshot_download_working.sh
+	deleted:    snapshot_package_download.sh
+	deleted:    unmount_and_move_workspace.sh
+	deleted:    use_debian_zfs_instead.sh
+	deleted:    use_debootstrap.sh
+	deleted:    workspace_config.sh
+	deleted:    zforge_build.sh
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	checkpoint/
+	docs/build/BUILD_ENVIRONMENT_SETUP_GUIDE.md
+	docs/build/BUILD_ORDER_OPTIMIZATION.md
+	docs/build/NEXT_STEPS_AFTER_BOOTSTRAP.md
+	docs/build/PACKAGE_SOLUTION.md
+	docs/checkpoints/CHECKPOINT_BOOTSTRAP_SOLUTION.md
+	docs/checkpoints/CHECKPOINT_COMPLETE_STATUS_20250730.md
+	docs/checkpoints/CHECKPOINT_NO_TMP_BUILD_REDESIGN.md
+	docs/checkpoints/CHECKPOINT_ZFS_DEB_PACKAGES.md
+	docs/features/
+	docs/hardware/HARDWARE_SPECIFIC_OPTIMIZATIONS.md
+	docs/integration/MODULE_IMPLEMENTATION_SUMMARY.md
+	docs/integration/PROXMOX_BUILD_OPTIONS.md
+	docs/integration/PROXMOX_INTEGRATION.md
+	docs/integration/calamares_securityhardening_integration.md
+	docs/integration/calamares_telemetry_integration.md
+	docs/integration/new_modules_documentation_outline.md
+	docs/planning/
+	docs/reports/ANALYSIS_REPORT_ZFS_FIXES.md
+	docs/reports/ULTRATHINK_REBUILD_README.md
+	docs/reports/cleanup-process.md
+	docs/zfs/ZFS_BUILD_SUMMARY.md
+	docs/zfs/ZFS_WEB_GUI_PROPOSAL.md
+	docs/zfs/ZFS_WITHOUT_KERNEL_MODULES.md
+	docs/zfs/zfs_configuration_guide_outline.md
+	docs/zfs/zfs_module_refinements.txt
+	scripts/build/REBUILD_NOW.sh
+	scripts/build/add_zfs_kernel_module_support.sh
+	scripts/build/build_additional_packages.sh
+	scripts/build/build_for_host_system.sh
+	scripts/build/build_zfs_debs_for_iso.sh
+	scripts/build/build_zfs_host_quick.sh
+	scripts/build/build_zfs_instructions.sh
+	scripts/build/build_zfs_userspace_debs.sh
+	scripts/build/perfect_build.sh
+	scripts/build/run_build_with_custom_workspace.sh
+	scripts/build/setup_dev_environment.sh
+	scripts/build/use_debian_zfs_instead.sh
+	scripts/build/zforge_build.sh
+	scripts/chroot/
+	scripts/cleanup/
+	scripts/package/
+	scripts/proxmox/
+	scripts/workspace/
+
+no changes added to commit (use "git add" and/or "git commit -a")

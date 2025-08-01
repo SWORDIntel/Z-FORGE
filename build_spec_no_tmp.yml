@@ -4,9 +4,10 @@
 # Basic settings
 name: "Z-FORGE"
 version: "3.0"
-codename: "phoenix"
+codename: "proxmox9-beta"
 architecture: "amd64"
-debian_release: "trixie"
+debian_release: "trixie"  # Debian 13
+kernel_version: "6.14.8-1"
 kernel_package: "linux-image-amd64"
 
 # Workspace configuration - using home directory
@@ -76,17 +77,47 @@ build_modules:
   - name: "ZFSInstallation"
     enabled: true
     config:
-      # Use our custom package
-      install_method: "custom_package"
-      package_path: "${HOME}/github/Z-FORGE/live_cd_packages/zfsutils-userspace_2.3.3-1_amd64.deb"
-      # Or use Debian packages
-      # install_method: "debian_packages"
+      version: "2.3.3"
+      install_method: "prebuilt_packages"
+      package_dir: "${HOME}/github/Z-FORGE/prebuilt_packages"
+      # Note: Build ZFS from Proxmox source BEFORE main build using:
+      # ./scripts/build/build_zfs_from_proxmox_source.sh
+      features:
+        - "raid_z_expansion"  # New in ZFS 2.3
+        - "block_cloning" 
+        - "improved_performance"
+        - "proxmox_optimizations"
       
-  - name: "ProxmoxIntegration"
+  - name: "ProxmoxInstallation"
     enabled: true
     config:
-      repository: "deb http://download.proxmox.com/debian/pve trixie pve-no-subscription"
-      key_url: "https://enterprise.proxmox.com/debian/proxmox-release-bullseye.gpg"
+      version: "9.0-beta"
+      install_method: "prebuilt_packages"
+      package_dir: "${HOME}/github/Z-FORGE/prebuilt_packages"
+      repository: "deb http://download.proxmox.com/debian/pve trixie pve-test"
+      # Note: Build Proxmox from source BEFORE main build using:
+      # ./scripts/build/build_proxmox_on_host.sh
+      components:
+        kernel: "6.14.8-1"
+        qemu: "10.0.2"
+        lxc: "6.0.4"
+        zfs: "2.3.3"
+        ceph: "squid-19.2"
+      features:
+        - "sdn_fabrics"  # New in v9.0
+        - "lvm_snapshots"
+        - "zfs_raid_expansion"
+      
+  - name: "ZFSProxmoxIntegration"
+    enabled: true
+    config:
+      integration_level: "deep"
+      features:
+        - "proxmox_zfs_pools"
+        - "pve_storage_integration"
+        - "zfs_replication"
+        - "snapshot_management"
+        - "compression_optimization"
       
   - name: "LiveEnvironment"
     enabled: true

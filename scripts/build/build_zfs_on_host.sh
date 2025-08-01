@@ -1,17 +1,17 @@
 #!/bin/bash
-# Build ZFS from OpenZFS GitHub source in the Linux source directory on the host system
+# Build ZFS from Proxmox source in the Linux source directory on the host system
 # Then copy the built packages to Z-FORGE directory
 
 set -e
 
 echo "════════════════════════════════════════════════════════════════════"
-echo "    Z-FORGE ZFS Host Builder - Build from OpenZFS GitHub"
+echo "    Z-FORGE ZFS Host Builder - Build from Proxmox Source"
 echo "════════════════════════════════════════════════════════════════════"
 echo ""
 
 # Configuration
 ZFS_VERSION="2.3.3"
-ZFS_URL="https://github.com/openzfs/zfs/releases/download/zfs-${ZFS_VERSION}/zfs-${ZFS_VERSION}.tar.gz"
+PROXMOX_ZFS_REPO="https://git.proxmox.com/git/zfsonlinux.git"
 SUDO_PASS="1786"
 
 # Output directory for built packages
@@ -24,7 +24,7 @@ cat > /tmp/zfs_build_main.sh << 'BUILDSCRIPT'
 set -e
 
 ZFS_VERSION="2.3.3"
-ZFS_URL="https://github.com/openzfs/zfs/releases/download/zfs-${ZFS_VERSION}/zfs-${ZFS_VERSION}.tar.gz"
+PROXMOX_ZFS_REPO="https://git.proxmox.com/git/zfsonlinux.git"
 OUTPUT_DIR="/opt/github/Z-FORGE/prebuilt_packages"
 
 # Function to find Linux source directory
@@ -57,20 +57,25 @@ mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
 
 echo ""
-echo "📥 Downloading ZFS ${ZFS_VERSION} from OpenZFS GitHub..."
+echo "📥 Cloning ZFS ${ZFS_VERSION} from Proxmox source..."
 
-# Download ZFS source
-if [ ! -f "zfs-${ZFS_VERSION}.tar.gz" ]; then
-    wget -q --show-progress "$ZFS_URL" -O "zfs-${ZFS_VERSION}.tar.gz"
-    echo "✅ Downloaded ZFS source"
-else
-    echo "✅ Using existing ZFS source tarball"
+# Clone Proxmox ZFS source
+if [ -d "zfs-proxmox-${ZFS_VERSION}" ]; then
+    echo "🗑️ Removing existing ZFS source directory..."
+    rm -rf "zfs-proxmox-${ZFS_VERSION}"
 fi
 
-# Extract source
-echo "📦 Extracting ZFS source..."
-tar -xzf "zfs-${ZFS_VERSION}.tar.gz"
-cd "zfs-${ZFS_VERSION}"
+git clone "$PROXMOX_ZFS_REPO" "zfs-proxmox-${ZFS_VERSION}"
+cd "zfs-proxmox-${ZFS_VERSION}"
+
+# Checkout specific version/tag if available
+echo "🔍 Checking for ZFS $ZFS_VERSION..."
+git tag | grep -E "^${ZFS_VERSION}" | head -1 | xargs -r git checkout || {
+    echo "⚠️ Specific version $ZFS_VERSION not found, using master branch"
+    git checkout master
+}
+
+echo "✅ ZFS source ready from Proxmox"
 
 # Install build dependencies
 echo ""
@@ -213,7 +218,7 @@ cat > "$OUTPUT_DIR/install_zfs_host_built.sh" << 'EOF'
 
 set -e
 
-CHROOT_PATH="${1:-/tmp/zforge_workspace/chroot}"
+CHROOT_PATH="${1:-${CHROOT_PATH:-$HOME/zforge_workspace/chroot}}"
 PACKAGES_DIR="$(dirname "$0")"
 
 echo "Installing host-built ZFS packages to $CHROOT_PATH"

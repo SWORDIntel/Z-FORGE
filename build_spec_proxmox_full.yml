@@ -1,0 +1,365 @@
+# Z-FORGE Build Specification - Proxmox VE Full Integration
+# No size limits - include everything!
+
+# Basic settings
+name: "Z-FORGE-PROXMOX-ULTIMATE"
+version: "3.0"
+codename: "proxmox9-beta-full"
+architecture: "amd64"
+debian_release: "trixie"  # Debian 13
+kernel_version: "6.14.8-1"
+kernel_package: "linux-image-amd64"
+
+# Workspace configuration - using home directory
+workspace:
+  base_path: "${HOME}/zforge_workspace"
+  paths:
+    chroot: "${workspace.base_path}/chroot"
+    cache: "${workspace.base_path}/cache"
+    output: "${workspace.base_path}/output"
+    temp: "${workspace.base_path}/temp"
+    logs: "${workspace.base_path}/logs"
+
+# Build modules
+build_modules:
+  - name: "WorkspaceSetup"
+    enabled: true
+    config:
+      temp_dir: "${workspace.paths.temp}"
+      
+  - name: "Debootstrap"
+    enabled: true
+    config:
+      mirror: "http://deb.debian.org/debian"
+      components: ["main", "contrib", "non-free", "non-free-firmware"]
+      cache_dir: "${workspace.paths.cache}/debootstrap"
+      
+  - name: "SystemConfiguration"
+    enabled: true
+    config:
+      hostname: "proxmox-zforge"
+      locale: "en_US.UTF-8"
+      timezone: "UTC"
+      
+  - name: "KernelInstallation"
+    enabled: true
+    config:
+      kernel_package: "${kernel_package}"
+      # Also install Proxmox kernel for choice
+      additional_kernels:
+        - "pve-kernel-6.14"
+      
+  - name: "PackageInstallation"
+    enabled: true
+    config:
+      # Essential packages
+      packages:
+        # System essentials
+        - "systemd"
+        - "systemd-sysv"
+        - "live-boot"
+        - "live-config"
+        - "live-config-systemd"
+        - "sudo"
+        - "bash"
+        - "coreutils"
+        - "util-linux"
+        - "procps"
+        - "iproute2"
+        - "iputils-ping"
+        
+        # Editors (all of them!)
+        - "nano"
+        - "vim"
+        - "emacs"
+        - "neovim"
+        
+        # Development tools
+        - "build-essential"
+        - "git"
+        - "cmake"
+        - "autoconf"
+        - "automake"
+        - "libtool"
+        - "pkg-config"
+        - "python3-full"
+        - "python3-pip"
+        - "golang"
+        - "rustc"
+        - "cargo"
+        
+        # Debugging tools
+        - "gdb"
+        - "strace"
+        - "ltrace"
+        - "valgrind"
+        - "perf-tools-unstable"
+        
+        # System monitoring
+        - "htop"
+        - "btop"
+        - "iotop"
+        - "iftop"
+        - "nethogs"
+        - "sysstat"
+        - "dstat"
+        - "glances"
+        
+        # Network tools
+        - "tcpdump"
+        - "wireshark"
+        - "tshark"
+        - "nmap"
+        - "netcat-openbsd"
+        - "socat"
+        - "iperf3"
+        - "mtr"
+        - "traceroute"
+        - "dig"
+        - "whois"
+        
+        # Storage tools
+        - "hdparm"
+        - "sdparm"
+        - "nvme-cli"
+        - "smartmontools"
+        - "lsscsi"
+        - "sg3-utils"
+        
+        # Virtualization helpers
+        - "cpu-checker"
+        - "msr-tools"
+        - "qemu-utils"
+        - "libguestfs-tools"
+        - "virt-what"
+        
+  - name: "ZFSInstallation"
+    enabled: true
+    config:
+      version: "2.3.3"
+      install_method: "prebuilt_packages"
+      package_dir: "${HOME}/github/Z-FORGE/prebuilt_packages"
+      features:
+        - "raid_z_expansion"
+        - "block_cloning" 
+        - "improved_performance"
+        - "proxmox_optimizations"
+      
+  - name: "ProxmoxInstallation"
+    enabled: true
+    config:
+      version: "9.0-beta"
+      install_method: "prebuilt_packages"
+      package_dir: "${HOME}/github/Z-FORGE/prebuilt_packages"
+      repository: "deb http://download.proxmox.com/debian/pve trixie pve-test"
+      
+      # Install ALL Proxmox packages
+      packages:
+        # Core Proxmox VE
+        - "proxmox-ve"
+        - "pve-manager"
+        - "pve-kernel-6.14"
+        - "pve-kernel-helper"
+        - "pve-kernel-libc-dev"
+        - "proxmox-widget-toolkit"
+        - "proxmox-websocket-tunnel"
+        
+        # Cluster & HA
+        - "pve-cluster"
+        - "pve-ha-manager"
+        - "pve-ha-crm"
+        - "pve-ha-lrm"
+        - "corosync"
+        - "fence-agents-pve"
+        
+        # Virtualization - QEMU/KVM
+        - "pve-qemu-kvm"
+        - "qemu-server"
+        - "qemu-utils"
+        - "ovmf"
+        - "pve-edk2-firmware"
+        - "pve-qemu-machine-protocol"
+        
+        # Virtualization - LXC
+        - "pve-container"
+        - "lxc-pve"
+        - "lxcfs"
+        - "lxc-pve-dev"
+        
+        # Storage backends
+        - "libpve-storage-perl"
+        - "pve-zsync"
+        - "zfsutils-linux"
+        - "ceph"
+        - "ceph-base"
+        - "ceph-common"
+        - "ceph-fuse"
+        - "ceph-mds"
+        - "ceph-mgr"
+        - "ceph-mgr-modules"
+        - "ceph-mon"
+        - "ceph-osd"
+        - "ceph-volume"
+        - "radosgw"
+        - "rbd-nbd"
+        - "glusterfs-client"
+        - "nfs-common"
+        - "open-iscsi"
+        - "multipath-tools"
+        
+        # Backup & Restore
+        - "proxmox-backup-client"
+        - "proxmox-backup-file-restore"
+        - "proxmox-backup-restore-image"
+        - "pve-zsync"
+        - "vzdump"
+        - "pve-vzdump-qemu"
+        
+        # Networking
+        - "pve-firewall"
+        - "openvswitch-switch"
+        - "ifupdown2"
+        - "bridge-utils"
+        - "vlan"
+        - "frr"
+        - "dnsmasq"
+        
+        # Monitoring & Metrics
+        - "pve-prometheus"
+        - "pve-grafana"
+        - "influxdb"
+        - "telegraf"
+        - "pve-metricserver"
+        
+        # Web interface & API
+        - "novnc-pve"
+        - "spiceterm"
+        - "pve-xtermjs"
+        - "pve-docs"
+        - "pve-api-updates"
+        - "libjs-extjs"
+        
+        # Authentication
+        - "libpve-access-control"
+        - "libpve-u2f-server-perl"
+        - "libpve-rs-perl"
+        
+        # Additional tools
+        - "pve-firmware"
+        - "pve-omping"
+        - "pve-i18n"
+        - "pve-guest-common"
+        - "pve-http-server"
+        - "proxmox-mini-journalreader"
+        - "proxmox-offline-mirror"
+        - "proxmox-mail-gateway"
+        - "pve-lxc-syscalld"
+        - "pve-esxi-import-tools"
+        
+      features:
+        - "sdn_fabrics"
+        - "lvm_snapshots"
+        - "zfs_raid_expansion"
+        - "ceph_quincy"
+        - "pcie_passthrough"
+        - "sr_iov"
+        - "nvme_tcp"
+        - "virtio_fs"
+        - "vgpu_support"
+        - "usb_passthrough"
+        - "spice_enhancements"
+        
+      # Auto-configuration
+      auto_config:
+        setup_admin: true
+        admin_email: "admin@zforge.local"
+        setup_network_bridge: true
+        bridge_name: "vmbr0"
+        setup_zfs_storage: true
+        setup_local_storage: true
+      
+  - name: "ZFSProxmoxIntegration"
+    enabled: true
+    config:
+      integration_level: "maximum"
+      features:
+        - "proxmox_zfs_pools"
+        - "pve_storage_integration"
+        - "zfs_replication"
+        - "snapshot_management"
+        - "compression_optimization"
+        - "arc_tuning_for_vms"
+        - "zil_slog_optimization"
+        - "special_vdev_support"
+      
+      # ZFS tuning for Proxmox
+      zfs_tuning:
+        arc_max_percent: 50  # Leave RAM for VMs
+        arc_min_gb: 4
+        l2arc_enabled: true
+        compression: "lz4"
+        atime: "off"
+        xattr: "sa"
+        
+  - name: "ProxmoxServices"
+    enabled: true
+    config:
+      enable_services:
+        - "pve-cluster"
+        - "pvedaemon"
+        - "pveproxy"
+        - "pvestatd"
+        - "pvescheduler"
+        - "pve-ha-crm"
+        - "pve-ha-lrm"
+        - "pve-firewall"
+        - "pve-guests"
+        - "pvenetcommit"
+        - "pve-lxc-syscalld"
+        
+  - name: "LiveEnvironment"
+    enabled: true
+    config:
+      autologin: true
+      user: "root"  # Proxmox needs root
+      desktop: "none"  # Proxmox is web-based
+      
+  - name: "BootloaderConfiguration"
+    enabled: true
+    config:
+      # Support both UEFI and BIOS
+      bootloaders:
+        - "grub-efi"
+        - "grub-pc"
+        - "systemd-boot"
+      default_options: "quiet splash intel_iommu=on amd_iommu=on"
+      
+  - name: "ISOGeneration"
+    enabled: true
+    config:
+      output_dir: "${workspace.paths.output}"
+      iso_name: "zforge-proxmox-ultimate-${version}-${architecture}.iso"
+      compression: "xz"
+      include_sources: false  # Set to true if you want source packages too
+      
+# Hardware optimizations
+hardware_profiles:
+  generic:
+    cpu_governor: "performance"
+    kernel_parameters: "quiet splash intel_iommu=on amd_iommu=on pcie_acs_override=downstream,multifunction"
+    
+# Security settings
+security:
+  enable_root: true  # Proxmox requires root
+  password_hash: "$6$rounds=4096$defaultsalt$defaulthash"
+  
+# Output settings
+output:
+  iso_dir: "${workspace.paths.output}"
+  log_dir: "${workspace.paths.logs}"
+  
+# Environment variables to set
+environment:
+  TMPDIR: "${workspace.paths.temp}"
+  TEMP: "${workspace.paths.temp}"
+  TMP: "${workspace.paths.temp}"

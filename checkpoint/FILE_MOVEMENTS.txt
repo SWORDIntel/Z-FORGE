@@ -1,0 +1,78 @@
+# File Movement Record - July 30, 2025
+
+## Scripts Moved to scripts/build/
+- build.sh
+- build_*.sh (all build scripts)
+- run_*.sh
+- perfect_build.sh
+- zforge_build.sh
+- REBUILD_NOW.sh
+- add_zfs_kernel_module_support.sh
+- use_debian_zfs_instead.sh
+- setup_dev_environment.sh
+
+## Scripts Moved to scripts/chroot/
+- bootstrap_chroot.sh
+- use_arch_chroot.sh
+- install_zfs_with_arch_chroot.sh
+- complete_zfs_install.sh
+- use_debootstrap.sh
+- compare_bootstrap_tools.sh
+
+## Scripts Moved to scripts/workspace/
+- workspace_config.sh
+- fix_workspace_noexec.sh
+- quick_fix_workspace.sh
+- move_workspace.sh
+- unmount_and_move_workspace.sh
+- setup_no_tmp_build.sh
+
+## Scripts Moved to scripts/package/
+- apt_download_packages.sh
+- comprehensive_package_download.sh
+- direct_package_download.sh
+- simple_apt_download.sh
+- snapshot_*.sh
+- install_*.sh
+- extract_from_debian_iso.sh
+
+## Scripts Moved to scripts/cleanup/
+- cleanup_root_dir.sh
+- cleanup_root_directory.sh
+
+## Scripts Moved to scripts/proxmox/
+- add_proxmox_repo_to_chroot.sh
+- fix_proxmox_repo_gpg.sh
+
+## Documentation Moved to docs/
+All *.md files moved and organized into:
+- docs/build/
+- docs/checkpoints/
+- docs/features/
+- docs/hardware/
+- docs/integration/
+- docs/MODULE_PROPOSALS/
+- docs/planning/
+- docs/project/
+- docs/reports/
+- docs/zfs/
+
+## Files Remaining in Root
+- build.py
+- Makefile
+- Makefile.no_tmp
+- build_spec*.yml
+- zforge-build.service
+- README.md
+- DIRECTORY_STRUCTURE.md
+- .gitignore
+- test-zfs.deb (can be removed)
+
+## Script Reference Updates
+Updated references in:
+- scripts/chroot/complete_zfs_install.sh
+- scripts/chroot/use_arch_chroot.sh
+- scripts/chroot/install_zfs_with_arch_chroot.sh
+- scripts/proxmox/add_proxmox_repo_to_chroot.sh
+
+All updated to use relative paths with $(dirname "$0")
