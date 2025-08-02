@@ -19,7 +19,9 @@ OUTPUT_DIR="/opt/github/Z-FORGE/prebuilt_packages"
 mkdir -p "$OUTPUT_DIR"
 
 # Create the main build script that will run with sudo
-cat > /tmp/zfs_build_main.sh << 'BUILDSCRIPT'
+SCRIPT_PATH="$HOME/zforge_workspace/temp/zfs_build_main.sh"
+mkdir -p "$HOME/zforge_workspace/temp"
+cat > "$SCRIPT_PATH" << 'BUILDSCRIPT'
 #!/bin/bash
 set -e
 
@@ -278,14 +280,14 @@ echo "Number of packages built: $(ls -1 $OUTPUT_DIR/*.deb 2>/dev/null | wc -l)"
 echo ""
 BUILDSCRIPT
 
-chmod +x /tmp/zfs_build_main.sh
+chmod +x "$SCRIPT_PATH"
 
 # Run the build script with sudo
 echo "Running build script with sudo..."
-echo "$SUDO_PASS" | sudo -S bash /tmp/zfs_build_main.sh
+echo "$SUDO_PASS" | sudo -S bash "$SCRIPT_PATH"
 
 # Clean up
-rm -f /tmp/zfs_build_main.sh
+rm -f "$SCRIPT_PATH"
 
 echo "To use in Z-FORGE build:"
 echo "  The build system will automatically detect and use these packages"
