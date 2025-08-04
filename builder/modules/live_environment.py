@@ -57,15 +57,12 @@ class LiveEnvironment:
         
         # Create proper sources.list
         sources_content = """# Debian Trixie Main Sources
-deb http://deb.debian.org/debian trixie main contrib non-free-firmware
-deb-src http://deb.debian.org/debian trixie main contrib non-free-firmware
+deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
+deb http://security.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
 
-# Debian Trixie Security
-deb http://security.debian.org/debian-security trixie-security main contrib non-free-firmware
-
-# Debian Bookworm (fallback for missing packages)
-deb http://deb.debian.org/debian bookworm main contrib non-free-firmware
-deb http://deb.debian.org/debian bookworm-backports main contrib non-free-firmware
+# Source packages (commented to save bandwidth)
+# deb-src http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
 """
         
         sources_list = self.chroot_path / "etc/apt/sources.list"
@@ -78,9 +75,15 @@ Package: *
 Pin: release n=trixie
 Pin-Priority: 900
 
+# Lower priority for security updates
 Package: *
-Pin: release n=bookworm
-Pin-Priority: 500
+Pin: release n=trixie-security
+Pin-Priority: 850
+
+# Updates
+Package: *
+Pin: release n=trixie-updates
+Pin-Priority: 800
 """
         
         preferences_file = self.chroot_path / "etc/apt/preferences.d/01-release-priorities"
@@ -180,8 +183,9 @@ Pin-Priority: 500
     def _install_single_package(self, package: str, timeout: int = 120) -> bool:
         """Install a single package with error handling"""
         try:
+            # First try with --fix-missing
             result = subprocess.run(
-                ["chroot", str(self.chroot_path), "apt-get", "install", "-y", "--no-install-recommends", package],
+                ["chroot", str(self.chroot_path), "apt-get", "install", "-y", "--fix-missing", "--no-install-recommends", package],
                 capture_output=True,
                 text=True,
                 timeout=timeout
@@ -191,8 +195,28 @@ Pin-Priority: 500
                 self.logger.debug(f"✅ {package}")
                 return True
             else:
-                self.logger.debug(f"❌ {package}: {result.stderr.strip()}")
-                return False
+                # If failed, try updating package lists and retry
+                self.logger.debug(f"Retrying {package} after update...")
+                subprocess.run(
+                    ["chroot", str(self.chroot_path), "apt-get", "update"],
+                    capture_output=True,
+                    timeout=30
+                )
+                
+                # Retry installation
+                retry_result = subprocess.run(
+                    ["chroot", str(self.chroot_path), "apt-get", "install", "-y", "--fix-missing", "--no-install-recommends", package],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
+                
+                if retry_result.returncode == 0:
+                    self.logger.debug(f"✅ {package} (on retry)")
+                    return True
+                else:
+                    self.logger.debug(f"❌ {package}: {retry_result.stderr.strip()}")
+                    return False
                 
         except subprocess.TimeoutExpired:
             self.logger.debug(f"⏱️ {package}: timeout")

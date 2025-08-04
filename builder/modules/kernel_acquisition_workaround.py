@@ -143,3 +143,13 @@ rm -rf /tmp/initrd_work
             logger.error(f"Copy approach failed: {e}")
         
         return False
+    
+    def execute(self, resume_data: Optional[Dict] = None) -> Dict[str, Any]:
+        """Execute method for compatibility with module loader"""
+        # This is a workaround module, not meant to be executed directly
+        # It provides helper methods for kernel acquisition
+        return {
+            'status': 'success',
+            'message': 'KernelAcquisitionWorkaround is a helper module',
+            'description': 'Provides workarounds for kernel acquisition issues'
+        }

@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
@@ -15,7 +19,7 @@ from pathlib import Path
 
 # Import the enhanced GUI module
 sys.path.append(os.path.dirname(__file__))
-from zfs_enhanced_gui import ZFSEnhancedConfigWidget
+from zfs_enhanced_gui import ZfsEnhancedGui as ZFSEnhancedConfigWidget
 
 def pretty_name():
     """
@@ -34,33 +38,41 @@ def run():
     Main entry point for Calamares module execution
     This is called when the module executes (after UI)
     """
-    # Get configuration from global storage
-    gs = libcalamares.globalstorage
-    pool_config = gs.value("zfsPoolConfig")
-    
-    if not pool_config:
-        return "No ZFS pool configuration found", "You must configure a ZFS pool before continuing"
-    
-    # Validate configuration
-    if not pool_config.get("disks"):
-        return "No disks selected", "You must select at least one disk for the ZFS pool"
-    
-    # Store configuration for later modules
-    gs.insert("zfsPoolName", pool_config["name"])
-    gs.insert("zfsPoolType", pool_config["raid_type"])
-    gs.insert("zfsPoolDisks", pool_config["disks"])
-    gs.insert("zfsPoolCompression", pool_config.get("compression", "lz4"))
-    gs.insert("zfsPoolEncryption", pool_config.get("encryption", False))
-    gs.insert("zfsPoolAshift", pool_config.get("ashift", 12))
-    
-    # Build the zpool create command
-    cmd = build_zpool_command(pool_config)
-    gs.insert("zfsPoolCreateCommand", cmd)
-    
-    libcalamares.utils.debug(f"ZFS pool configuration: {json.dumps(pool_config, indent=2)}")
-    libcalamares.utils.debug(f"ZFS pool create command: {cmd}")
-    
-    return None
+    try:
+        # Get configuration from global storage
+        gs = libcalamares.globalstorage
+        pool_config = gs.value("zfsPoolConfig")
+        
+        if not pool_config:
+            return "No ZFS pool configuration found", "You must configure a ZFS pool before continuing"
+        
+        # Validate configuration
+        if not pool_config.get("disks"):
+            return "No disks selected", "You must select at least one disk for the ZFS pool"
+        
+        # Store configuration for later modules
+        gs.insert("zfsPoolName", pool_config["name"])
+        gs.insert("zfsPoolType", pool_config["raid_type"])
+        gs.insert("zfsPoolDisks", pool_config["disks"])
+        gs.insert("zfsPoolCompression", pool_config.get("compression", "lz4"))
+        gs.insert("zfsPoolEncryption", pool_config.get("encryption", False))
+        gs.insert("zfsPoolAshift", pool_config.get("ashift", 12))
+        
+        # Build the zpool create command
+        try:
+            cmd = build_zpool_command(pool_config)
+            gs.insert("zfsPoolCreateCommand", cmd)
+        except Exception as e:
+            return "ZFS command generation failed", f"Failed to generate ZFS commands: {str(e)}"
+        
+        libcalamares.utils.debug(f"ZFS pool configuration: {json.dumps(pool_config, indent=2)}")
+        libcalamares.utils.debug(f"ZFS pool create command: {cmd}")
+        
+        return None
+        
+    except Exception as e:
+        libcalamares.utils.debug(f"ZFS enhanced config error: {str(e)}")
+        return "Configuration error", f"ZFS enhanced configuration failed: {str(e)}"
 
 def build_zpool_command(config):
     """
@@ -102,17 +114,13 @@ def build_zpool_command(config):
     
     return " ".join(cmd_parts)
 
-class ZFSEnhancedConfigViewStep:
+class ZfsenhancedconfigJob:
     """
     Calamares ViewStep for the enhanced ZFS configuration
     """
     
     def __init__(self):
-        # Import GTK when needed
-        import gi
-        gi.require_version('Gtk', '3.0')
-        from gi.repository import Gtk
-        
+        # Qt is imported at module level
         self.widget = None
         self.gs = libcalamares.globalstorage
     
@@ -201,7 +209,7 @@ class ZFSEnhancedConfigViewStep:
 # Create module instance for Calamares
 def create_view_module():
     """Factory function for Calamares to create the view module"""
-    return ZFSEnhancedConfigViewStep()
+    return ZfsenhancedconfigJob()
 
 # For older Calamares versions that expect a direct class
-calamares_module = ZFSEnhancedConfigViewStep
+calamares_module = ZfsenhancedconfigJob

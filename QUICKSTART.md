@@ -1,1 +1,1 @@
-BUILD_FROM_FRESH.md
+docs/guides/QUICK_START.md

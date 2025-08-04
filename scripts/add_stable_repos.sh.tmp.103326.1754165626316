@@ -1,0 +1,46 @@
+#!/bin/bash
+# Add stable/older repository versions that work
+
+echo "=== Adding stable repository versions ==="
+
+# Add to chroot if it exists
+if [ -d "/root/zforge_workspace/chroot" ]; then
+    echo "Adding stable repositories to chroot..."
+    
+    # MegaRAID repository - use older stable version
+    cat << 'EOF' | sudo tee /root/zforge_workspace/chroot/etc/apt/sources.list.d/megaraid.list
+# MegaRAID Storage Manager - Stable version
+deb [trusted=yes] https://docs.broadcom.com/docs-and-downloads/debian bullseye main
+EOF
+
+    # Dell OpenManage - use stable version
+    cat << 'EOF' | sudo tee /root/zforge_workspace/chroot/etc/apt/sources.list.d/dell-stable.list
+# Dell OpenManage - Stable version
+deb [trusted=yes] https://linux.dell.com/repo/community/openmanage/11000/focal focal main
+EOF
+
+    # Add fallback Debian repositories for missing packages
+    cat << 'EOF' | sudo tee -a /root/zforge_workspace/chroot/etc/apt/sources.list
+# Fallback repositories for packages not in Trixie
+deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian bullseye main contrib non-free
+EOF
+
+    # Update package lists in chroot
+    echo "Updating package lists..."
+    sudo chroot /root/zforge_workspace/chroot apt-get update || true
+    
+    echo "✓ Stable repositories added"
+else
+    echo "No chroot found yet"
+fi
+
+# Also add to host system for debootstrap
+echo "Adding to host system..."
+cat << 'EOF' | sudo tee /etc/apt/sources.list.d/stable-repos.list
+# Stable versions for build process
+deb [trusted=yes] https://docs.broadcom.com/docs-and-downloads/debian bullseye main
+deb [trusted=yes] https://linux.dell.com/repo/community/openmanage/11000/focal focal main
+EOF
+
+echo "✓ Done! Using stable repository versions"

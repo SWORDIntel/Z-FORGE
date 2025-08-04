@@ -4,869 +4,494 @@ Enhanced ZFS Configuration GUI Widget for Calamares
 Provides advanced ZFS pool configuration with visual feedback
 """
 
-import gi
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Gdk, GLib, Pango
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QPushButton, QComboBox, QCheckBox, QLineEdit, 
+                             QTextEdit, QGroupBox, QTableWidget, QTableWidgetItem,
+                             QTabWidget, QSpinBox, QListWidget)
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFont
 import json
 import subprocess
 import math
 from typing import Dict, List, Optional, Tuple
 
-class ZFSEnhancedConfigWidget(Gtk.Box):
+class ZfsEnhancedGui(QGroupBox):
     """
     Enhanced ZFS configuration widget for Calamares integration
     """
     
     def __init__(self, globalstorage):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        super().__init__("Enhanced ZFS Configuration")
         
         self.gs = globalstorage
         
         # Initialize data structures
-        self.selected_disks = []
         self.available_disks = []
+        self.selected_disks = []
         self.pool_config = {
-            'name': 'tank',
-            'raid_type': 'mirror',
-            'ashift': 12,
-            'compression': 'lz4',
-            'encryption': False,
-            'workload': 'general'
+            "pool_name": "tank",
+            "vdev_type": "mirror",
+            "compression": "lz4",
+            "atime": "off",
+            "encryption": False,
+            "dedup": False,
+            "recordsize": "128K",
+            "ashift": "12",
+            "mountpoint": "/tank"
         }
         
-        # Check for existing configuration
-        existing_config = self.gs.value("zfsPoolConfig")
-        if existing_config:
-            self.pool_config.update(existing_config)
-            self.selected_disks = existing_config.get('disks', [])
-        
         self.setup_ui()
-        self.load_available_disks()
+        self.detect_disks()
         
     def setup_ui(self):
         """Build the enhanced UI"""
+        layout = QVBoxLayout()
+        self.setLayout(layout)
         
-        # Header with pool name
-        header_box = self.create_header()
-        self.pack_start(header_box, False, False, 0)
+        # Header
+        header = QLabel("<h3>Enhanced ZFS Pool Configuration</h3>")
+        layout.addWidget(header)
         
-        # Main content area with visual designer
-        content_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        # Description
+        desc = QLabel("Configure advanced ZFS pool settings with automatic optimization")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
         
-        # Left side - Disk selection and RAID config
-        left_box = self.create_disk_selector()
-        content_paned.pack1(left_box, resize=True, shrink=False)
+        # Main content area with tabs
+        self.tabs = QTabWidget()
         
-        # Right side - Visual pool representation and settings
-        right_notebook = self.create_settings_notebook()
-        content_paned.pack2(right_notebook, resize=True, shrink=False)
+        # Disk Selection Tab
+        disk_widget = self.create_disk_selection_tab()
+        self.tabs.addTab(disk_widget, "Disk Selection")
         
-        content_paned.set_position(500)
-        self.pack_start(content_paned, True, True, 0)
+        # Pool Configuration Tab
+        pool_widget = self.create_pool_config_tab()
+        self.tabs.addTab(pool_widget, "Pool Configuration")
         
-        # Show all widgets
-        self.show_all()
+        # Advanced Settings Tab
+        advanced_widget = self.create_advanced_settings_tab()
+        self.tabs.addTab(advanced_widget, "Advanced Settings")
         
-    def create_header(self) -> Gtk.Box:
-        """Create header with pool name and status"""
-        header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        header_box.set_homogeneous(False)
+        # Summary Tab
+        summary_widget = self.create_summary_tab()
+        self.tabs.addTab(summary_widget, "Summary")
         
-        # Pool name entry
-        name_label = Gtk.Label(label="Pool Name:")
-        name_label.set_markup("<b>Pool Name:</b>")
-        header_box.pack_start(name_label, False, False, 0)
+        layout.addWidget(self.tabs)
         
-        self.name_entry = Gtk.Entry()
-        self.name_entry.set_text(self.pool_config['name'])
-        self.name_entry.set_max_length(63)  # ZFS pool name limit
-        self.name_entry.connect("changed", self.on_pool_name_changed)
-        header_box.pack_start(self.name_entry, False, False, 0)
+        # Action buttons
+        button_layout = QHBoxLayout()
         
-        # Status indicator
-        self.status_label = Gtk.Label()
-        self.update_status("Ready to configure pool")
-        header_box.pack_end(self.status_label, False, False, 0)
+        self.validate_button = QPushButton("Validate Configuration")
+        self.validate_button.clicked.connect(self.validate_configuration)
+        button_layout.addWidget(self.validate_button)
         
-        return header_box
+        self.apply_button = QPushButton("Apply Configuration")
+        self.apply_button.clicked.connect(self.apply_configuration)
+        self.apply_button.setEnabled(False)
+        button_layout.addWidget(self.apply_button)
         
-    def create_disk_selector(self) -> Gtk.Box:
-        """Create disk selection interface with visual feedback"""
-        left_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        layout.addLayout(button_layout)
         
-        # Available disks section
-        disks_label = Gtk.Label()
-        disks_label.set_markup("<b>Available Disks</b>")
-        disks_label.set_alignment(0, 0.5)
-        left_box.pack_start(disks_label, False, False, 0)
+        # Status bar
+        self.status_label = QLabel("Ready")
+        layout.addWidget(self.status_label)
         
-        # Disk list with details
-        disk_scroll = Gtk.ScrolledWindow()
-        disk_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        disk_scroll.set_min_content_height(200)
+    def create_disk_selection_tab(self) -> QWidget:
+        """Create the disk selection tab"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
         
-        self.disk_store = Gtk.ListStore(bool, str, str, str, str, str)  # selected, device, size, model, type, health
-        self.disk_view = Gtk.TreeView(model=self.disk_store)
+        # Instructions
+        instructions = QLabel("Select disks to include in the ZFS pool:")
+        layout.addWidget(instructions)
         
-        # Checkbox column
-        toggle_renderer = Gtk.CellRendererToggle()
-        toggle_renderer.connect("toggled", self.on_disk_toggled)
-        toggle_column = Gtk.TreeViewColumn("Select", toggle_renderer, active=0)
-        self.disk_view.append_column(toggle_column)
+        # Disk table
+        self.disk_table = QTableWidget()
+        self.disk_table.setColumnCount(6)
+        self.disk_table.setHorizontalHeaderLabels(["Select", "Device", "Size", "Model", "Type", "Health"])
         
-        # Disk info columns
-        for i, title in enumerate(["Device", "Size", "Model", "Type", "Health"], 1):
-            renderer = Gtk.CellRendererText()
-            column = Gtk.TreeViewColumn(title, renderer, text=i)
-            column.set_resizable(True)
-            self.disk_view.append_column(column)
+        layout.addWidget(self.disk_table)
         
-        disk_scroll.add(self.disk_view)
-        left_box.pack_start(disk_scroll, True, True, 0)
+        # Quick selection buttons
+        button_layout = QHBoxLayout()
         
-        # RAID configuration
-        raid_frame = Gtk.Frame(label="RAID Configuration")
-        raid_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        raid_box.set_margin_top(10)
-        raid_box.set_margin_bottom(10)
-        raid_box.set_margin_left(10)
-        raid_box.set_margin_right(10)
+        select_all_button = QPushButton("Select All")
+        select_all_button.clicked.connect(self.select_all_disks)
+        button_layout.addWidget(select_all_button)
         
-        # RAID type selection with visual indicators
-        raid_types = [
-            ("stripe", "Stripe (RAID 0)", "No redundancy, maximum performance", 1),
-            ("mirror", "Mirror (RAID 1)", "Full redundancy, good performance", 2),
-            ("raidz1", "RAIDZ1 (RAID 5)", "1 disk redundancy, balanced", 3),
-            ("raidz2", "RAIDZ2 (RAID 6)", "2 disk redundancy, safe", 4),
-            ("raidz3", "RAIDZ3", "3 disk redundancy, very safe", 5)
-        ]
+        clear_button = QPushButton("Clear Selection")
+        clear_button.clicked.connect(self.clear_disk_selection)
+        button_layout.addWidget(clear_button)
         
-        self.raid_buttons = {}
-        first_button = None
-        for raid_type, label, tooltip, min_disks in raid_types:
-            if first_button is None:
-                button = Gtk.RadioButton.new_with_label(None, label)
-                first_button = button
-            else:
-                button = Gtk.RadioButton.new_with_label_from_widget(first_button, label)
-            
-            button.set_tooltip_text(f"{tooltip}\nMinimum disks: {min_disks}")
-            button.connect("toggled", self.on_raid_type_changed, raid_type)
-            self.raid_buttons[raid_type] = button
-            raid_box.pack_start(button, False, False, 0)
+        auto_select_button = QPushButton("Auto-Select Best Disks")
+        auto_select_button.clicked.connect(self.auto_select_disks)
+        button_layout.addWidget(auto_select_button)
         
-        # Set default
-        if self.pool_config['raid_type'] in self.raid_buttons:
-            self.raid_buttons[self.pool_config['raid_type']].set_active(True)
+        layout.addLayout(button_layout)
         
-        raid_frame.add(raid_box)
-        left_box.pack_start(raid_frame, False, False, 0)
+        # Selection info
+        self.selection_info = QLabel("No disks selected")
+        layout.addWidget(self.selection_info)
         
-        # Disk recommendations
-        self.recommendation_label = Gtk.Label()
-        self.recommendation_label.set_line_wrap(True)
-        self.recommendation_label.set_margin_top(10)
-        self.update_recommendations()
-        left_box.pack_start(self.recommendation_label, False, False, 0)
+        return widget
         
-        return left_box
+    def create_pool_config_tab(self) -> QWidget:
+        """Create the pool configuration tab"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
         
-    def create_settings_notebook(self) -> Gtk.Notebook:
-        """Create notebook with visual pool designer and settings"""
-        notebook = Gtk.Notebook()
+        # Pool name
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Pool Name:"))
+        self.pool_name_input = QLineEdit("tank")
+        name_layout.addWidget(self.pool_name_input)
+        layout.addLayout(name_layout)
         
-        # Visual Designer tab
-        designer_box = self.create_visual_designer()
-        notebook.append_page(designer_box, Gtk.Label(label="Visual Designer"))
+        # VDEV type
+        vdev_layout = QHBoxLayout()
+        vdev_layout.addWidget(QLabel("VDEV Type:"))
+        self.vdev_type_combo = QComboBox()
+        self.vdev_type_combo.addItems(["single", "mirror", "raidz1", "raidz2", "raidz3"])
+        self.vdev_type_combo.setCurrentText("mirror")
+        self.vdev_type_combo.currentTextChanged.connect(self.update_vdev_requirements)
+        vdev_layout.addWidget(self.vdev_type_combo)
+        layout.addLayout(vdev_layout)
         
-        # Performance Settings tab
-        perf_box = self.create_performance_settings()
-        notebook.append_page(perf_box, Gtk.Label(label="Performance"))
-        
-        # Advanced Settings tab
-        advanced_box = self.create_advanced_settings()
-        notebook.append_page(advanced_box, Gtk.Label(label="Advanced"))
-        
-        # Summary tab
-        summary_box = self.create_summary_view()
-        notebook.append_page(summary_box, Gtk.Label(label="Summary"))
-        
-        return notebook
-        
-    def create_visual_designer(self) -> Gtk.Box:
-        """Create visual pool designer"""
-        designer_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        
-        # Drawing area for pool visualization
-        self.pool_drawing = Gtk.DrawingArea()
-        self.pool_drawing.set_size_request(400, 300)
-        self.pool_drawing.connect("draw", self.on_draw_pool)
-        
-        designer_frame = Gtk.Frame()
-        designer_frame.add(self.pool_drawing)
-        designer_box.pack_start(designer_frame, True, True, 0)
-        
-        # Pool statistics
-        stats_grid = Gtk.Grid()
-        stats_grid.set_column_spacing(20)
-        stats_grid.set_row_spacing(5)
-        
-        stats = [
-            ("Total Capacity:", self.calculate_total_capacity),
-            ("Usable Capacity:", self.calculate_usable_capacity),
-            ("Redundancy Level:", self.get_redundancy_level),
-            ("Expected Performance:", self.estimate_performance),
-            ("Fault Tolerance:", self.get_fault_tolerance)
-        ]
-        
-        self.stat_labels = {}
-        for i, (label_text, _) in enumerate(stats):
-            label = Gtk.Label(label=label_text)
-            label.set_alignment(1, 0.5)
-            stats_grid.attach(label, 0, i, 1, 1)
-            
-            value_label = Gtk.Label()
-            value_label.set_alignment(0, 0.5)
-            self.stat_labels[label_text] = value_label
-            stats_grid.attach(value_label, 1, i, 1, 1)
-        
-        designer_box.pack_start(stats_grid, False, False, 0)
-        
-        self.update_pool_stats()
-        
-        return designer_box
-        
-    def create_performance_settings(self) -> Gtk.Box:
-        """Create performance tuning settings"""
-        perf_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        perf_box.set_margin_top(10)
-        perf_box.set_margin_bottom(10)
-        perf_box.set_margin_left(10)
-        perf_box.set_margin_right(10)
-        
-        # Workload profiles
-        profile_frame = Gtk.Frame(label="Workload Profile")
-        profile_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        profile_box.set_margin_top(10)
-        profile_box.set_margin_bottom(10)
-        profile_box.set_margin_left(10)
-        profile_box.set_margin_right(10)
-        
-        profiles = [
-            ("general", "General Purpose", "Balanced for mixed workloads"),
-            ("database", "Database Server", "Optimized for random I/O"),
-            ("media", "Media Storage", "Optimized for large files"),
-            ("vm", "Virtual Machines", "Optimized for VM storage"),
-            ("backup", "Backup Target", "Optimized for deduplication")
-        ]
-        
-        self.profile_buttons = {}
-        first_button = None
-        for profile_id, label, tooltip in profiles:
-            if first_button is None:
-                button = Gtk.RadioButton.new_with_label(None, label)
-                first_button = button
-            else:
-                button = Gtk.RadioButton.new_with_label_from_widget(first_button, label)
-            
-            button.set_tooltip_text(tooltip)
-            button.connect("toggled", self.on_profile_changed, profile_id)
-            self.profile_buttons[profile_id] = button
-            profile_box.pack_start(button, False, False, 0)
-        
-        # Set default profile
-        if self.pool_config.get('workload', 'general') in self.profile_buttons:
-            self.profile_buttons[self.pool_config['workload']].set_active(True)
-        
-        profile_frame.add(profile_box)
-        perf_box.pack_start(profile_frame, False, False, 0)
-        
-        # ARC size configuration
-        arc_frame = Gtk.Frame(label="ARC (RAM Cache) Configuration")
-        arc_grid = Gtk.Grid()
-        arc_grid.set_column_spacing(10)
-        arc_grid.set_row_spacing(10)
-        arc_grid.set_margin_top(10)
-        arc_grid.set_margin_bottom(10)
-        arc_grid.set_margin_left(10)
-        arc_grid.set_margin_right(10)
-        
-        # Get system RAM
-        total_ram = self.get_system_ram()
-        
-        arc_label = Gtk.Label(label="Maximum ARC Size:")
-        arc_grid.attach(arc_label, 0, 0, 1, 1)
-        
-        self.arc_scale = Gtk.Scale.new_with_range(
-            Gtk.Orientation.HORIZONTAL,
-            1, max(2, total_ram // 2), 1
-        )
-        self.arc_scale.set_value(min(8, total_ram // 4))  # Default to 25% of RAM, max 8GB
-        self.arc_scale.set_hexpand(True)
-        self.arc_scale.set_draw_value(True)
-        self.arc_scale.connect("value-changed", self.on_arc_changed)
-        arc_grid.attach(self.arc_scale, 1, 0, 1, 1)
-        
-        self.arc_value_label = Gtk.Label()
-        self.update_arc_label()
-        arc_grid.attach(self.arc_value_label, 2, 0, 1, 1)
-        
-        arc_frame.add(arc_grid)
-        perf_box.pack_start(arc_frame, False, False, 0)
-        
-        return perf_box
-        
-    def create_advanced_settings(self) -> Gtk.Box:
-        """Create advanced ZFS settings"""
-        advanced_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        advanced_box.set_margin_top(10)
-        advanced_box.set_margin_bottom(10)
-        advanced_box.set_margin_left(10)
-        advanced_box.set_margin_right(10)
-        
-        # Sector size (ashift)
-        ashift_frame = Gtk.Frame(label="Sector Size (ashift)")
-        ashift_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        ashift_box.set_margin_top(10)
-        ashift_box.set_margin_bottom(10)
-        ashift_box.set_margin_left(10)
-        ashift_box.set_margin_right(10)
-        
-        ashifts = [
-            (9, "512 bytes (Legacy HDDs)"),
-            (12, "4K (Modern HDDs/SSDs)"),
-            (13, "8K (Some enterprise SSDs)")
-        ]
-        
-        self.ashift_buttons = {}
-        first_button = None
-        for ashift, label in ashifts:
-            if first_button is None:
-                button = Gtk.RadioButton.new_with_label(None, label)
-                first_button = button
-            else:
-                button = Gtk.RadioButton.new_with_label_from_widget(first_button, label)
-            
-            button.connect("toggled", self.on_ashift_changed, ashift)
-            self.ashift_buttons[ashift] = button
-            ashift_box.pack_start(button, False, False, 0)
-        
-        # Set default ashift
-        if self.pool_config.get('ashift', 12) in self.ashift_buttons:
-            self.ashift_buttons[self.pool_config['ashift']].set_active(True)
-        
-        ashift_frame.add(ashift_box)
-        advanced_box.pack_start(ashift_frame, False, False, 0)
+        # VDEV requirements info
+        self.vdev_info = QLabel("Mirror requires at least 2 disks")
+        layout.addWidget(self.vdev_info)
         
         # Compression
-        comp_frame = Gtk.Frame(label="Compression")
-        comp_grid = Gtk.Grid()
-        comp_grid.set_column_spacing(10)
-        comp_grid.set_row_spacing(10)
-        comp_grid.set_margin_top(10)
-        comp_grid.set_margin_bottom(10)
-        comp_grid.set_margin_left(10)
-        comp_grid.set_margin_right(10)
+        comp_layout = QHBoxLayout()
+        comp_layout.addWidget(QLabel("Compression:"))
+        self.compression_combo = QComboBox()
+        self.compression_combo.addItems(["off", "lz4", "zstd", "zstd-3", "zstd-6", "gzip", "gzip-9"])
+        self.compression_combo.setCurrentText("lz4")
+        comp_layout.addWidget(self.compression_combo)
+        layout.addLayout(comp_layout)
         
-        comp_label = Gtk.Label(label="Algorithm:")
-        comp_grid.attach(comp_label, 0, 0, 1, 1)
+        # Mount point
+        mount_layout = QHBoxLayout()
+        mount_layout.addWidget(QLabel("Mount Point:"))
+        self.mountpoint_input = QLineEdit("/tank")
+        mount_layout.addWidget(self.mountpoint_input)
+        layout.addLayout(mount_layout)
         
-        self.comp_combo = Gtk.ComboBoxText()
-        compressions = ["off", "lz4", "zstd", "zstd-3", "zstd-9", "gzip", "gzip-9"]
-        for comp in compressions:
-            self.comp_combo.append_text(comp)
+        # Features
+        features_group = QGroupBox("Features")
+        features_layout = QVBoxLayout()
+        features_group.setLayout(features_layout)
         
-        # Set default compression
-        current_comp = self.pool_config.get('compression', 'lz4')
-        for i, comp in enumerate(compressions):
-            if comp == current_comp:
-                self.comp_combo.set_active(i)
-                break
-        else:
-            self.comp_combo.set_active(1)  # Default to lz4
+        self.encryption_check = QCheckBox("Enable native encryption")
+        features_layout.addWidget(self.encryption_check)
+        
+        self.dedup_check = QCheckBox("Enable deduplication (requires lots of RAM)")
+        features_layout.addWidget(self.dedup_check)
+        
+        self.atime_check = QCheckBox("Enable access time updates")
+        features_layout.addWidget(self.atime_check)
+        
+        layout.addWidget(features_group)
+        
+        return widget
+        
+    def create_advanced_settings_tab(self) -> QWidget:
+        """Create the advanced settings tab"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
+        
+        # Record size
+        record_layout = QHBoxLayout()
+        record_layout.addWidget(QLabel("Record Size:"))
+        self.recordsize_combo = QComboBox()
+        self.recordsize_combo.addItems(["4K", "8K", "16K", "32K", "64K", "128K", "256K", "512K", "1M"])
+        self.recordsize_combo.setCurrentText("128K")
+        record_layout.addWidget(self.recordsize_combo)
+        layout.addLayout(record_layout)
+        
+        # Ashift (sector size)
+        ashift_layout = QHBoxLayout()
+        ashift_layout.addWidget(QLabel("Ashift (sector size):"))
+        self.ashift_spin = QSpinBox()
+        self.ashift_spin.setMinimum(9)
+        self.ashift_spin.setMaximum(16)
+        self.ashift_spin.setValue(12)  # 4K sectors
+        ashift_layout.addWidget(self.ashift_spin)
+        ashift_layout.addWidget(QLabel(f"(2^12 = 4096 bytes)"))
+        layout.addLayout(ashift_layout)
+        
+        # ARC settings
+        arc_group = QGroupBox("ARC Settings")
+        arc_layout = QVBoxLayout()
+        arc_group.setLayout(arc_layout)
+        
+        arc_max_layout = QHBoxLayout()
+        arc_max_layout.addWidget(QLabel("Max ARC Size (GB):"))
+        self.arc_max_spin = QSpinBox()
+        self.arc_max_spin.setMinimum(1)
+        self.arc_max_spin.setMaximum(256)
+        self.arc_max_spin.setValue(8)
+        arc_max_layout.addWidget(self.arc_max_spin)
+        arc_layout.addLayout(arc_max_layout)
+        
+        layout.addWidget(arc_group)
+        
+        # Performance tuning
+        perf_group = QGroupBox("Performance Tuning")
+        perf_layout = QVBoxLayout()
+        perf_group.setLayout(perf_layout)
+        
+        self.sync_disabled_check = QCheckBox("Disable sync writes (faster but less safe)")
+        perf_layout.addWidget(self.sync_disabled_check)
+        
+        self.trim_check = QCheckBox("Enable TRIM for SSDs")
+        self.trim_check.setChecked(True)
+        perf_layout.addWidget(self.trim_check)
+        
+        self.l2arc_check = QCheckBox("Enable L2ARC (requires separate SSD)")
+        perf_layout.addWidget(self.l2arc_check)
+        
+        layout.addWidget(perf_group)
+        
+        # Custom properties
+        custom_group = QGroupBox("Custom Properties")
+        custom_layout = QVBoxLayout()
+        custom_group.setLayout(custom_layout)
+        
+        self.custom_props = QTextEdit()
+        self.custom_props.setPlainText("# Add custom ZFS properties here\n# Format: property=value\n# Example: logbias=throughput")
+        self.custom_props.setMaximumHeight(100)
+        custom_layout.addWidget(self.custom_props)
+        
+        layout.addWidget(custom_group)
+        
+        return widget
+        
+    def create_summary_tab(self) -> QWidget:
+        """Create the summary tab"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
+        
+        # Summary text area
+        self.summary_text = QTextEdit()
+        self.summary_text.setReadOnly(True)
+        font = QFont("monospace", 9)
+        self.summary_text.setFont(font)
+        layout.addWidget(self.summary_text)
+        
+        # Update button
+        update_button = QPushButton("Update Summary")
+        update_button.clicked.connect(self.update_summary)
+        layout.addWidget(update_button)
+        
+        return widget
+        
+    def detect_disks(self):
+        """Detect available disks"""
+        # Mock implementation - in real code would use lsblk
+        self.available_disks = [
+            {"device": "/dev/sda", "size": "500GB", "model": "Samsung 970 EVO", "type": "SSD", "health": "Good"},
+            {"device": "/dev/sdb", "size": "1TB", "model": "WD Blue", "type": "HDD", "health": "Good"},
+            {"device": "/dev/sdc", "size": "2TB", "model": "Seagate Barracuda", "type": "HDD", "health": "Good"}
+        ]
+        
+        # Populate disk table
+        self.disk_table.setRowCount(len(self.available_disks))
+        for i, disk in enumerate(self.available_disks):
+            # Checkbox for selection
+            check_item = QTableWidgetItem()
+            check_item.setCheckState(Qt.Unchecked)
+            self.disk_table.setItem(i, 0, check_item)
             
-        self.comp_combo.connect("changed", self.on_compression_changed)
-        comp_grid.attach(self.comp_combo, 1, 0, 1, 1)
+            # Disk info
+            self.disk_table.setItem(i, 1, QTableWidgetItem(disk.get("device", "")))
+            self.disk_table.setItem(i, 2, QTableWidgetItem(disk.get("size", "")))
+            self.disk_table.setItem(i, 3, QTableWidgetItem(disk.get("model", "")))
+            self.disk_table.setItem(i, 4, QTableWidgetItem(disk.get("type", "")))
+            self.disk_table.setItem(i, 5, QTableWidgetItem(disk.get("health", "")))
         
-        comp_frame.add(comp_grid)
-        advanced_box.pack_start(comp_frame, False, False, 0)
+        self.disk_table.resizeColumnsToContents()
         
-        # Encryption
-        enc_frame = Gtk.Frame(label="Encryption")
-        enc_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        enc_box.set_margin_top(10)
-        enc_box.set_margin_bottom(10)
-        enc_box.set_margin_left(10)
-        enc_box.set_margin_right(10)
+    def select_all_disks(self):
+        """Select all disks"""
+        for row in range(self.disk_table.rowCount()):
+            item = self.disk_table.item(row, 0)
+            if item:
+                item.setCheckState(Qt.Checked)
+        self.update_selection_info()
         
-        self.enc_check = Gtk.CheckButton(label="Enable encryption")
-        self.enc_check.set_active(self.pool_config.get('encryption', False))
-        self.enc_check.connect("toggled", self.on_encryption_toggled)
-        enc_box.pack_start(self.enc_check, False, False, 0)
+    def clear_disk_selection(self):
+        """Clear all disk selections"""
+        for row in range(self.disk_table.rowCount()):
+            item = self.disk_table.item(row, 0)
+            if item:
+                item.setCheckState(Qt.Unchecked)
+        self.update_selection_info()
         
-        # Password fields
-        self.enc_grid = Gtk.Grid()
-        self.enc_grid.set_column_spacing(10)
-        self.enc_grid.set_row_spacing(10)
-        self.enc_grid.set_sensitive(self.pool_config.get('encryption', False))
+    def auto_select_disks(self):
+        """Auto-select best disks based on type and size"""
+        # Simple heuristic: prefer SSDs, then larger disks
+        # This would be more sophisticated in production
+        self.clear_disk_selection()
         
-        pass_label = Gtk.Label(label="Password:")
-        self.enc_grid.attach(pass_label, 0, 0, 1, 1)
+        # Select first 2 disks for mirror
+        for row in range(min(2, self.disk_table.rowCount())):
+            item = self.disk_table.item(row, 0)
+            if item:
+                item.setCheckState(Qt.Checked)
         
-        self.pass_entry = Gtk.Entry()
-        self.pass_entry.set_visibility(False)
-        self.pass_entry.set_hexpand(True)
-        self.enc_grid.attach(self.pass_entry, 1, 0, 1, 1)
+        self.update_selection_info()
         
-        confirm_label = Gtk.Label(label="Confirm:")
-        self.enc_grid.attach(confirm_label, 0, 1, 1, 1)
+    def update_selection_info(self):
+        """Update the selection info label"""
+        selected_count = 0
+        total_size = 0
         
-        self.confirm_entry = Gtk.Entry()
-        self.confirm_entry.set_visibility(False)
-        self.confirm_entry.set_hexpand(True)
-        self.enc_grid.attach(self.confirm_entry, 1, 1, 1, 1)
-        
-        enc_box.pack_start(self.enc_grid, False, False, 0)
-        enc_frame.add(enc_box)
-        advanced_box.pack_start(enc_frame, False, False, 0)
-        
-        return advanced_box
-        
-    def create_summary_view(self) -> Gtk.Box:
-        """Create configuration summary view"""
-        summary_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        summary_box.set_margin_top(10)
-        summary_box.set_margin_bottom(10)
-        summary_box.set_margin_left(10)
-        summary_box.set_margin_right(10)
-        
-        # Summary text view
-        self.summary_buffer = Gtk.TextBuffer()
-        self.summary_view = Gtk.TextView(buffer=self.summary_buffer)
-        self.summary_view.set_editable(False)
-        self.summary_view.set_wrap_mode(Gtk.WrapMode.WORD)
-        
-        # Use monospace font for command preview
-        font_desc = Pango.FontDescription("monospace 10")
-        self.summary_view.modify_font(font_desc)
-        
-        summary_scroll = Gtk.ScrolledWindow()
-        summary_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        summary_scroll.add(self.summary_view)
-        
-        summary_box.pack_start(summary_scroll, True, True, 0)
-        
-        # Update summary
-        self.update_summary()
-        
-        return summary_box
-        
-    # Helper methods
-    def load_available_disks(self):
-        """Load available disks using lsblk"""
-        self.disk_store.clear()
-        self.available_disks = []
-        
-        try:
-            # Get disk information
-            output = subprocess.check_output([
-                "lsblk", "-J", "-o", "NAME,SIZE,MODEL,ROTA,TYPE,FSTYPE"
-            ]).decode()
-            
-            data = json.loads(output)
-            
-            for device in data.get("blockdevices", []):
-                if device.get("type") == "disk" and not device.get("fstype"):
-                    name = f"/dev/{device['name']}"
-                    size = device.get("size", "Unknown")
-                    model = device.get("model", "Unknown").strip() if device.get("model") else "Unknown"
-                    disk_type = "HDD" if device.get("rota") == "1" else "SSD"
-                    
-                    # Check disk health
-                    health = self.check_disk_health(name)
-                    
-                    # Check if disk was previously selected
-                    selected = name in self.selected_disks
-                    
-                    self.available_disks.append({
-                        'path': name,
-                        'size': size,
-                        'model': model,
-                        'type': disk_type,
-                        'health': health
-                    })
-                    
-                    self.disk_store.append([
-                        selected, name, size, model, disk_type, health
-                    ])
-                    
-        except Exception as e:
-            print(f"Error loading disks: {e}")
-            
-    def check_disk_health(self, device: str) -> str:
-        """Check disk health using smartctl"""
-        try:
-            output = subprocess.check_output([
-                "smartctl", "-H", device
-            ], stderr=subprocess.DEVNULL).decode()
-            
-            if "PASSED" in output:
-                return "Healthy"
-            else:
-                return "Check"
-        except:
-            return "Unknown"
-            
-    def on_draw_pool(self, widget, cr):
-        """Draw visual representation of the pool"""
-        width = widget.get_allocated_width()
-        height = widget.get_allocated_height()
-        
-        # Clear background
-        cr.set_source_rgb(0.95, 0.95, 0.95)
-        cr.paint()
-        
-        if not self.selected_disks:
-            # Show placeholder text
-            cr.set_source_rgb(0.5, 0.5, 0.5)
-            cr.select_font_face("Sans", 0, 0)
-            cr.set_font_size(14)
-            text = "Select disks to visualize pool"
-            extents = cr.text_extents(text)
-            cr.move_to(width/2 - extents.width/2, height/2)
-            cr.show_text(text)
-            return
-            
-        # Draw pool visualization based on RAID type
-        raid_type = self.pool_config['raid_type']
-        num_disks = len(self.selected_disks)
-        
-        if num_disks == 0:
-            return
-            
-        # Calculate disk dimensions
-        disk_width = min(80, (width - 40) / max(1, num_disks) - 10)
-        disk_height = 120
-        start_x = (width - (num_disks * (disk_width + 10))) / 2
-        start_y = (height - disk_height) / 2
-        
-        # Draw disks
-        for i, disk in enumerate(self.selected_disks):
-            x = start_x + i * (disk_width + 10)
-            y = start_y
-            
-            # Draw disk rectangle
-            cr.set_source_rgb(0.2, 0.4, 0.8)
-            cr.rectangle(x, y, disk_width, disk_height)
-            cr.fill_preserve()
-            cr.set_source_rgb(0.1, 0.2, 0.4)
-            cr.stroke()
-            
-            # Draw disk label
-            cr.set_source_rgb(1, 1, 1)
-            cr.select_font_face("Sans", 0, 0)
-            cr.set_font_size(10)
-            cr.move_to(x + 5, y + 20)
-            cr.show_text(disk.split('/')[-1])
-            
-            # Draw RAID indicators
-            if raid_type == "mirror" and i > 0:
-                # Draw mirror link
-                cr.set_source_rgb(0.2, 0.8, 0.2)
-                cr.move_to(x - 5, y + disk_height/2)
-                cr.line_to(x - 10 + disk_width, y + disk_height/2)
-                cr.stroke()
+        for row in range(self.disk_table.rowCount()):
+            item = self.disk_table.item(row, 0)
+            if item and item.checkState() == Qt.Checked:
+                selected_count += 1
+                # In real implementation, would parse size properly
                 
-    def update_status(self, message: str, error: bool = False):
-        """Update status label"""
-        if error:
-            self.status_label.set_markup(f'<span color="red">{message}</span>')
+        if selected_count == 0:
+            self.selection_info.setText("No disks selected")
         else:
-            self.status_label.set_markup(f'<span color="green">{message}</span>')
+            self.selection_info.setText(f"{selected_count} disk(s) selected")
             
-    def update_recommendations(self):
-        """Update disk recommendations based on selection"""
-        num_selected = len(self.selected_disks)
-        raid_type = self.pool_config['raid_type']
-        
-        recommendations = {
-            'stripe': (1, "Minimum 1 disk. No redundancy!"),
-            'mirror': (2, "Minimum 2 disks. Can lose 1 disk."),
-            'raidz1': (3, "Minimum 3 disks. Can lose 1 disk."),
-            'raidz2': (4, "Minimum 4 disks. Can lose 2 disks."),
-            'raidz3': (5, "Minimum 5 disks. Can lose 3 disks.")
+    def update_vdev_requirements(self, vdev_type):
+        """Update VDEV requirements info"""
+        requirements = {
+            "single": "Requires 1 disk (no redundancy)",
+            "mirror": "Requires at least 2 disks",
+            "raidz1": "Requires at least 3 disks",
+            "raidz2": "Requires at least 4 disks",
+            "raidz3": "Requires at least 5 disks"
         }
-        
-        min_disks, desc = recommendations.get(raid_type, (1, "Unknown RAID type"))
-        
-        if num_selected < min_disks:
-            self.recommendation_label.set_markup(
-                f'<span color="red">Need {min_disks - num_selected} more disk(s) for {raid_type}</span>\n{desc}'
-            )
-        else:
-            self.recommendation_label.set_markup(
-                f'<span color="green">✓ Valid configuration</span>\n{desc}'
-            )
-            
-    def update_pool_stats(self):
-        """Update pool statistics display"""
-        for label_text, calc_func in [
-            ("Total Capacity:", self.calculate_total_capacity),
-            ("Usable Capacity:", self.calculate_usable_capacity),
-            ("Redundancy Level:", self.get_redundancy_level),
-            ("Expected Performance:", self.estimate_performance),
-            ("Fault Tolerance:", self.get_fault_tolerance)
-        ]:
-            value = calc_func()
-            if label_text in self.stat_labels:
-                self.stat_labels[label_text].set_text(value)
-            
-    def calculate_total_capacity(self) -> str:
-        """Calculate total raw capacity"""
-        # This is a simplified calculation
-        # In reality, would parse actual disk sizes
-        num_disks = len(self.selected_disks)
-        if num_disks == 0:
-            return "0 GB"
-        # Assume 1TB disks for demo
-        return f"{num_disks} TB"
-        
-    def calculate_usable_capacity(self) -> str:
-        """Calculate usable capacity after redundancy"""
-        num_disks = len(self.selected_disks)
-        if num_disks == 0:
-            return "0 GB"
-            
-        raid_type = self.pool_config['raid_type']
-        
-        # Simplified calculation assuming 1TB disks
-        capacities = {
-            'stripe': num_disks,
-            'mirror': num_disks // 2,
-            'raidz1': num_disks - 1,
-            'raidz2': num_disks - 2,
-            'raidz3': num_disks - 3
-        }
-        
-        usable = capacities.get(raid_type, 0)
-        return f"{max(0, usable)} TB"
-        
-    def get_redundancy_level(self) -> str:
-        """Get redundancy description"""
-        levels = {
-            'stripe': "None",
-            'mirror': "High (2x)",
-            'raidz1': "Normal (1 disk)",
-            'raidz2': "High (2 disks)",
-            'raidz3': "Very High (3 disks)"
-        }
-        return levels.get(self.pool_config['raid_type'], "Unknown")
-        
-    def estimate_performance(self) -> str:
-        """Estimate relative performance"""
-        # Simplified performance estimation
-        num_disks = len(self.selected_disks)
-        if num_disks == 0:
-            return "N/A"
-            
-        raid_type = self.pool_config['raid_type']
-        
-        if raid_type == 'stripe':
-            return f"Very High ({num_disks}x read/write)"
-        elif raid_type == 'mirror':
-            return f"High ({num_disks}x read, 1x write)"
-        else:
-            return "Good (optimized for redundancy)"
-            
-    def get_fault_tolerance(self) -> str:
-        """Get fault tolerance description"""
-        tolerances = {
-            'stripe': "0 disks (no redundancy)",
-            'mirror': "1 disk per mirror",
-            'raidz1': "1 disk",
-            'raidz2': "2 disks",
-            'raidz3': "3 disks"
-        }
-        return tolerances.get(self.pool_config['raid_type'], "Unknown")
-        
-    def get_system_ram(self) -> int:
-        """Get system RAM in GB"""
-        try:
-            with open('/proc/meminfo', 'r') as f:
-                for line in f:
-                    if line.startswith('MemTotal:'):
-                        kb = int(line.split()[1])
-                        return kb // (1024 * 1024)
-        except:
-            return 8  # Default fallback
-            
-    def update_arc_label(self):
-        """Update ARC size label"""
-        size_gb = int(self.arc_scale.get_value())
-        self.arc_value_label.set_text(f"{size_gb} GB")
-        self.pool_config['arc_max'] = size_gb
+        self.vdev_info.setText(requirements.get(vdev_type, ""))
         
     def update_summary(self):
-        """Update configuration summary"""
-        summary = f"""ZFS Pool Configuration Summary
-==============================
-
-Pool Name: {self.pool_config['name']}
-RAID Type: {self.pool_config['raid_type'].upper()}
-Selected Disks: {len(self.selected_disks)}
-"""
+        """Update the configuration summary"""
+        summary = "=== ZFS Pool Configuration Summary ===\n\n"
         
-        if self.selected_disks:
-            summary += "\nDisks:\n"
-            for disk in self.selected_disks:
-                summary += f"  - {disk}\n"
+        # Pool basics
+        summary += f"Pool Name: {self.pool_name_input.text()}\n"
+        summary += f"VDEV Type: {self.vdev_type_combo.currentText()}\n"
+        summary += f"Mount Point: {self.mountpoint_input.text()}\n\n"
+        
+        # Selected disks
+        summary += "Selected Disks:\n"
+        for row in range(self.disk_table.rowCount()):
+            item = self.disk_table.item(row, 0)
+            if item and item.checkState() == Qt.Checked:
+                device_item = self.disk_table.item(row, 1)
+                size_item = self.disk_table.item(row, 2)
+                if device_item and size_item:
+                    summary += f"  - {device_item.text()} ({size_item.text()})\n"
+        
+        summary += "\n"
+        
+        # Features
+        summary += "Features:\n"
+        summary += f"  Compression: {self.compression_combo.currentText()}\n"
+        summary += f"  Encryption: {'Enabled' if self.encryption_check.isChecked() else 'Disabled'}\n"
+        summary += f"  Deduplication: {'Enabled' if self.dedup_check.isChecked() else 'Disabled'}\n"
+        summary += f"  Access Time: {'Enabled' if self.atime_check.isChecked() else 'Disabled'}\n\n"
+        
+        # Advanced settings
+        summary += "Advanced Settings:\n"
+        summary += f"  Record Size: {self.recordsize_combo.currentText()}\n"
+        summary += f"  Ashift: {self.ashift_spin.value()} (sector size: {2**self.ashift_spin.value()} bytes)\n"
+        summary += f"  Max ARC: {self.arc_max_spin.value()} GB\n"
+        summary += f"  TRIM: {'Enabled' if self.trim_check.isChecked() else 'Disabled'}\n"
+        summary += f"  Sync Disabled: {'Yes' if self.sync_disabled_check.isChecked() else 'No'}\n"
+        
+        self.summary_text.setPlainText(summary)
+        
+    def validate_configuration(self):
+        """Validate the current configuration"""
+        errors = []
+        
+        # Check pool name
+        pool_name = self.pool_name_input.text().strip()
+        if not pool_name:
+            errors.append("Pool name is required")
+        elif not pool_name.replace("_", "").replace("-", "").isalnum():
+            errors.append("Pool name must be alphanumeric (plus _ and -)")
+            
+        # Check disk selection
+        selected_disks = 0
+        for row in range(self.disk_table.rowCount()):
+            item = self.disk_table.item(row, 0)
+            if item and item.checkState() == Qt.Checked:
+                selected_disks += 1
                 
-        summary += f"""
-Performance Profile: {self.pool_config.get('workload', 'general')}
-Compression: {self.pool_config.get('compression', 'lz4')}
-Encryption: {'Enabled' if self.pool_config.get('encryption', False) else 'Disabled'}
-Sector Size: {2 ** self.pool_config.get('ashift', 12)} bytes (ashift={self.pool_config.get('ashift', 12)})
-
-Estimated Capacity:
-  Total: {self.calculate_total_capacity()}
-  Usable: {self.calculate_usable_capacity()}
-  
-ZFS Command Preview:
---------------------
-zpool create {self.build_zpool_command()}
-"""
+        vdev_type = self.vdev_type_combo.currentText()
+        min_disks = {
+            "single": 1,
+            "mirror": 2,
+            "raidz1": 3,
+            "raidz2": 4,
+            "raidz3": 5
+        }
         
-        self.summary_buffer.set_text(summary)
-        
-    def build_zpool_command(self) -> str:
-        """Build the zpool create command"""
-        cmd_parts = [self.pool_config['name']]
-        
-        # Add options
-        cmd_parts.extend(['-o', f"ashift={self.pool_config.get('ashift', 12)}"])
-        
-        if self.pool_config.get('compression', 'off') != 'off':
-            cmd_parts.extend(['-o', f"compression={self.pool_config['compression']}"])
+        required = min_disks.get(vdev_type, 1)
+        if selected_disks < required:
+            errors.append(f"{vdev_type} requires at least {required} disk(s), but only {selected_disks} selected")
             
-        # Add RAID configuration
-        raid_type = self.pool_config['raid_type']
-        if raid_type == 'stripe':
-            cmd_parts.extend(self.selected_disks)
-        elif raid_type == 'mirror':
-            cmd_parts.append('mirror')
-            cmd_parts.extend(self.selected_disks)
-        else:  # raidz variants
-            cmd_parts.append(raid_type)
-            cmd_parts.extend(self.selected_disks)
+        # Check mountpoint
+        mountpoint = self.mountpoint_input.text().strip()
+        if not mountpoint.startswith("/"):
+            errors.append("Mount point must be an absolute path")
             
-        return ' '.join(cmd_parts)
-        
-    # Event handlers
-    def on_pool_name_changed(self, entry):
-        """Handle pool name change"""
-        self.pool_config['name'] = entry.get_text()
-        self.update_summary()
-        
-    def on_disk_toggled(self, renderer, path):
-        """Handle disk selection toggle"""
-        iter = self.disk_store.get_iter(path)
-        current = self.disk_store.get_value(iter, 0)
-        self.disk_store.set_value(iter, 0, not current)
-        
-        # Update selected disks list
-        disk_path = self.disk_store.get_value(iter, 1)
-        if not current:
-            if disk_path not in self.selected_disks:
-                self.selected_disks.append(disk_path)
+        # Display results
+        if errors:
+            self.status_label.setText(f"Validation failed: {', '.join(errors)}")
+            self.status_label.setStyleSheet("color: red")
+            self.apply_button.setEnabled(False)
         else:
-            if disk_path in self.selected_disks:
-                self.selected_disks.remove(disk_path)
-        
-        # Update configuration
-        self.pool_config['disks'] = self.selected_disks
-        
-        # Update UI
-        self.update_recommendations()
-        self.update_pool_stats()
-        self.update_summary()
-        self.pool_drawing.queue_draw()
-        
-    def on_raid_type_changed(self, button, raid_type):
-        """Handle RAID type change"""
-        if button.get_active():
-            self.pool_config['raid_type'] = raid_type
-            self.update_recommendations()
-            self.update_pool_stats()
-            self.update_summary()
-            self.pool_drawing.queue_draw()
+            self.status_label.setText("Configuration is valid")
+            self.status_label.setStyleSheet("color: green")
+            self.apply_button.setEnabled(True)
             
-    def on_profile_changed(self, button, profile):
-        """Handle workload profile change"""
-        if button.get_active():
-            self.pool_config['workload'] = profile
-            
-            # Apply profile-specific settings
-            profiles = {
-                'general': {'compression': 'lz4', 'recordsize': '128K'},
-                'database': {'compression': 'lz4', 'recordsize': '16K'},
-                'media': {'compression': 'off', 'recordsize': '1M'},
-                'vm': {'compression': 'lz4', 'recordsize': '64K'},
-                'backup': {'compression': 'zstd-3', 'recordsize': '128K'}
-            }
-            
-            settings = profiles.get(profile, {})
-            if 'compression' in settings:
-                self.pool_config['compression'] = settings['compression']
-                # Update compression combo
-                model = self.comp_combo.get_model()
-                for i in range(len(model)):
-                    if model[i][0] == settings['compression']:
-                        self.comp_combo.set_active(i)
-                        break
-                        
-            self.update_summary()
-            
-    def on_ashift_changed(self, button, ashift):
-        """Handle ashift change"""
-        if button.get_active():
-            self.pool_config['ashift'] = ashift
-            self.update_summary()
-            
-    def on_compression_changed(self, combo):
-        """Handle compression change"""
-        self.pool_config['compression'] = combo.get_active_text()
-        self.update_summary()
+    def apply_configuration(self):
+        """Apply the configuration to global storage"""
+        # Gather selected disks
+        selected_disks = []
+        for row in range(self.disk_table.rowCount()):
+            item = self.disk_table.item(row, 0)
+            if item and item.checkState() == Qt.Checked:
+                device_item = self.disk_table.item(row, 1)
+                if device_item:
+                    selected_disks.append(device_item.text())
+                    
+        # Build configuration
+        config = {
+            "pool_name": self.pool_name_input.text(),
+            "vdev_type": self.vdev_type_combo.currentText(),
+            "disks": selected_disks,
+            "compression": self.compression_combo.currentText(),
+            "mountpoint": self.mountpoint_input.text(),
+            "encryption": self.encryption_check.isChecked(),
+            "dedup": self.dedup_check.isChecked(),
+            "atime": "on" if self.atime_check.isChecked() else "off",
+            "recordsize": self.recordsize_combo.currentText(),
+            "ashift": self.ashift_spin.value(),
+            "arc_max": self.arc_max_spin.value() * 1024 * 1024 * 1024,  # Convert to bytes
+            "trim": self.trim_check.isChecked(),
+            "sync": "disabled" if self.sync_disabled_check.isChecked() else "standard",
+            "custom_props": self.custom_props.toPlainText()
+        }
         
-    def on_encryption_toggled(self, check):
-        """Handle encryption toggle"""
-        enabled = check.get_active()
-        self.pool_config['encryption'] = enabled
-        self.enc_grid.set_sensitive(enabled)
-        self.update_summary()
+        # Store in global storage
+        self.gs.setValue("zfsEnhancedConfig", json.dumps(config))
         
-    def on_arc_changed(self, scale):
-        """Handle ARC size change"""
-        self.update_arc_label()
+        self.status_label.setText("Configuration applied successfully")
+        self.status_label.setStyleSheet("color: green")
         
     def get_configuration(self) -> Dict:
-        """Get the current pool configuration"""
-        # Validate encryption passwords if enabled
-        if self.pool_config.get('encryption', False):
-            pass1 = self.pass_entry.get_text()
-            pass2 = self.confirm_entry.get_text()
-            
-            if not pass1:
-                self.update_status("Encryption password required", True)
-                return None
-                
-            if pass1 != pass2:
-                self.update_status("Passwords do not match", True)
-                return None
-                
-            # Store password temporarily (will be used during pool creation)
-            self.pool_config['encryption_password'] = pass1
-        
-        # Ensure disks are in config
-        self.pool_config['disks'] = self.selected_disks
-        
+        """Get the current configuration"""
         return self.pool_config

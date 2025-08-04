@@ -1,0 +1,92 @@
+"""
+Prebuilt Package Copy Module
+
+Copies prebuilt packages from host to chroot for installation
+"""
+
+import os
+import shutil
+from pathlib import Path
+from typing import Dict, Any, Optional
+from builder.core.module import BaseModule
+from builder.utils.logger import Logger
+
+
+class PrebuiltPackageCopy(BaseModule):
+    """Copy prebuilt packages into chroot"""
+    
+    def __init__(self, config: Dict[str, Any], chroot_path: Optional[Path] = None):
+        super().__init__(config, chroot_path)
+        self.logger = Logger(self.__class__.__name__)
+        self.source_dir = Path(self.config.get('source', ''))
+        self.destination = self.config.get('destination', '/tmp/prebuilt_packages')
+        
+    def execute(self) -> bool:
+        """Copy prebuilt packages to chroot"""
+        try:
+            self.logger.info("Copying prebuilt packages to chroot...")
+            
+            # Validate source directory
+            if not self.source_dir.exists():
+                self.logger.error(f"Source directory not found: {self.source_dir}")
+                return False
+                
+            # Create destination in chroot
+            chroot_dest = self.chroot_path / self.destination.lstrip('/')
+            chroot_dest.mkdir(parents=True, exist_ok=True)
+            
+            # Count packages
+            total_packages = sum(1 for _ in self.source_dir.rglob("*.deb"))
+            self.logger.info(f"Found {total_packages} packages to copy")
+            
+            # Copy package categories
+            categories = ['zfs', 'kernel', 'bootloaders', 'system', 'utilities', 'calamares', 'proxmox']
+            copied = 0
+            
+            for category in categories:
+                src_cat = self.source_dir / category
+                if src_cat.exists():
+                    dst_cat = chroot_dest / category
+                    dst_cat.mkdir(exist_ok=True)
+                    
+                    for pkg in src_cat.glob("*.deb"):
+                        shutil.copy2(pkg, dst_cat / pkg.name)
+                        copied += 1
+                        
+                    self.logger.info(f"Copied {len(list(src_cat.glob('*.deb')))} {category} packages")
+            
+            # Copy installation script
+            install_script = self.source_dir / "install_in_chroot.sh"
+            if install_script.exists():
+                shutil.copy2(install_script, chroot_dest / "install_in_chroot.sh")
+                (chroot_dest / "install_in_chroot.sh").chmod(0o755)
+                self.logger.info("Copied installation script")
+            
+            # Copy package index
+            pkg_index = self.source_dir / "PACKAGES.md"
+            if pkg_index.exists():
+                shutil.copy2(pkg_index, chroot_dest / "PACKAGES.md")
+                
+            self.logger.success(f"Successfully copied {copied} packages")
+            
+            # Calculate total size
+            total_size = sum(f.stat().st_size for f in chroot_dest.rglob("*.deb"))
+            self.logger.info(f"Total package size: {total_size / 1024 / 1024:.2f} MB")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to copy packages: {e}")
+            return False
+            
+    def validate_config(self) -> bool:
+        """Validate module configuration"""
+        if not self.config.get('source'):
+            self.logger.error("No source directory specified")
+            return False
+            
+        if not Path(self.config['source']).exists():
+            self.logger.error(f"Source directory does not exist: {self.config['source']}")
+            return False
+            
+        return True

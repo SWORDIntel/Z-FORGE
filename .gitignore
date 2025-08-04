@@ -61,3 +61,6 @@ logs/zforge_build_20250722_235911.log
 logs/zforge_build_20250723_004607.log
 *.iso
 *.lock
+trixie_snapshot_backup_20250802_183636.tar.gz
+trixie_snapshot_full_backup_20250802_184300.tar.gz
+trixie_snapshot_full_backup_20250802_192526.tar.gz

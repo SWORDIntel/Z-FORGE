@@ -3,62 +3,54 @@
 Post-Install Checklist GUI for Calamares
 """
 
-import gi
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QLineEdit, QTextEdit, QGroupBox
+from PyQt5.QtCore import Qt, pyqtSignal
 from typing import Dict
 
-class PostInstallWidget(Gtk.Box):
+class PostinstallGui(QGroupBox):
     """Post-install checklist configuration widget"""
     
     def __init__(self, globalstorage):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        super().__init__("Post-Installation Setup")
         self.gs = globalstorage
         
         self.setup_ui()
         
     def setup_ui(self):
         """Build the UI"""
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        
         # Header
-        header = Gtk.Label()
-        header.set_markup("<b>Post-Installation Setup</b>")
-        self.pack_start(header, False, False, 0)
+        header = QLabel("<b>Post-Installation Setup</b>")
+        layout.addWidget(header)
         
         # Description
-        desc = Gtk.Label()
-        desc.set_text("Configure what happens after installation completes.")
-        desc.set_line_wrap(True)
-        desc.set_margin_bottom(10)
-        self.pack_start(desc, False, False, 0)
+        desc = QLabel("Configure what happens after installation completes.")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
         
         # First boot options
-        boot_frame = Gtk.Frame(label="First Boot")
-        boot_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        boot_box.set_margin_top(10)
-        boot_box.set_margin_bottom(10)
-        boot_box.set_margin_left(10)
-        boot_box.set_margin_right(10)
+        boot_frame = QGroupBox("First Boot")
+        boot_layout = QVBoxLayout()
+        boot_frame.setLayout(boot_layout)
         
-        self.wizard_check = Gtk.CheckButton(label="Run setup wizard on first boot")
-        self.wizard_check.set_active(True)
-        self.wizard_check.set_tooltip_text("Automatically start the checklist when system boots")
-        boot_box.pack_start(self.wizard_check, False, False, 0)
+        self.wizard_check = QCheckBox("Run setup wizard on first boot")
+        self.wizard_check.setChecked(True)
+        self.wizard_check.setToolTip("Automatically start the checklist when system boots")
+        boot_layout.addWidget(self.wizard_check)
         
-        self.auto_check = Gtk.CheckButton(label="Auto-start checklist for root login")
-        self.auto_check.set_active(True)
-        self.auto_check.set_tooltip_text("Show checklist when logging in as root")
-        boot_box.pack_start(self.auto_check, False, False, 0)
+        self.auto_check = QCheckBox("Auto-start checklist for root login")
+        self.auto_check.setChecked(True)
+        self.auto_check.setToolTip("Show checklist when logging in as root")
+        boot_layout.addWidget(self.auto_check)
         
-        boot_frame.add(boot_box)
-        self.pack_start(boot_frame, False, False, 0)
+        layout.addWidget(boot_frame)
         
         # Categories to include
-        cat_frame = Gtk.Frame(label="Checklist Categories")
-        cat_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        cat_box.set_margin_top(10)
-        cat_box.set_margin_bottom(10)
-        cat_box.set_margin_left(10)
-        cat_box.set_margin_right(10)
+        cat_frame = QGroupBox("Checklist Categories")
+        cat_layout = QVBoxLayout()
+        cat_frame.setLayout(cat_layout)
         
         self.category_checks = {}
         
@@ -71,22 +63,18 @@ class PostInstallWidget(Gtk.Box):
         ]
         
         for cat_id, name, tooltip in categories:
-            check = Gtk.CheckButton(label=name)
-            check.set_active(True)
-            check.set_tooltip_text(tooltip)
+            check = QCheckBox(name)
+            check.setChecked(True)
+            check.setToolTip(tooltip)
             self.category_checks[cat_id] = check
-            cat_box.pack_start(check, False, False, 0)
+            cat_layout.addWidget(check)
         
-        cat_frame.add(cat_box)
-        self.pack_start(cat_frame, False, False, 0)
+        layout.addWidget(cat_frame)
         
         # Info box
-        info_frame = Gtk.Frame(label="Information")
-        info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        info_box.set_margin_top(10)
-        info_box.set_margin_bottom(10)
-        info_box.set_margin_left(10)
-        info_box.set_margin_right(10)
+        info_frame = QGroupBox("Information")
+        info_layout = QVBoxLayout()
+        info_frame.setLayout(info_layout)
         
         info_text = """The post-installation checklist helps you:
 • Complete essential security configuration
@@ -96,24 +84,23 @@ class PostInstallWidget(Gtk.Box):
 
 You can run 'zforge-checklist' at any time to access it."""
         
-        info_label = Gtk.Label(label=info_text)
-        info_label.set_alignment(0, 0)
-        info_box.pack_start(info_label, False, False, 0)
+        info_label = QLabel(info_text)
+        info_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        info_layout.addWidget(info_label)
         
-        info_frame.add(info_box)
-        self.pack_start(info_frame, False, False, 0)
+        layout.addWidget(info_frame)
         
-        self.show_all()
+        self.show()
         
     def get_configuration(self) -> Dict:
         """Get the post-install configuration"""
         config = {
-            "first_boot_wizard": self.wizard_check.get_active(),
-            "auto_start": self.auto_check.get_active(),
+            "first_boot_wizard": self.wizard_check.isChecked(),
+            "auto_start": self.auto_check.isChecked(),
             "categories": {}
         }
         
         for cat_id, check in self.category_checks.items():
-            config["categories"][cat_id] = check.get_active()
+            config["categories"][cat_id] = check.isChecked()
         
         return config

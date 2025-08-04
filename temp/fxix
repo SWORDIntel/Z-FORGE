@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# fix.sh — idempotently ensure fallback loader on ESP
+set -euo pipefail
+
+log(){ printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+
+# 0) Preconditions
+sudo mkdir -p /boot/efi/EFI/BOOT
+mountpoint -q /boot/efi || sudo mount /boot/efi || true
+sudo mount -o remount,rw /boot/efi || true
+
+# If a previous bind-mask is still in place, remove it
+if mountpoint -q /boot/efi/EFI/BOOT; then
+  # If this is a bind mount, unmount it so we see the real ESP
+  src="$(findmnt -no SOURCE /boot/efi/EFI/BOOT || true)"
+  if [[ -n "$src" && "$src" != "/dev/"* ]]; then
+    log "Unbinding leftover mount on /boot/efi/EFI/BOOT ($src)"
+    sudo umount /boot/efi/EFI/BOOT
+  fi
+fi
+
+# 1) Choose source for fallback
+STAGE="$(ls -d /root/esp-boot-staging.* 2>/dev/null | tail -n1 || true)"
+if [[ -n "${STAGE:-}" && -f "$STAGE/BOOTX64.EFI" ]]; then
+  SRC="$STAGE/BOOTX64.EFI"
+  log "Using staged BOOTX64.EFI: $SRC"
+else
+  SRC="/usr/lib/systemd/boot/efi/systemd-bootx64.efi.signed"
+  log "Using packaged systemd-boot binary: $SRC"
+fi
+
+DST="/boot/efi/EFI/BOOT/BOOTX64.EFI"
+
+# 2) If destination exists and is identical, do nothing
+if [[ -f "$DST" ]]; then
+  # sha256sum on vfat works; if it fails, we will replace.
+  if cmp -s "$SRC" "$DST"; then
+    log "BOOTX64.EFI already up-to-date; no action needed."
+    exit 0
+  fi
+fi
+
+# 3) Safe replace: backup, temp copy, atomic move
+TS="$(date +%s)"
+if [[ -f "$DST" ]]; then
+  log "Backing up existing $DST -> ${DST}.bak.$TS"
+  sudo cp -a "$DST" "${DST}.bak.$TS"
+fi
+
+TMP="/boot/efi/EFI/BOOT/.BOOTX64.EFI.$$.$RANDOM"
+log "Copying to temp: $TMP"
+sudo cp -f "$SRC" "$TMP"
+sync
+
+log "Atomic move into place -> $DST"
+sudo mv -f "$TMP" "$DST"
+sync
+
+# 4) Show result
+log "Final state:"
+ls -l "$DST" || true
+# Optional quick hash (comment out if you prefer no hashing)
+sha256sum "$DST" || true
+log "Done."
+

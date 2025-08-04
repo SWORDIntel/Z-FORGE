@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Z-FORGE Build System
+Comment=Graphical interface for Z-FORGE Linux distribution builder
+Exec=python3 /opt/github/Z-FORGE/zforge_gui.py
+Icon=applications-development
+Terminal=false
+Type=Application
+Categories=Development;System;
+StartupNotify=true
+Path=/opt/github/Z-FORGE

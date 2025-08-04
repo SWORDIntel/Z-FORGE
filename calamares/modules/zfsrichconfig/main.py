@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
@@ -33,30 +37,41 @@ def run():
     Main entry point for Calamares module execution
     This is called when the module executes (after UI)
     """
-    gs = libcalamares.globalstorage
-    zfs_config = gs.value("zfsRichConfig")
-    
-    if not zfs_config:
-        return "No ZFS configuration found", "You must configure ZFS pools before continuing"
-    
-    # Validate configuration
-    if not zfs_config.get("boot_pool") or not zfs_config.get("boot_pool").get("disks"):
-        return "No boot pool configured", "You must configure a boot pool"
-    
-    # Store configuration for later modules
-    gs.insert("zfsBootPool", zfs_config["boot_pool"])
-    gs.insert("zfsDataPools", zfs_config.get("data_pools", []))
-    gs.insert("zfsDatasets", zfs_config.get("datasets", {}))
-    gs.insert("zfsCompressionDefaults", zfs_config.get("compression_defaults", {}))
-    gs.insert("zfsSpecialVdevs", zfs_config.get("special_vdevs", {}))
-    
-    # Build commands for all pools
-    commands = build_zfs_commands(zfs_config)
-    gs.insert("zfsCreateCommands", commands)
-    
-    libcalamares.utils.debug(f"ZFS rich configuration: {json.dumps(zfs_config, indent=2)}")
-    
-    return None
+    try:
+        gs = libcalamares.globalstorage
+        zfs_config = gs.value("zfsRichConfig")
+        
+        if not zfs_config:
+            return "No ZFS configuration found", "You must configure ZFS pools before continuing"
+        
+        # Validate configuration
+        if not zfs_config.get("boot_pool") or not zfs_config.get("boot_pool").get("disks"):
+            return "No boot pool configured", "You must configure a boot pool"
+        
+        # Store configuration for later modules
+        try:
+            gs.insert("zfsBootPool", zfs_config["boot_pool"])
+            gs.insert("zfsDataPools", zfs_config.get("data_pools", []))
+            gs.insert("zfsDatasets", zfs_config.get("datasets", {}))
+            gs.insert("zfsCompressionDefaults", zfs_config.get("compression_defaults", {}))
+            gs.insert("zfsSpecialVdevs", zfs_config.get("special_vdevs", {}))
+        except Exception as e:
+            return "Configuration storage failed", f"Failed to store ZFS configuration: {str(e)}"
+        
+        # Build commands for all pools
+        try:
+            commands = build_zfs_commands(zfs_config)
+            gs.insert("zfsCreateCommands", commands)
+        except Exception as e:
+            return "Command generation failed", f"Failed to generate ZFS commands: {str(e)}"
+        
+        libcalamares.utils.debug(f"ZFS rich configuration: {json.dumps(zfs_config, indent=2)}")
+        
+        return None
+        
+    except Exception as e:
+        libcalamares.utils.debug(f"ZFS rich config error: {str(e)}")
+        return "Configuration error", f"ZFS rich configuration failed: {str(e)}"
 
 def build_zfs_commands(config):
     """Build all ZFS creation commands from configuration"""
@@ -283,7 +298,7 @@ def build_dataset_commands(pool_name, dataset):
     
     return commands
 
-class ZFSRichConfigViewStep:
+class ZfsrichconfigJob:
     """Calamares ViewStep for rich ZFS configuration"""
     
     def __init__(self):
@@ -340,6 +355,6 @@ class ZFSRichConfigViewStep:
 
 # Create module instance for Calamares
 def create_view_module():
-    return ZFSRichConfigViewStep()
+    return ZfsrichconfigJob()
 
-calamares_module = ZFSRichConfigViewStep
+calamares_module = ZfsrichconfigJob

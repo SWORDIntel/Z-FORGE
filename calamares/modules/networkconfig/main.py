@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 #!/usr/bin/env python3
 """
 Network Configuration Module for Calamares
@@ -13,7 +17,7 @@ from pathlib import Path
 
 # Import the GUI module
 sys.path.append(os.path.dirname(__file__))
-from network_config_gui import NetworkConfigWidget
+from network_config_gui import NetworkConfigGui as NetworkConfigWidget
 
 def pretty_name():
     return "Network Configuration"
@@ -95,7 +99,7 @@ iface {bridge_name} inet static
     
     return content
 
-class NetworkConfigViewStep:
+class NetworkconfigJob:
     """Calamares ViewStep for network configuration"""
     
     def __init__(self):
@@ -130,4 +134,4 @@ class NetworkConfigViewStep:
     def jobs(self):
         return []
 
-calamares_module = NetworkConfigViewStep
+calamares_module = NetworkconfigJob

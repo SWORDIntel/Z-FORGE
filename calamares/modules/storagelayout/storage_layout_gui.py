@@ -3,16 +3,16 @@
 Storage Layout Templates GUI for Calamares
 """
 
-import gi
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Pango
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QLineEdit, QTextEdit, QGroupBox, QRadioButton, QScrollArea, QFrame
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFont
 from typing import Dict
 
-class StorageLayoutWidget(Gtk.Box):
+class StorageLayoutGui(QGroupBox):
     """Storage layout template selection widget"""
     
     def __init__(self, globalstorage, pool_name):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        super().__init__("Storage Layout Templates")
         self.gs = globalstorage
         self.pool_name = pool_name or "tank"
         self.selected_template = "none"
@@ -21,28 +21,25 @@ class StorageLayoutWidget(Gtk.Box):
         
     def setup_ui(self):
         """Build the UI"""
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        
         # Header
-        header = Gtk.Label()
-        header.set_markup("<b>Storage Layout Templates</b>")
-        self.pack_start(header, False, False, 0)
+        header = QLabel("<b>Storage Layout Templates</b>")
+        layout.addWidget(header)
         
         if not self.pool_name:
-            no_pool_label = Gtk.Label()
-            no_pool_label.set_markup("<i>No ZFS pool configured. Please configure a pool first.</i>")
-            self.pack_start(no_pool_label, True, True, 0)
+            no_pool_label = QLabel("<i>No ZFS pool configured. Please configure a pool first.</i>")
+            layout.addWidget(no_pool_label)
         else:
             # Pool info
-            pool_info = Gtk.Label()
-            pool_info.set_markup(f"Configuring datasets for pool: <b>{self.pool_name}</b>")
-            self.pack_start(pool_info, False, False, 0)
+            pool_info = QLabel(f"Configuring datasets for pool: <b>{self.pool_name}</b>")
+            layout.addWidget(pool_info)
             
             # Template selection
-            template_frame = Gtk.Frame(label="Select Template")
-            template_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-            template_box.set_margin_top(10)
-            template_box.set_margin_bottom(10)
-            template_box.set_margin_left(10)
-            template_box.set_margin_right(10)
+            template_frame = QGroupBox("Select Template")
+            template_layout = QVBoxLayout()
+            template_frame.setLayout(template_layout)
             
             templates = [
                 ("none", "No Template", "Skip automatic dataset creation"),
@@ -56,81 +53,67 @@ class StorageLayoutWidget(Gtk.Box):
             first_button = None
             
             for template_id, name, description in templates:
-                if first_button is None:
-                    button = Gtk.RadioButton.new_with_label(None, name)
-                    first_button = button
-                else:
-                    button = Gtk.RadioButton.new_with_label_from_widget(first_button, name)
-                
-                button.set_tooltip_text(description)
-                button.connect("toggled", self.on_template_changed, template_id)
+                button = QRadioButton(name)
+                button.setToolTip(description)
+                button.toggled.connect(lambda checked, tid=template_id: self.on_template_changed(checked, tid))
                 self.template_buttons[template_id] = button
-                template_box.pack_start(button, False, False, 0)
+                template_layout.addWidget(button)
             
             # Set default
-            self.template_buttons["none"].set_active(True)
+            self.template_buttons["none"].setChecked(True)
             
-            template_frame.add(template_box)
-            self.pack_start(template_frame, False, False, 0)
+            layout.addWidget(template_frame)
             
             # Preview area
-            preview_frame = Gtk.Frame(label="Preview")
+            preview_frame = QGroupBox("Preview")
+            preview_layout = QVBoxLayout()
+            preview_frame.setLayout(preview_layout)
             
-            # Scrolled window for preview
-            scroll = Gtk.ScrolledWindow()
-            scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-            scroll.set_min_content_height(200)
-            
-            self.preview_buffer = Gtk.TextBuffer()
-            self.preview_view = Gtk.TextView(buffer=self.preview_buffer)
-            self.preview_view.set_editable(False)
-            self.preview_view.set_wrap_mode(Gtk.WrapMode.WORD)
+            # Scrolled area for preview
+            self.preview_view = QTextEdit()
+            self.preview_view.setReadOnly(True)
+            self.preview_view.setMinimumHeight(200)
             
             # Use monospace font
-            font_desc = Pango.FontDescription("monospace 9")
-            self.preview_view.modify_font(font_desc)
+            font = QFont("monospace", 9)
+            self.preview_view.setFont(font)
             
-            scroll.add(self.preview_view)
-            preview_frame.add(scroll)
-            self.pack_start(preview_frame, True, True, 0)
+            preview_layout.addWidget(self.preview_view)
+            layout.addWidget(preview_frame)
             
             # Options
-            options_frame = Gtk.Frame(label="Options")
-            options_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-            options_box.set_margin_top(10)
-            options_box.set_margin_bottom(10)
-            options_box.set_margin_left(10)
-            options_box.set_margin_right(10)
+            options_frame = QGroupBox("Options")
+            options_layout = QVBoxLayout()
+            options_frame.setLayout(options_layout)
             
-            self.snapshot_check = Gtk.CheckButton(label="Create snapshot schedule")
-            self.snapshot_check.set_tooltip_text("Automatically snapshot important datasets")
-            options_box.pack_start(self.snapshot_check, False, False, 0)
+            self.snapshot_check = QCheckBox("Create snapshot schedule")
+            self.snapshot_check.setToolTip("Automatically snapshot important datasets")
+            options_layout.addWidget(self.snapshot_check)
             
-            self.quota_check = Gtk.CheckButton(label="Set recommended quotas")
-            self.quota_check.set_tooltip_text("Apply size limits to prevent runaway growth")
-            options_box.pack_start(self.quota_check, False, False, 0)
+            self.quota_check = QCheckBox("Set recommended quotas")
+            self.quota_check.setToolTip("Apply size limits to prevent runaway growth")
+            options_layout.addWidget(self.quota_check)
             
-            options_frame.add(options_box)
-            self.pack_start(options_frame, False, False, 0)
+            layout.addWidget(options_frame)
             
             # Update preview
             self.update_preview()
         
-        self.show_all()
+        self.show()
         
-    def on_template_changed(self, button, template_id):
+    def on_template_changed(self, checked, template_id):
         """Handle template selection change"""
-        if button.get_active():
+        if checked:
             self.selected_template = template_id
             self.update_preview()
             
             # Enable/disable options based on template
             if template_id == "none":
-                self.snapshot_check.set_sensitive(False)
-                self.quota_check.set_sensitive(False)
+                self.snapshot_check.setEnabled(False)
+                self.quota_check.setEnabled(False)
             else:
-                self.snapshot_check.set_sensitive(True)
-                self.quota_check.set_sensitive(True)
+                self.snapshot_check.setEnabled(True)
+                self.quota_check.setEnabled(True)
     
     def update_preview(self):
         """Update the preview text"""
@@ -139,7 +122,7 @@ class StorageLayoutWidget(Gtk.Box):
         else:
             preview_text = self.generate_preview(self.selected_template)
         
-        self.preview_buffer.set_text(preview_text)
+        self.preview_view.setText(preview_text)
     
     def generate_preview(self, template):
         """Generate preview text for template"""
@@ -230,6 +213,6 @@ class StorageLayoutWidget(Gtk.Box):
         """Get the storage layout configuration"""
         return {
             "template": self.selected_template,
-            "snapshot_schedule": self.snapshot_check.get_active() if hasattr(self, 'snapshot_check') else False,
-            "set_quotas": self.quota_check.get_active() if hasattr(self, 'quota_check') else False
+            "snapshot_schedule": self.snapshot_check.isChecked() if hasattr(self, 'snapshot_check') else False,
+            "set_quotas": self.quota_check.isChecked() if hasattr(self, 'quota_check') else False
         }

@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""
+GPU Passthrough Configuration GUI for Calamares
+"""
+
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
+from typing import Dict, List
+
+class GpuPassthroughGui(Gtk.Box):
+    """GPU passthrough configuration widget"""
+    
+    def __init__(self, globalstorage, detected_gpus):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.gs = globalstorage
+        self.detected_gpus = detected_gpus
+        self.gpu_widgets = []
+        
+        self.setup_ui()
+        
+    def setup_ui(self):
+        """Build the UI"""
+        # Header
+        header = Gtk.Label()
+        header.set_markup("<b>GPU Passthrough Configuration</b>")
+        self.pack_start(header, False, False, 0)
+        
+        if not self.detected_gpus:
+            no_gpu_label = Gtk.Label()
+            no_gpu_label.set_markup("<i>No discrete GPUs detected</i>")
+            self.pack_start(no_gpu_label, True, True, 0)
+        else:
+            # GPU list
+            gpu_label = Gtk.Label()
+            gpu_label.set_markup("<b>Detected GPUs:</b>")
+            gpu_label.set_alignment(0, 0.5)
+            self.pack_start(gpu_label, False, False, 0)
+            
+            # Scrolled window for GPU list
+            scroll = Gtk.ScrolledWindow()
+            scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            scroll.set_min_content_height(200)
+            
+            gpu_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+            
+            for gpu in self.detected_gpus:
+                gpu_frame = self.create_gpu_frame(gpu)
+                gpu_box.pack_start(gpu_frame, False, False, 0)
+            
+            scroll.add(gpu_box)
+            self.pack_start(scroll, True, True, 0)
+            
+            # Configuration options
+            config_frame = Gtk.Frame(label="Configuration Options")
+            config_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+            config_box.set_margin_top(10)
+            config_box.set_margin_bottom(10)
+            config_box.set_margin_left(10)
+            config_box.set_margin_right(10)
+            
+            self.iommu_check = Gtk.CheckButton(label="Enable IOMMU in bootloader")
+            self.iommu_check.set_active(True)
+            config_box.pack_start(self.iommu_check, False, False, 0)
+            
+            self.blacklist_check = Gtk.CheckButton(label="Blacklist GPU drivers")
+            self.blacklist_check.set_active(True)
+            config_box.pack_start(self.blacklist_check, False, False, 0)
+            
+            self.vfio_check = Gtk.CheckButton(label="Configure VFIO early binding")
+            self.vfio_check.set_active(True)
+            config_box.pack_start(self.vfio_check, False, False, 0)
+            
+            self.acs_check = Gtk.CheckButton(label="Enable ACS override (reduces security)")
+            self.acs_check.set_tooltip_text("Only enable if IOMMU groups are problematic")
+            config_box.pack_start(self.acs_check, False, False, 0)
+            
+            config_frame.add(config_box)
+            self.pack_start(config_frame, False, False, 0)
+            
+            # Info box
+            info_frame = Gtk.Frame(label="Important Information")
+            info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+            info_box.set_margin_top(10)
+            info_box.set_margin_bottom(10)
+            info_box.set_margin_left(10)
+            info_box.set_margin_right(10)
+            
+            info_text = """• GPU passthrough requires VT-d (Intel) or AMD-Vi support
+• The host will lose access to passed through GPUs
+• A separate GPU is recommended for host display
+• Reboot required after configuration"""
+            
+            info_label = Gtk.Label(label=info_text)
+            info_label.set_alignment(0, 0)
+            info_box.pack_start(info_label, False, False, 0)
+            
+            info_frame.add(info_box)
+            self.pack_start(info_frame, False, False, 0)
+        
+        self.show_all()
+        
+    def create_gpu_frame(self, gpu):
+        """Create frame for a single GPU"""
+        frame = Gtk.Frame()
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        box.set_margin_top(10)
+        box.set_margin_bottom(10)
+        box.set_margin_left(10)
+        box.set_margin_right(10)
+        
+        # GPU selection checkbox
+        gpu_check = Gtk.CheckButton()
+        gpu_label = f"{gpu['name']} [{gpu['vendor_id']}:{gpu['device_id']}]"
+        gpu_check.set_label(gpu_label)
+        box.pack_start(gpu_check, False, False, 0)
+        
+        # GPU details
+        details_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        details_box.set_margin_left(20)
+        
+        # PCI address
+        pci_label = Gtk.Label()
+        pci_label.set_markup(f"<small>PCI: {gpu['pci_addr']}</small>")
+        pci_label.set_alignment(0, 0.5)
+        details_box.pack_start(pci_label, False, False, 0)
+        
+        # IOMMU group
+        iommu_label = Gtk.Label()
+        iommu_text = f"IOMMU Group: {gpu['iommu_group']}" if gpu['iommu_group'] >= 0 else "IOMMU Group: Not available"
+        iommu_label.set_markup(f"<small>{iommu_text}</small>")
+        iommu_label.set_alignment(0, 0.5)
+        details_box.pack_start(iommu_label, False, False, 0)
+        
+        # Reset support
+        reset_label = Gtk.Label()
+        reset_text = "Reset: ✓ Supported" if gpu['reset_available'] else "Reset: ✗ Not supported"
+        reset_label.set_markup(f"<small>{reset_text}</small>")
+        reset_label.set_alignment(0, 0.5)
+        details_box.pack_start(reset_label, False, False, 0)
+        
+        # Audio device
+        if gpu.get('audio_id'):
+            audio_check = Gtk.CheckButton()
+            audio_check.set_label(f"Include HDMI Audio [{gpu['vendor_id']}:{gpu['audio_id']}]")
+            audio_check.set_margin_left(20)
+            audio_check.set_active(True)
+            box.pack_start(audio_check, False, False, 0)
+        else:
+            audio_check = None
+        
+        box.pack_start(details_box, False, False, 0)
+        
+        frame.add(box)
+        
+        # Store widget references
+        self.gpu_widgets.append({
+            "gpu": gpu,
+            "checkbox": gpu_check,
+            "audio_checkbox": audio_check
+        })
+        
+        return frame
+        
+    def get_configuration(self) -> Dict:
+        """Get the GPU passthrough configuration"""
+        config = {
+            "enable_iommu": self.iommu_check.get_active() if hasattr(self, 'iommu_check') else False,
+            "blacklist_drivers": self.blacklist_check.get_active() if hasattr(self, 'blacklist_check') else False,
+            "configure_vfio": self.vfio_check.get_active() if hasattr(self, 'vfio_check') else False,
+            "acs_override": self.acs_check.get_active() if hasattr(self, 'acs_check') else False,
+            "gpus": []
+        }
+        
+        # Get selected GPUs
+        for widget_info in self.gpu_widgets:
+            gpu = widget_info["gpu"].copy()
+            gpu["selected"] = widget_info["checkbox"].get_active()
+            
+            if widget_info["audio_checkbox"]:
+                gpu["include_audio"] = widget_info["audio_checkbox"].get_active()
+            
+            config["gpus"].append(gpu)
+        
+        return config

@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 #!/usr/bin/env python3
 """
 Storage Layout Templates Module for Calamares
@@ -12,7 +16,7 @@ import libcalamares
 from pathlib import Path
 
 sys.path.append(os.path.dirname(__file__))
-from storage_layout_gui import StorageLayoutWidget
+from storage_layout_gui import StorageLayoutGui as StorageLayoutWidget
 
 def pretty_name():
     return "Storage Layout"
@@ -168,7 +172,7 @@ def setup_quotas(pool_name, template):
     # For now, just log the intention
     libcalamares.utils.debug(f"Quota setup for {template} template would be configured here")
 
-class StorageLayoutViewStep:
+class StoragelayoutJob:
     """Calamares ViewStep for storage layout templates"""
     
     def __init__(self):
@@ -202,4 +206,4 @@ class StorageLayoutViewStep:
     def jobs(self):
         return []
 
-calamares_module = StorageLayoutViewStep
+calamares_module = StoragelayoutJob

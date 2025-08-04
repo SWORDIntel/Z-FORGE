@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Tuple, Optional, Any
 
-class ZFSCompressionOptimizer:
+class ZfsCompressionOptimizer:
     """Analyzes system and selects optimal ZFS compression settings"""
     
     def __init__(self, workspace: Path, config: Dict):

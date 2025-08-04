@@ -1,0 +1,33 @@
+Metadata-Version: 2.4
+Name: pyzfs
+Version: 2.3.3
+Summary: Wrapper for libzfs_core
+Home-page: http://pyzfs.readthedocs.org
+Author: ClusterHQ
+Author-email: support@clusterhq.com
+License: Apache License, Version 2.0
+Keywords: ZFS,OpenZFS,libzfs_core
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: System :: Filesystems
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.6,<4
+License-File: LICENSE
+Requires-Dist: cffi
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

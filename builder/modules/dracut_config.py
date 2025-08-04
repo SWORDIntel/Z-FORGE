@@ -88,15 +88,31 @@ class DracutConfig:
         
         self.logger.info("Removing initramfs-tools...")
         
-        cmd = [
+        # First check if it's installed
+        check_cmd = [
             "chroot", str(self.chroot_path),
-            "apt-get", "remove", "-y", "initramfs-tools", "initramfs-tools-core"
+            "dpkg", "-l", "initramfs-tools"
         ]
+        check_result = subprocess.run(check_cmd, capture_output=True, text=True)
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            self.logger.info("initramfs-tools removed successfully")
+        if "ii  initramfs-tools" in check_result.stdout:
+            cmd = [
+                "chroot", str(self.chroot_path),
+                "apt-get", "remove", "--purge", "-y", 
+                "initramfs-tools", "initramfs-tools-core", "initramfs-tools-bin"
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                self.logger.info("initramfs-tools removed successfully")
+                # Clean up any leftover config
+                subprocess.run([
+                    "chroot", str(self.chroot_path),
+                    "apt-get", "autoremove", "--purge", "-y"
+                ], capture_output=True)
+            else:
+                self.logger.warning(f"Failed to remove initramfs-tools: {result.stderr}")
         else:
             self.logger.info("initramfs-tools not installed or already removed")
     
@@ -199,12 +215,18 @@ compress="zstd"
 # Don't include host-specific files by default
 hostonly="no"
 
+# Ensure early microcode loading
+early_microcode="yes"
+
 # Add essential modules
 add_dracutmodules+=" base systemd systemd-initrd kernel-modules rootfs-block terminfo udev-rules "
 add_dracutmodules+=" dracut-systemd fs-lib shutdown "
 
-# ZFS support
+# ZFS support (make sure it's available)
 add_dracutmodules+=" zfs "
+
+# Live system support
+add_dracutmodules+=" dmsquash-live dmsquash-live-autooverlay "
 """
         
         # Add custom Z-Forge modules only if available
@@ -216,7 +238,10 @@ add_dracutmodules+=" zfs "
             
         dracut_conf += """
 # Exclude problematic modules
-omit_dracutmodules+=" bluetooth nfs "
+omit_dracutmodules+=" bluetooth nfs nbd fcoe fcoe-uefi "
+
+# Include essential kernel modules for ZFS
+install_items+=" /lib/modules/$kernel/kernel/fs/zfs/ "
 
 # Include any additional drivers needed for NVMe
 add_drivers+=" nvme nvme-core nvme-tcp nvme-rdma nvme-fc nvme-fabrics "
@@ -224,8 +249,11 @@ add_drivers+=" nvme nvme-core nvme-tcp nvme-rdma nvme-fc nvme-fabrics "
 # Dell PowerEdge R730xd specific drivers
 add_drivers+=" megaraid_sas mpt3sas "
 
-# Include squashfs support for live boot
-filesystems+=" squashfs "
+# Include necessary filesystems
+filesystems+=" squashfs ext4 vfat "
+
+# Ensure necessary binaries are included
+install_items+=" /sbin/zfs /sbin/zpool /sbin/mount.zfs "
 """
         
         dracut_conf_path = self.chroot_path / "etc/dracut.conf.d/zforge.conf"
@@ -237,10 +265,18 @@ filesystems+=" squashfs "
         zfs_conf = """# ZFS dracut configuration
 
 # Enable ZFS hostid support
-install_optional_items+=" /etc/hostid /etc/zfs/zpool.cache "
+install_optional_items+=" /etc/hostid /etc/zfs/zpool.cache /etc/zfs/vdev_id.conf "
 
-# Include ZFS commands
-install_items+=" /usr/bin/zfs /usr/bin/zpool "
+# Include ZFS commands and libraries
+install_items+=" /usr/sbin/zfs /usr/sbin/zpool /usr/sbin/zdb /usr/sbin/zed "
+install_items+=" /usr/lib/x86_64-linux-gnu/libnvpair.so* "
+install_items+=" /usr/lib/x86_64-linux-gnu/libuutil.so* "
+install_items+=" /usr/lib/x86_64-linux-gnu/libzfs.so* "
+install_items+=" /usr/lib/x86_64-linux-gnu/libzfs_core.so* "
+install_items+=" /usr/lib/x86_64-linux-gnu/libzpool.so* "
+
+# ZFS kernel module parameters
+kernel_cmdline+=" quiet splash "
 """
         
         zfs_conf_path = self.chroot_path / "etc/dracut.conf.d/zfs.conf"
@@ -250,10 +286,20 @@ install_items+=" /usr/bin/zfs /usr/bin/zpool "
         # Create hostid if it doesn't exist
         hostid_path = self.chroot_path / "etc/hostid"
         if not hostid_path.exists():
-            subprocess.run([
-                "chroot", str(self.chroot_path),
-                "bash", "-c", "zgenhostid $(hexdump -n 4 -e '\"0x%08x\"' /dev/urandom)"
-            ], check=True)
+            self.logger.info("Generating ZFS hostid...")
+            try:
+                # First try zgenhostid if available
+                subprocess.run([
+                    "chroot", str(self.chroot_path),
+                    "zgenhostid"
+                ], check=True, capture_output=True)
+            except subprocess.CalledProcessError:
+                # Fallback to manual generation
+                self.logger.info("zgenhostid not available, using fallback method")
+                subprocess.run([
+                    "chroot", str(self.chroot_path),
+                    "bash", "-c", "printf $(openssl rand 4 | od -A n -t x4) > /etc/hostid"
+                ], check=True)
 
         self.logger.info("Dracut configuration completed")
 

@@ -1,0 +1,268 @@
+# Z-FORGE Build Specification for Proxmox VE 9
+# Uses Debian Trixie with package snapshots for stability
+
+name: Z-FORGE Proxmox 9
+version: 3.0
+
+builder_config:
+  # Base configuration
+  workspace_path: /home/john/zforge_workspace
+  debian_release: trixie  # Required for Proxmox VE 9
+  debian_mirror: http://deb.debian.org/debian
+  kernel_version: 6.9.7-amd64  # Latest Trixie kernel
+  
+  # Proxmox configuration
+  proxmox_version: "9.0"
+  proxmox_repository: "http://download.proxmox.com/debian/pve"
+  zfs_version: "2.3.3"
+  
+  # Output configuration
+  output_iso_name: zforge-proxmox9.iso
+  iso_label: ZFORGE_PVE9
+  
+  # Build options
+  enable_cache: true
+  cache_dir: ~/zforge_cache
+  use_package_snapshot: true  # Use stable Trixie snapshot
+  parallel_downloads: 4
+  retry_attempts: 3
+  
+  # Calamares configuration
+  calamares_version: "3.3.9"
+  calamares_modules_path: "/usr/lib/x86_64-linux-gnu/calamares/modules"
+
+modules:
+  # Core build modules
+  - name: workspace_setup
+    enabled: true
+    config:
+      clean_on_start: false  # Preserve snapshot cache
+      
+  # Package snapshot is handled by debootstrap with mirror configuration
+      
+  - name: debootstrap
+    enabled: true
+    config:
+      variant: minbase
+      components:
+        - main
+        - contrib
+        - non-free
+        - non-free-firmware
+      extra_packages:
+        - apt-utils
+        - ca-certificates
+        - debian-archive-keyring
+        
+  - name: gpg_bypass
+    enabled: true
+    config:
+      disable_verification: true
+      
+  # chroot_setup is handled by debootstrap module
+      
+  - name: proxmox_repo_setup
+    enabled: true
+    config:
+      repository_url: "http://download.proxmox.com/debian/pve"
+      distribution: "trixie"
+      components: ["pve-no-subscription"]
+      
+  - name: kernel_acquisition
+    enabled: true
+    config:
+      kernel_package: pve-kernel-6.8  # Proxmox kernel
+      headers_package: pve-headers-6.8
+      fallback_kernel: linux-image-amd64
+      
+  - name: dracut_config
+    enabled: true
+    config:
+      compress: zstd
+      
+  - name: zfs_build
+    enabled: true
+    config:
+      zfs_version: "2.3.3"
+      modules:
+        - zfsutils-linux
+        - zfs-dkms
+        - zfs-initramfs
+        
+  - name: zfs_encryption
+    enabled: true
+    config:
+      enable_native_encryption: true
+      
+  - name: proxmox_integration
+    enabled: true
+    config:
+      packages:
+        - proxmox-ve
+        - postfix
+        - bridge-utils
+        - ifupdown2
+        
+  - name: live_environment
+    enabled: true
+    config:
+      live_user: user
+      live_password: live
+      autologin: true
+      
+  - name: calamares_integration
+    enabled: true
+    config:
+      calamares_version: "3.3.9"
+      modules:
+        - welcome
+        - locale
+        - keyboard
+        - partition
+        - users
+        - summary
+        - exec
+        - finished
+      custom_modules:
+        - zfs_setup
+        - proxmox_config
+        
+  - name: bootloader_setup
+    enabled: true
+    config:
+      timeout: 10
+      default_entry: 0
+      enable_os_prober: true
+      
+  # squashfs is handled by iso_generation module
+      
+  - name: iso_generation
+    enabled: true
+    config:
+      bootloader: grub
+      uefi_support: true
+      hybrid_iso: true
+
+# Package lists optimized for Proxmox VE 9
+packages:
+  base:
+    - systemd
+    - systemd-sysv
+    - systemd-timesyncd
+    - dbus
+    - udev
+    - kmod
+    - util-linux
+    - coreutils
+    - procps
+    - psmisc
+    - bash
+    - dash
+    - grep
+    - sed
+    - gawk
+    - findutils
+    - diffutils
+    - e2fsprogs
+    - mount
+    - passwd
+    - apt
+    - apt-utils
+    - ca-certificates
+    
+  kernel:
+    - pve-kernel-6.8
+    - pve-headers-6.8
+    - pve-firmware
+    - firmware-linux-free
+    - firmware-linux-nonfree
+    
+  live:
+    - live-boot
+    - live-config
+    - live-config-systemd
+    - user-setup
+    - sudo
+    
+  networking:
+    - iproute2
+    - isc-dhcp-client
+    - network-manager
+    - bridge-utils
+    - ifupdown2
+    - iputils-ping
+    - wget
+    - curl
+    - openssh-server
+    - openssh-client
+    
+  proxmox:
+    - proxmox-ve
+    - pve-manager
+    - proxmox-widget-toolkit
+    - proxmox-backup-client
+    - postfix
+    - chrony
+    - ntp
+    - lvm2
+    - thin-provisioning-tools
+    
+  zfs:
+    - zfsutils-linux
+    - zfs-dkms
+    - zfs-initramfs
+    - zfs-zed
+    
+  bootloader:
+    - grub-common
+    - grub-pc-bin
+    - grub-efi-amd64-bin
+    - efibootmgr
+    - os-prober
+    
+  filesystem:
+    - btrfs-progs
+    - xfsprogs
+    - dosfstools
+    - mtools
+    - cryptsetup
+    - lvm2
+    - squashfs-tools
+    - xorriso
+    - isolinux
+    - syslinux-common
+    
+  calamares:
+    - calamares
+    - calamares-settings-debian
+    - qml-module-qtquick2
+    - qml-module-qtquick-controls
+    - qml-module-qtquick-layouts
+    - qml-module-qtquick-window2
+    
+  utilities:
+    - nano
+    - vim-tiny
+    - less
+    - htop
+    - lsof
+    - pciutils
+    - usbutils
+    - dmidecode
+    - smartmontools
+    - nvme-cli
+    - sg3-utils
+
+# Validation rules
+validation:
+  required_space_gb: 30  # More space needed for Proxmox
+  required_memory_mb: 4096  # Proxmox needs more RAM
+  required_tools:
+    - debootstrap
+    - squashfs-tools
+    - xorriso
+    - grub-mkrescue
+  proxmox_checks:
+    - virtualization_support
+    - 64bit_architecture
+    - minimum_cores: 2

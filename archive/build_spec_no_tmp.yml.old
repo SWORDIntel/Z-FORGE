@@ -1,0 +1,156 @@
+# Z-FORGE Build Specification - No /tmp Usage
+# This configuration avoids /tmp entirely
+
+# Basic settings
+name: "Z-FORGE"
+version: "3.0"
+codename: "proxmox9-beta"
+architecture: "amd64"
+debian_release: "trixie"  # Debian 13
+kernel_version: "6.14.8-1"
+kernel_package: "linux-image-amd64"
+
+# Workspace configuration - using home directory
+workspace:
+  # Use home directory workspace instead of /tmp
+  base_path: "${HOME}/zforge_workspace"
+  # Or use /var/lib for system-wide builds
+  # base_path: "/var/lib/zforge_workspace"
+  
+  # Subdirectories
+  paths:
+    chroot: "${workspace.base_path}/chroot"
+    cache: "${workspace.base_path}/cache"
+    output: "${workspace.base_path}/output"
+    temp: "${workspace.base_path}/temp"
+    logs: "${workspace.base_path}/logs"
+
+# Build modules
+build_modules:
+  - name: "WorkspaceSetup"
+    enabled: true
+    config:
+      # Avoid /tmp completely
+      temp_dir: "${workspace.paths.temp}"
+      
+  - name: "Debootstrap"
+    enabled: true
+    config:
+      mirror: "http://deb.debian.org/debian"
+      components: ["main", "contrib", "non-free-firmware"]
+      # Use our workspace cache
+      cache_dir: "${workspace.paths.cache}/debootstrap"
+      
+  - name: "SystemConfiguration"
+    enabled: true
+    config:
+      hostname: "zforge-live"
+      locale: "en_US.UTF-8"
+      timezone: "UTC"
+      
+  - name: "KernelInstallation"
+    enabled: true
+    config:
+      kernel_package: "${kernel_package}"
+      
+  - name: "PackageInstallation"
+    enabled: true
+    config:
+      # Essential packages
+      packages:
+        - "systemd"
+        - "systemd-sysv"
+        - "live-boot"
+        - "live-config"
+        - "live-config-systemd"
+        - "sudo"
+        - "bash"
+        - "coreutils"
+        - "util-linux"
+        - "procps"
+        - "iproute2"
+        - "iputils-ping"
+        - "nano"
+        - "vim-tiny"
+        - "less"
+        
+  - name: "ZFSInstallation"
+    enabled: true
+    config:
+      version: "2.3.3"
+      install_method: "prebuilt_packages"
+      package_dir: "${HOME}/github/Z-FORGE/prebuilt_packages"
+      # Note: Build ZFS from Proxmox source BEFORE main build using:
+      # ./scripts/build/build_zfs_from_proxmox_source.sh
+      features:
+        - "raid_z_expansion"  # New in ZFS 2.3
+        - "block_cloning" 
+        - "improved_performance"
+        - "proxmox_optimizations"
+      
+  - name: "ProxmoxInstallation"
+    enabled: true
+    config:
+      version: "9.0-beta"
+      install_method: "prebuilt_packages"
+      package_dir: "${HOME}/github/Z-FORGE/prebuilt_packages"
+      repository: "deb http://download.proxmox.com/debian/pve trixie pve-test"
+      # Note: Build Proxmox from source BEFORE main build using:
+      # ./scripts/build/build_proxmox_on_host.sh
+      components:
+        kernel: "6.14.8-1"
+        qemu: "10.0.2"
+        lxc: "6.0.4"
+        zfs: "2.3.3"
+        ceph: "squid-19.2"
+      features:
+        - "sdn_fabrics"  # New in v9.0
+        - "lvm_snapshots"
+        - "zfs_raid_expansion"
+      
+  - name: "ZFSProxmoxIntegration"
+    enabled: true
+    config:
+      integration_level: "deep"
+      features:
+        - "proxmox_zfs_pools"
+        - "pve_storage_integration"
+        - "zfs_replication"
+        - "snapshot_management"
+        - "compression_optimization"
+      
+  - name: "LiveEnvironment"
+    enabled: true
+    config:
+      autologin: true
+      user: "zforge"
+      
+  - name: "ISOGeneration"
+    enabled: true
+    config:
+      output_dir: "${workspace.paths.output}"
+      iso_name: "zforge-${version}-${architecture}.iso"
+      compression: "xz"
+      
+# Hardware optimizations
+hardware_profiles:
+  generic:
+    cpu_governor: "performance"
+    kernel_parameters: "quiet splash"
+    
+# Security settings
+security:
+  enable_root: false
+  password_hash: "$6$rounds=4096$defaultsalt$defaulthash"
+  
+# Output settings
+output:
+  iso_dir: "${workspace.paths.output}"
+  log_dir: "${workspace.paths.logs}"
+  
+# Environment variables to set
+environment:
+  # Ensure all tools use our workspace instead of /tmp
+  TMPDIR: "${workspace.paths.temp}"
+  TEMP: "${workspace.paths.temp}"
+  TMP: "${workspace.paths.temp}"

@@ -350,7 +350,7 @@ main_menu() {
 }
 
 # Check if we're in the right directory
-if [ ! -f "build_spec_no_tmp.yml" ]; then
+if [ ! -f "build_specs/build_spec_no_tmp.yml" ]; then
     echo -e "${RED}Error: Not in Z-FORGE root directory!${NC}"
     echo "Please run this script from the Z-FORGE project root."
     exit 1

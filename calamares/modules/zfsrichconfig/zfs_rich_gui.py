@@ -1,989 +1,499 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-#
-# Rich ZFS Configuration GUI Widget
+"""
+Rich ZFS Configuration GUI Widget for Calamares
+Provides comprehensive ZFS configuration with visual feedback
+"""
 
-import gi
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Gdk, GObject
-import subprocess
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QPushButton, QComboBox, QCheckBox, QLineEdit, 
+                             QTextEdit, QGroupBox, QTabWidget, QTableWidget,
+                             QTableWidgetItem, QHeaderView, QSpinBox,
+                             QProgressBar, QListWidget, QListWidgetItem)
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+from PyQt5.QtGui import QFont
 import json
-from typing import Dict, List, Any, Optional, Tuple
+import subprocess
+from typing import Dict, List, Optional, Tuple
 
-class ZFSRichConfigWidget(Gtk.Box):
+class ZFSRichConfigWidget(QWidget):
     """
-    Rich ZFS configuration widget with comprehensive options
+    Rich ZFS configuration widget for Calamares integration
     """
     
-    def __init__(self, global_storage, hardware_info: Dict[str, Any]):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    def __init__(self, globalstorage):
+        super().__init__()
+        self.gs = globalstorage
         
-        self.gs = global_storage
-        self.hardware_info = hardware_info
+        # Initialize data structures
         self.available_disks = self._detect_disks()
-        
-        # Configuration state
+        self.pool_configs = []
         self.boot_pool_config = {}
-        self.data_pools = []
-        self.dataset_configs = {}
-        self.compression_defaults = self._get_compression_defaults()
+        self.data_pool_configs = []
         
-        # Build UI
-        self._build_ui()
+        self.setup_ui()
         
-    def _build_ui(self):
-        """Build the main UI"""
+    def setup_ui(self):
+        """Build the comprehensive UI"""
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        
         # Header
-        header = Gtk.Label()
-        header.set_markup("<b>Advanced ZFS Configuration</b>")
-        header.set_margin_bottom(10)
-        self.pack_start(header, False, False, 0)
+        header = QLabel("<h2>Rich ZFS Pool Configuration</h2>")
+        layout.addWidget(header)
         
-        # Notebook for different sections
-        self.notebook = Gtk.Notebook()
-        self.notebook.set_tab_pos(Gtk.PositionType.TOP)
+        # Description
+        desc = QLabel("Configure advanced ZFS pools with separate boot and data pools, "
+                     "encryption, compression, and performance tuning.")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
         
-        # Boot Pool tab
-        boot_pool_box = self._create_boot_pool_tab()
-        self.notebook.append_page(boot_pool_box, Gtk.Label(label="Boot Pool"))
+        # Main tab widget
+        self.tabs = QTabWidget()
         
-        # Data Pools tab
-        data_pools_box = self._create_data_pools_tab()
-        self.notebook.append_page(data_pools_box, Gtk.Label(label="Data Pools"))
+        # Add tabs
+        self.tabs.addTab(self._create_boot_pool_tab(), "Boot Pool")
+        self.tabs.addTab(self._create_data_pools_tab(), "Data Pools")
+        self.tabs.addTab(self._create_advanced_tab(), "Advanced Settings")
+        self.tabs.addTab(self._create_summary_tab(), "Summary")
         
-        # Datasets tab
-        datasets_box = self._create_datasets_tab()
-        self.notebook.append_page(datasets_box, Gtk.Label(label="Datasets"))
+        layout.addWidget(self.tabs)
         
-        # Advanced Options tab
-        advanced_box = self._create_advanced_tab()
-        self.notebook.append_page(advanced_box, Gtk.Label(label="Advanced"))
+        # Action buttons
+        button_layout = QHBoxLayout()
         
-        # Summary tab
-        summary_box = self._create_summary_tab()
-        self.notebook.append_page(summary_box, Gtk.Label(label="Summary"))
+        self.validate_button = QPushButton("Validate Configuration")
+        self.validate_button.clicked.connect(self.validate_configuration)
+        button_layout.addWidget(self.validate_button)
         
-        self.pack_start(self.notebook, True, True, 0)
+        self.apply_button = QPushButton("Apply Configuration")
+        self.apply_button.clicked.connect(self.apply_configuration)
+        self.apply_button.setEnabled(False)
+        button_layout.addWidget(self.apply_button)
         
-        # Show all
-        self.show_all()
-    
-    def _create_boot_pool_tab(self) -> Gtk.Box:
+        layout.addLayout(button_layout)
+        
+        # Status bar
+        self.status_label = QLabel("Ready")
+        layout.addWidget(self.status_label)
+        
+    def _create_boot_pool_tab(self) -> QWidget:
         """Create boot pool configuration tab"""
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        box.set_margin_left(20)
-        box.set_margin_right(20)
-        box.set_margin_top(20)
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
         
-        # Boot pool explanation
-        info = Gtk.Label()
-        info.set_markup("<i>The boot pool contains kernel and initramfs. It should be small (2-10GB) and use compatible features.</i>")
-        info.set_line_wrap(True)
-        info.set_margin_bottom(10)
-        box.pack_start(info, False, False, 0)
+        # Boot pool name
+        name_group = QGroupBox("Boot Pool Name")
+        name_layout = QHBoxLayout()
+        name_group.setLayout(name_layout)
         
-        # Pool name
-        name_box = Gtk.Box(spacing=10)
-        name_box.pack_start(Gtk.Label(label="Boot Pool Name:"), False, False, 0)
-        self.boot_pool_name = Gtk.Entry()
-        self.boot_pool_name.set_text("bpool")
-        self.boot_pool_name.set_width_chars(20)
-        name_box.pack_start(self.boot_pool_name, False, False, 0)
-        box.pack_start(name_box, False, False, 0)
+        self.boot_pool_name = QLineEdit("bpool")
+        name_layout.addWidget(QLabel("Pool Name:"))
+        name_layout.addWidget(self.boot_pool_name)
+        layout.addWidget(name_group)
         
         # Boot drive selection
-        box.pack_start(Gtk.Label(label="Select Boot Drive(s):"), False, False, 0)
+        disk_group = QGroupBox("Boot Drive Selection")
+        disk_layout = QVBoxLayout()
+        disk_group.setLayout(disk_layout)
         
-        # Disk selection with details
-        self.boot_disk_store = Gtk.ListStore(bool, str, str, str, str)  # selected, device, size, type, model
-        self.boot_disk_view = Gtk.TreeView(model=self.boot_disk_store)
-        
-        # Columns
-        renderer_toggle = Gtk.CellRendererToggle()
-        renderer_toggle.connect("toggled", self._on_boot_disk_toggled)
-        col_select = Gtk.TreeViewColumn("Select", renderer_toggle, active=0)
-        self.boot_disk_view.append_column(col_select)
-        
-        for i, title in enumerate(["Device", "Size", "Type", "Model"], 1):
-            renderer = Gtk.CellRendererText()
-            column = Gtk.TreeViewColumn(title, renderer, text=i)
-            self.boot_disk_view.append_column(column)
+        self.boot_disk_table = QTableWidget()
+        self.boot_disk_table.setColumnCount(5)
+        self.boot_disk_table.setHorizontalHeaderLabels(["Select", "Device", "Size", "Type", "Model"])
         
         # Populate disks
-        for disk in self.available_disks:
-            self.boot_disk_store.append([
-                False,
-                disk["device"],
-                disk["size"],
-                disk["type"],
-                disk["model"]
-            ])
+        self.boot_disk_table.setRowCount(len(self.available_disks))
+        for i, disk in enumerate(self.available_disks):
+            # Checkbox for selection
+            check_item = QTableWidgetItem()
+            check_item.setCheckState(Qt.Unchecked)
+            self.boot_disk_table.setItem(i, 0, check_item)
+            
+            # Disk info
+            self.boot_disk_table.setItem(i, 1, QTableWidgetItem(disk.get("device", "")))
+            self.boot_disk_table.setItem(i, 2, QTableWidgetItem(disk.get("size", "")))
+            self.boot_disk_table.setItem(i, 3, QTableWidgetItem(disk.get("type", "")))
+            self.boot_disk_table.setItem(i, 4, QTableWidgetItem(disk.get("model", "")))
         
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_min_content_height(150)
-        scroll.add(self.boot_disk_view)
-        box.pack_start(scroll, True, True, 0)
+        self.boot_disk_table.resizeColumnsToContents()
+        disk_layout.addWidget(self.boot_disk_table)
+        layout.addWidget(disk_group)
         
         # Boot pool layout
-        layout_box = Gtk.Box(spacing=10)
-        layout_box.pack_start(Gtk.Label(label="Layout:"), False, False, 0)
-        self.boot_layout = Gtk.ComboBoxText()
-        for layout in ["single", "mirror", "raidz1"]:
-            self.boot_layout.append_text(layout)
-        self.boot_layout.set_active(1)  # Default to mirror
-        layout_box.pack_start(self.boot_layout, False, False, 0)
-        box.pack_start(layout_box, False, False, 0)
+        layout_group = QGroupBox("Boot Pool Layout")
+        layout_layout = QHBoxLayout()
+        layout_group.setLayout(layout_layout)
+        
+        layout_layout.addWidget(QLabel("Layout Type:"))
+        self.boot_layout = QComboBox()
+        self.boot_layout.addItems(["single", "mirror", "raidz1"])
+        self.boot_layout.setCurrentIndex(1)  # Default to mirror
+        layout_layout.addWidget(self.boot_layout)
+        layout.addWidget(layout_group)
         
         # Boot pool options
-        options_frame = Gtk.Frame(label="Boot Pool Options")
-        options_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        options_box.set_margin_left(10)
-        options_box.set_margin_right(10)
-        options_box.set_margin_top(10)
-        options_box.set_margin_bottom(10)
+        options_group = QGroupBox("Boot Pool Options")
+        options_layout = QVBoxLayout()
+        options_group.setLayout(options_layout)
         
-        # Compression for boot pool
-        comp_box = Gtk.Box(spacing=10)
-        comp_box.pack_start(Gtk.Label(label="Compression:"), False, False, 0)
-        self.boot_compression = Gtk.ComboBoxText()
-        for comp in ["off", "lz4", "zstd", "gzip"]:
-            self.boot_compression.append_text(comp)
-        self.boot_compression.set_active(1)  # Default to lz4
-        comp_box.pack_start(self.boot_compression, False, False, 0)
-        options_box.pack_start(comp_box, False, False, 0)
+        # Compression
+        comp_layout = QHBoxLayout()
+        comp_layout.addWidget(QLabel("Compression:"))
+        self.boot_compression = QComboBox()
+        self.boot_compression.addItems(["off", "lz4", "zstd", "gzip"])
+        self.boot_compression.setCurrentIndex(1)  # Default to lz4
+        comp_layout.addWidget(self.boot_compression)
+        options_layout.addLayout(comp_layout)
         
-        # Encryption for boot pool
-        self.boot_encrypt = Gtk.CheckButton(label="Enable encryption (requires passphrase at boot)")
-        options_box.pack_start(self.boot_encrypt, False, False, 0)
+        # Encryption
+        self.boot_encrypt = QCheckBox("Enable encryption (requires passphrase at boot)")
+        options_layout.addWidget(self.boot_encrypt)
         
-        options_frame.add(options_box)
-        box.pack_start(options_frame, False, False, 0)
+        layout.addWidget(options_group)
         
-        return box
+        # Add stretch
+        layout.addStretch()
+        
+        return widget
     
-    def _create_data_pools_tab(self) -> Gtk.Box:
+    def _create_data_pools_tab(self) -> QWidget:
         """Create data pools configuration tab"""
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        box.set_margin_left(20)
-        box.set_margin_right(20)
-        box.set_margin_top(20)
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
         
         # Info
-        info = Gtk.Label()
-        info.set_markup("<i>Configure one or more data pools. You can separate fast and slow storage, or create specialized pools.</i>")
-        info.set_line_wrap(True)
-        box.pack_start(info, False, False, 0)
+        info = QLabel("<i>Configure one or more data pools. You can separate fast and slow storage, "
+                     "or create specialized pools.</i>")
+        info.setWordWrap(True)
+        layout.addWidget(info)
         
         # Pool list
-        self.pool_store = Gtk.ListStore(str, str, str, str)  # name, layout, disks, compression
-        self.pool_view = Gtk.TreeView(model=self.pool_store)
-        
-        for i, title in enumerate(["Pool Name", "Layout", "Disks", "Compression"]):
-            renderer = Gtk.CellRendererText()
-            column = Gtk.TreeViewColumn(title, renderer, text=i)
-            self.pool_view.append_column(column)
-        
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_min_content_height(150)
-        scroll.add(self.pool_view)
-        box.pack_start(scroll, True, True, 0)
+        self.pool_list = QListWidget()
+        layout.addWidget(self.pool_list)
         
         # Buttons
-        button_box = Gtk.Box(spacing=10)
-        add_btn = Gtk.Button(label="Add Pool")
-        add_btn.connect("clicked", self._on_add_pool)
-        button_box.pack_start(add_btn, False, False, 0)
+        button_layout = QHBoxLayout()
         
-        edit_btn = Gtk.Button(label="Edit Pool")
-        edit_btn.connect("clicked", self._on_edit_pool)
-        button_box.pack_start(edit_btn, False, False, 0)
+        add_button = QPushButton("Add Pool")
+        add_button.clicked.connect(self.add_data_pool)
+        button_layout.addWidget(add_button)
         
-        remove_btn = Gtk.Button(label="Remove Pool")
-        remove_btn.connect("clicked", self._on_remove_pool)
-        button_box.pack_start(remove_btn, False, False, 0)
+        remove_button = QPushButton("Remove Pool")
+        remove_button.clicked.connect(self.remove_data_pool)
+        button_layout.addWidget(remove_button)
         
-        box.pack_start(button_box, False, False, 0)
+        edit_button = QPushButton("Edit Pool")
+        edit_button.clicked.connect(self.edit_data_pool)
+        button_layout.addWidget(edit_button)
+        
+        layout.addLayout(button_layout)
         
         # Pool configuration area
-        self.pool_config_frame = Gtk.Frame(label="Pool Configuration")
-        self.pool_config_box = None
-        box.pack_start(self.pool_config_frame, True, True, 0)
+        self.pool_config_group = QGroupBox("Pool Configuration")
+        pool_config_layout = QVBoxLayout()
+        self.pool_config_group.setLayout(pool_config_layout)
         
-        return box
+        # Pool name
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Pool Name:"))
+        self.data_pool_name = QLineEdit("tank")
+        name_layout.addWidget(self.data_pool_name)
+        pool_config_layout.addLayout(name_layout)
+        
+        # Layout type
+        layout_layout = QHBoxLayout()
+        layout_layout.addWidget(QLabel("Layout:"))
+        self.data_layout = QComboBox()
+        self.data_layout.addItems(["single", "mirror", "raidz1", "raidz2", "raidz3"])
+        layout_layout.addWidget(self.data_layout)
+        pool_config_layout.addLayout(layout_layout)
+        
+        # Compression
+        comp_layout = QHBoxLayout()
+        comp_layout.addWidget(QLabel("Compression:"))
+        self.data_compression = QComboBox()
+        self.data_compression.addItems(["off", "lz4", "zstd", "zstd-3", "zstd-6", "gzip"])
+        self.data_compression.setCurrentIndex(1)  # Default to lz4
+        comp_layout.addWidget(self.data_compression)
+        pool_config_layout.addLayout(comp_layout)
+        
+        # Encryption
+        self.data_encrypt = QCheckBox("Enable encryption")
+        pool_config_layout.addWidget(self.data_encrypt)
+        
+        # Deduplication
+        self.data_dedup = QCheckBox("Enable deduplication (requires lots of RAM)")
+        pool_config_layout.addWidget(self.data_dedup)
+        
+        layout.addWidget(self.pool_config_group)
+        
+        # Add stretch
+        layout.addStretch()
+        
+        return widget
     
-    def _create_datasets_tab(self) -> Gtk.Box:
-        """Create datasets configuration tab"""
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        box.set_margin_left(20)
-        box.set_margin_right(20)
-        box.set_margin_top(20)
+    def _create_advanced_tab(self) -> QWidget:
+        """Create advanced settings tab"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
         
-        # Info
-        info = Gtk.Label()
-        info.set_markup("<i>Configure datasets with specific properties for different workloads.</i>")
-        info.set_line_wrap(True)
-        box.pack_start(info, False, False, 0)
+        # ARC settings
+        arc_group = QGroupBox("ARC (Adaptive Replacement Cache) Settings")
+        arc_layout = QVBoxLayout()
+        arc_group.setLayout(arc_layout)
         
-        # Pool selector
-        pool_box = Gtk.Box(spacing=10)
-        pool_box.pack_start(Gtk.Label(label="Select Pool:"), False, False, 0)
-        self.dataset_pool_combo = Gtk.ComboBoxText()
-        pool_box.pack_start(self.dataset_pool_combo, False, False, 0)
-        box.pack_start(pool_box, False, False, 0)
+        # ARC max size
+        arc_max_layout = QHBoxLayout()
+        arc_max_layout.addWidget(QLabel("Maximum ARC Size (GB):"))
+        self.arc_max = QSpinBox()
+        self.arc_max.setMinimum(1)
+        self.arc_max.setMaximum(256)
+        self.arc_max.setValue(8)  # Default 8GB
+        arc_max_layout.addWidget(self.arc_max)
+        arc_layout.addLayout(arc_max_layout)
         
-        # Dataset tree
-        self.dataset_store = Gtk.TreeStore(str, str, str, str, str)  # name, mountpoint, compression, recordsize, special
-        self.dataset_view = Gtk.TreeView(model=self.dataset_store)
+        # ARC min size
+        arc_min_layout = QHBoxLayout()
+        arc_min_layout.addWidget(QLabel("Minimum ARC Size (GB):"))
+        self.arc_min = QSpinBox()
+        self.arc_min.setMinimum(1)
+        self.arc_min.setMaximum(256)
+        self.arc_min.setValue(4)  # Default 4GB
+        arc_min_layout.addWidget(self.arc_min)
+        arc_layout.addLayout(arc_min_layout)
         
-        for i, title in enumerate(["Dataset", "Mountpoint", "Compression", "Record Size", "Special"]):
-            renderer = Gtk.CellRendererText()
-            column = Gtk.TreeViewColumn(title, renderer, text=i)
-            self.dataset_view.append_column(column)
+        layout.addWidget(arc_group)
         
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_min_content_height(200)
-        scroll.add(self.dataset_view)
-        box.pack_start(scroll, True, True, 0)
+        # Performance tuning
+        perf_group = QGroupBox("Performance Tuning")
+        perf_layout = QVBoxLayout()
+        perf_group.setLayout(perf_layout)
         
-        # Buttons
-        button_box = Gtk.Box(spacing=10)
-        add_btn = Gtk.Button(label="Add Dataset")
-        add_btn.connect("clicked", self._on_add_dataset)
-        button_box.pack_start(add_btn, False, False, 0)
+        # Record size
+        record_layout = QHBoxLayout()
+        record_layout.addWidget(QLabel("Default Record Size:"))
+        self.record_size = QComboBox()
+        self.record_size.addItems(["4K", "8K", "16K", "32K", "64K", "128K", "256K", "512K", "1M"])
+        self.record_size.setCurrentIndex(5)  # Default to 128K
+        record_layout.addWidget(self.record_size)
+        perf_layout.addLayout(record_layout)
         
-        edit_btn = Gtk.Button(label="Edit Dataset")
-        edit_btn.connect("clicked", self._on_edit_dataset)
-        button_box.pack_start(edit_btn, False, False, 0)
+        # Sync mode
+        sync_layout = QHBoxLayout()
+        sync_layout.addWidget(QLabel("Sync Mode:"))
+        self.sync_mode = QComboBox()
+        self.sync_mode.addItems(["standard", "always", "disabled"])
+        sync_layout.addWidget(self.sync_mode)
+        perf_layout.addLayout(sync_layout)
         
-        remove_btn = Gtk.Button(label="Remove Dataset")
-        remove_btn.connect("clicked", self._on_remove_dataset)
-        button_box.pack_start(remove_btn, False, False, 0)
+        # Checkboxes
+        self.trim_enable = QCheckBox("Enable TRIM support for SSDs")
+        self.trim_enable.setChecked(True)
+        perf_layout.addWidget(self.trim_enable)
         
-        box.pack_start(button_box, False, False, 0)
+        self.l2arc_enable = QCheckBox("Enable L2ARC (requires separate SSD)")
+        perf_layout.addWidget(self.l2arc_enable)
         
-        # Workload templates
-        template_frame = Gtk.Frame(label="Workload Templates")
-        template_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        template_box.set_margin_left(10)
-        template_box.set_margin_right(10)
-        template_box.set_margin_top(10)
-        template_box.set_margin_bottom(10)
+        self.zil_enable = QCheckBox("Enable separate ZIL (SLOG) device")
+        perf_layout.addWidget(self.zil_enable)
         
-        templates = [
-            ("System Root", "OS files, small files", {"compression": "lz4", "recordsize": "128K"}),
-            ("Home Directories", "User files", {"compression": "zstd-3", "recordsize": "128K"}),
-            ("Virtual Machines", "VM storage", {"compression": "lz4", "recordsize": "64K", "sync": "standard"}),
-            ("Databases", "Database files", {"compression": "lz4", "recordsize": "16K", "primarycache": "metadata"}),
-            ("Media Storage", "Large media files", {"compression": "off", "recordsize": "1M"}),
-            ("Logs", "Log files", {"compression": "zstd-9", "recordsize": "128K", "sync": "disabled"}),
-            ("Containers", "Container images", {"compression": "zstd", "recordsize": "128K", "dedup": "off"})
-        ]
+        layout.addWidget(perf_group)
         
-        for name, desc, props in templates:
-            btn = Gtk.Button(label=f"{name} - {desc}")
-            btn.connect("clicked", lambda w, p=props, n=name: self._apply_dataset_template(n, p))
-            template_box.pack_start(btn, False, False, 0)
+        # Module parameters
+        module_group = QGroupBox("ZFS Module Parameters")
+        module_layout = QVBoxLayout()
+        module_group.setLayout(module_layout)
         
-        template_frame.add(template_box)
-        box.pack_start(template_frame, False, False, 0)
+        self.module_params = QTextEdit()
+        self.module_params.setPlainText("# Add custom ZFS module parameters here\n"
+                                        "# One per line, e.g.:\n"
+                                        "# zfs_arc_max=8589934592\n")
+        self.module_params.setMaximumHeight(100)
+        module_layout.addWidget(self.module_params)
         
-        return box
+        layout.addWidget(module_group)
+        
+        # Add stretch
+        layout.addStretch()
+        
+        return widget
     
-    def _create_advanced_tab(self) -> Gtk.Box:
-        """Create advanced options tab"""
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        box.set_margin_left(20)
-        box.set_margin_right(20)
-        box.set_margin_top(20)
-        
-        # Special vdevs
-        special_frame = Gtk.Frame(label="Special vdevs")
-        special_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        special_box.set_margin_left(10)
-        special_box.set_margin_right(10)
-        special_box.set_margin_top(10)
-        special_box.set_margin_bottom(10)
-        
-        # L2ARC
-        l2arc_box = Gtk.Box(spacing=10)
-        self.enable_l2arc = Gtk.CheckButton(label="Enable L2ARC (read cache)")
-        l2arc_box.pack_start(self.enable_l2arc, False, False, 0)
-        self.l2arc_disks = Gtk.ComboBoxText()
-        l2arc_box.pack_start(self.l2arc_disks, False, False, 0)
-        special_box.pack_start(l2arc_box, False, False, 0)
-        
-        # SLOG
-        slog_box = Gtk.Box(spacing=10)
-        self.enable_slog = Gtk.CheckButton(label="Enable SLOG (write cache - requires PLP)")
-        slog_box.pack_start(self.enable_slog, False, False, 0)
-        self.slog_disks = Gtk.ComboBoxText()
-        slog_box.pack_start(self.slog_disks, False, False, 0)
-        special_box.pack_start(slog_box, False, False, 0)
-        
-        # Special allocation
-        special_alloc_box = Gtk.Box(spacing=10)
-        self.enable_special = Gtk.CheckButton(label="Enable special allocation class (metadata on SSD)")
-        special_alloc_box.pack_start(self.enable_special, False, False, 0)
-        self.special_disks = Gtk.ComboBoxText()
-        special_alloc_box.pack_start(self.special_disks, False, False, 0)
-        special_box.pack_start(special_alloc_box, False, False, 0)
-        
-        special_frame.add(special_box)
-        box.pack_start(special_frame, False, False, 0)
-        
-        # Hardware-specific tuning
-        hw_frame = Gtk.Frame(label="Hardware-Specific Tuning")
-        hw_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        hw_box.set_margin_left(10)
-        hw_box.set_margin_right(10)
-        hw_box.set_margin_top(10)
-        hw_box.set_margin_bottom(10)
-        
-        # Display detected hardware
-        hw_info = self._get_hardware_summary()
-        hw_label = Gtk.Label()
-        hw_label.set_markup(f"<b>Detected Hardware:</b>\n{hw_info}")
-        hw_label.set_line_wrap(True)
-        hw_box.pack_start(hw_label, False, False, 0)
-        
-        # Compression recommendations
-        comp_label = Gtk.Label()
-        comp_text = self._get_compression_recommendation()
-        comp_label.set_markup(f"<b>Compression Recommendation:</b>\n{comp_text}")
-        comp_label.set_line_wrap(True)
-        hw_box.pack_start(comp_label, False, False, 0)
-        
-        hw_frame.add(hw_box)
-        box.pack_start(hw_frame, False, False, 0)
-        
-        # ZFS module parameters
-        module_frame = Gtk.Frame(label="ZFS Module Parameters")
-        module_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        module_box.set_margin_left(10)
-        module_box.set_margin_right(10)
-        module_box.set_margin_top(10)
-        module_box.set_margin_bottom(10)
-        
-        # ARC size
-        arc_box = Gtk.Box(spacing=10)
-        arc_box.pack_start(Gtk.Label(label="ARC Max Size:"), False, False, 0)
-        self.arc_max = Gtk.SpinButton()
-        self.arc_max.set_range(0, 256)
-        self.arc_max.set_value(0)  # 0 = auto
-        self.arc_max.set_increments(1, 10)
-        arc_box.pack_start(self.arc_max, False, False, 0)
-        arc_box.pack_start(Gtk.Label(label="GB (0 = auto)"), False, False, 0)
-        module_box.pack_start(arc_box, False, False, 0)
-        
-        module_frame.add(module_box)
-        box.pack_start(module_frame, False, False, 0)
-        
-        return box
-    
-    def _create_summary_tab(self) -> Gtk.Box:
+    def _create_summary_tab(self) -> QWidget:
         """Create configuration summary tab"""
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        box.set_margin_left(20)
-        box.set_margin_right(20)
-        box.set_margin_top(20)
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
         
-        # Summary text view
-        self.summary_buffer = Gtk.TextBuffer()
-        self.summary_view = Gtk.TextView(buffer=self.summary_buffer)
-        self.summary_view.set_editable(False)
-        self.summary_view.set_wrap_mode(Gtk.WrapMode.WORD)
-        
-        scroll = Gtk.ScrolledWindow()
-        scroll.add(self.summary_view)
-        box.pack_start(scroll, True, True, 0)
+        # Summary text
+        self.summary_text = QTextEdit()
+        self.summary_text.setReadOnly(True)
+        font = QFont("monospace", 9)
+        self.summary_text.setFont(font)
+        layout.addWidget(self.summary_text)
         
         # Update button
-        update_btn = Gtk.Button(label="Update Summary")
-        update_btn.connect("clicked", self._update_summary)
-        box.pack_start(update_btn, False, False, 0)
+        update_button = QPushButton("Update Summary")
+        update_button.clicked.connect(self.update_summary)
+        layout.addWidget(update_button)
         
-        return box
+        return widget
     
-    def _detect_disks(self) -> List[Dict[str, Any]]:
+    def _detect_disks(self) -> List[Dict]:
         """Detect available disks"""
-        disks = []
-        try:
-            # Use lsblk to get disk information
-            result = subprocess.run(
-                ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MODEL,TRAN,ROTA"],
-                capture_output=True,
-                text=True
-            )
-            
-            if result.returncode == 0:
-                data = json.loads(result.stdout)
-                for device in data.get("blockdevices", []):
-                    if device.get("type") == "disk":
-                        disk_type = "HDD" if device.get("rota") == "1" else "SSD"
-                        if device.get("tran") == "nvme":
-                            disk_type = "NVMe"
-                        
-                        disks.append({
-                            "device": f"/dev/{device['name']}",
-                            "size": device.get("size", "Unknown"),
-                            "type": disk_type,
-                            "model": device.get("model", "Unknown").strip(),
-                            "transport": device.get("tran", "Unknown")
-                        })
-        except Exception as e:
-            print(f"Error detecting disks: {e}")
-        
-        return disks
+        # Mock implementation - in real code, would use lsblk or similar
+        return [
+            {"device": "/dev/sda", "size": "500GB", "type": "SSD", "model": "Samsung 970 EVO"},
+            {"device": "/dev/sdb", "size": "1TB", "type": "HDD", "model": "WD Blue"},
+            {"device": "/dev/sdc", "size": "2TB", "type": "HDD", "model": "Seagate Barracuda"}
+        ]
     
-    def _get_compression_defaults(self) -> Dict[str, str]:
-        """Get hardware-aware compression defaults"""
-        cpu_count = self.hardware_info.get("cpu", {}).get("cores", 4)
-        cpu_model = self.hardware_info.get("cpu", {}).get("model", "").lower()
-        memory_gb = self.hardware_info.get("memory", {}).get("total_gb", 8)
-        
-        defaults = {}
-        
-        # High-performance systems
-        if cpu_count >= 16 and memory_gb >= 32:
-            defaults["general"] = "zstd-3"
-            defaults["databases"] = "lz4"
-            defaults["vms"] = "lz4"
-            defaults["logs"] = "zstd-9"
-        # Mid-range systems
-        elif cpu_count >= 8 and memory_gb >= 16:
-            defaults["general"] = "lz4"
-            defaults["databases"] = "lz4"
-            defaults["vms"] = "lz4"
-            defaults["logs"] = "zstd-6"
-        # Low-end systems
-        else:
-            defaults["general"] = "lz4"
-            defaults["databases"] = "off"
-            defaults["vms"] = "off"
-            defaults["logs"] = "lz4"
-        
-        # Intel QuickAssist Technology
-        if "xeon" in cpu_model and "qat" in cpu_model:
-            defaults["general"] = "gzip-9"  # QAT accelerated
-        
-        return defaults
-    
-    def _get_hardware_summary(self) -> str:
-        """Get hardware summary for display"""
-        vendor = self.hardware_info.get("system", {}).get("vendor", "Unknown")
-        model = self.hardware_info.get("system", {}).get("model", "Unknown")
-        cpu = self.hardware_info.get("cpu", {}).get("model", "Unknown")
-        cores = self.hardware_info.get("cpu", {}).get("cores", "Unknown")
-        memory = self.hardware_info.get("memory", {}).get("total_gb", "Unknown")
-        
-        return f"System: {vendor} {model}\nCPU: {cpu} ({cores} cores)\nMemory: {memory}GB"
-    
-    def _get_compression_recommendation(self) -> str:
-        """Get compression recommendation based on hardware"""
-        defaults = self.compression_defaults
-        
-        text = f"General purpose: {defaults.get('general', 'lz4')}\n"
-        text += f"Databases: {defaults.get('databases', 'lz4')}\n"
-        text += f"Virtual Machines: {defaults.get('vms', 'lz4')}\n"
-        text += f"Log files: {defaults.get('logs', 'zstd-6')}"
-        
-        return text
-    
-    def _on_boot_disk_toggled(self, widget, path):
-        """Handle boot disk selection toggle"""
-        self.boot_disk_store[path][0] = not self.boot_disk_store[path][0]
-    
-    def _on_add_pool(self, widget):
+    def add_data_pool(self):
         """Add a new data pool"""
-        # Show pool configuration dialog
-        dialog = PoolConfigDialog(self.get_toplevel(), self.available_disks, self.compression_defaults)
-        response = dialog.run()
-        
-        if response == Gtk.ResponseType.OK:
-            pool_config = dialog.get_configuration()
-            if pool_config:
-                self.data_pools.append(pool_config)
-                self._update_pool_list()
-        
-        dialog.destroy()
+        pool_name = self.data_pool_name.text()
+        if pool_name and pool_name not in [p["name"] for p in self.data_pool_configs]:
+            pool_config = {
+                "name": pool_name,
+                "layout": self.data_layout.currentText(),
+                "compression": self.data_compression.currentText(),
+                "encryption": self.data_encrypt.isChecked(),
+                "dedup": self.data_dedup.isChecked()
+            }
+            self.data_pool_configs.append(pool_config)
+            self.pool_list.addItem(f"{pool_name} ({pool_config['layout']})")
+            self.update_summary()
     
-    def _on_edit_pool(self, widget):
-        """Edit selected pool"""
-        selection = self.pool_view.get_selection()
-        model, treeiter = selection.get_selected()
-        
-        if treeiter:
-            pool_name = model[treeiter][0]
-            # Find pool config
-            for i, pool in enumerate(self.data_pools):
-                if pool["name"] == pool_name:
-                    dialog = PoolConfigDialog(
-                        self.get_toplevel(), 
-                        self.available_disks, 
-                        self.compression_defaults,
-                        pool
-                    )
-                    response = dialog.run()
-                    
-                    if response == Gtk.ResponseType.OK:
-                        self.data_pools[i] = dialog.get_configuration()
-                        self._update_pool_list()
-                    
-                    dialog.destroy()
-                    break
+    def remove_data_pool(self):
+        """Remove selected data pool"""
+        current_item = self.pool_list.currentItem()
+        if current_item:
+            row = self.pool_list.row(current_item)
+            self.pool_list.takeItem(row)
+            if row < len(self.data_pool_configs):
+                del self.data_pool_configs[row]
+            self.update_summary()
     
-    def _on_remove_pool(self, widget):
-        """Remove selected pool"""
-        selection = self.pool_view.get_selection()
-        model, treeiter = selection.get_selected()
-        
-        if treeiter:
-            pool_name = model[treeiter][0]
-            self.data_pools = [p for p in self.data_pools if p["name"] != pool_name]
-            self._update_pool_list()
-    
-    def _update_pool_list(self):
-        """Update the pool list view"""
-        self.pool_store.clear()
-        for pool in self.data_pools:
-            self.pool_store.append([
-                pool["name"],
-                pool["vdev_config"]["layout"],
-                str(len(pool["vdev_config"]["disks"])),
-                pool.get("compression", "lz4")
-            ])
-        
-        # Update dataset pool combo
-        self.dataset_pool_combo.remove_all()
-        self.dataset_pool_combo.append_text("bpool")  # Boot pool
-        for pool in self.data_pools:
-            self.dataset_pool_combo.append_text(pool["name"])
-    
-    def _on_add_dataset(self, widget):
-        """Add a new dataset"""
-        pool_name = self.dataset_pool_combo.get_active_text()
-        if not pool_name:
-            return
-        
-        dialog = DatasetConfigDialog(self.get_toplevel(), pool_name, self.compression_defaults)
-        response = dialog.run()
-        
-        if response == Gtk.ResponseType.OK:
-            dataset_config = dialog.get_configuration()
-            if dataset_config:
-                if pool_name not in self.dataset_configs:
-                    self.dataset_configs[pool_name] = []
-                self.dataset_configs[pool_name].append(dataset_config)
-                self._update_dataset_tree()
-        
-        dialog.destroy()
-    
-    def _on_edit_dataset(self, widget):
-        """Edit selected dataset"""
-        # Implementation similar to edit pool
+    def edit_data_pool(self):
+        """Edit selected data pool"""
+        # Implementation would open a dialog to edit pool settings
         pass
     
-    def _on_remove_dataset(self, widget):
-        """Remove selected dataset"""
-        # Implementation similar to remove pool
-        pass
-    
-    def _update_dataset_tree(self):
-        """Update dataset tree view"""
-        self.dataset_store.clear()
-        pool_name = self.dataset_pool_combo.get_active_text()
-        
-        if pool_name and pool_name in self.dataset_configs:
-            for dataset in self.dataset_configs[pool_name]:
-                self._add_dataset_to_tree(None, dataset)
-    
-    def _add_dataset_to_tree(self, parent_iter, dataset):
-        """Add dataset to tree recursively"""
-        special = []
-        if dataset.get("recordsize") != "128K":
-            special.append(f"recordsize={dataset['recordsize']}")
-        if dataset.get("sync") != "standard":
-            special.append(f"sync={dataset['sync']}")
-        
-        iter = self.dataset_store.append(parent_iter, [
-            dataset["name"],
-            dataset.get("mountpoint", "inherit"),
-            dataset.get("compression", "inherit"),
-            dataset.get("recordsize", "128K"),
-            ", ".join(special)
-        ])
-        
-        # Add children
-        for child in dataset.get("children", []):
-            self._add_dataset_to_tree(iter, child)
-    
-    def _apply_dataset_template(self, name: str, properties: Dict[str, Any]):
-        """Apply a dataset template"""
-        pool_name = self.dataset_pool_combo.get_active_text()
-        if not pool_name:
-            return
-        
-        # Create dataset with template properties
-        dataset = {
-            "name": name.lower().replace(" ", "_"),
-            "mountpoint": f"/{name.lower().replace(' ', '_')}",
-            **properties
-        }
-        
-        if pool_name not in self.dataset_configs:
-            self.dataset_configs[pool_name] = []
-        self.dataset_configs[pool_name].append(dataset)
-        self._update_dataset_tree()
-    
-    def _update_summary(self, widget):
-        """Update configuration summary"""
+    def update_summary(self):
+        """Update the configuration summary"""
         summary = "=== ZFS Configuration Summary ===\n\n"
         
         # Boot pool
         summary += "Boot Pool:\n"
-        boot_disks = [row[1] for row in self.boot_disk_store if row[0]]
-        if boot_disks:
-            summary += f"  Name: {self.boot_pool_name.get_text()}\n"
-            summary += f"  Layout: {self.boot_layout.get_active_text()}\n"
-            summary += f"  Disks: {', '.join(boot_disks)}\n"
-            summary += f"  Compression: {self.boot_compression.get_active_text()}\n"
-            summary += f"  Encryption: {'Yes' if self.boot_encrypt.get_active() else 'No'}\n"
-        else:
-            summary += "  Not configured\n"
-        
-        summary += "\n"
+        summary += f"  Name: {self.boot_pool_name.text()}\n"
+        summary += f"  Layout: {self.boot_layout.currentText()}\n"
+        summary += f"  Compression: {self.boot_compression.currentText()}\n"
+        summary += f"  Encryption: {'Yes' if self.boot_encrypt.isChecked() else 'No'}\n\n"
         
         # Data pools
         summary += "Data Pools:\n"
-        if self.data_pools:
-            for pool in self.data_pools:
-                summary += f"  {pool['name']}:\n"
-                summary += f"    Layout: {pool['vdev_config']['layout']}\n"
-                summary += f"    Disks: {len(pool['vdev_config']['disks'])}\n"
-                summary += f"    Compression: {pool.get('compression', 'lz4')}\n"
-        else:
-            summary += "  None configured\n"
+        for pool in self.data_pool_configs:
+            summary += f"  {pool['name']}:\n"
+            summary += f"    Layout: {pool['layout']}\n"
+            summary += f"    Compression: {pool['compression']}\n"
+            summary += f"    Encryption: {'Yes' if pool['encryption'] else 'No'}\n"
+            summary += f"    Deduplication: {'Yes' if pool['dedup'] else 'No'}\n"
+        
+        if not self.data_pool_configs:
+            summary += "  (No data pools configured)\n"
         
         summary += "\n"
         
-        # Datasets
-        summary += "Datasets:\n"
-        for pool_name, datasets in self.dataset_configs.items():
-            summary += f"  Pool {pool_name}:\n"
-            for dataset in datasets:
-                summary += f"    {dataset['name']}: {dataset.get('compression', 'inherit')}"
-                if dataset.get('recordsize'):
-                    summary += f", recordsize={dataset['recordsize']}"
-                summary += "\n"
+        # Advanced settings
+        summary += "Advanced Settings:\n"
+        summary += f"  ARC Max: {self.arc_max.value()} GB\n"
+        summary += f"  ARC Min: {self.arc_min.value()} GB\n"
+        summary += f"  Record Size: {self.record_size.currentText()}\n"
+        summary += f"  Sync Mode: {self.sync_mode.currentText()}\n"
+        summary += f"  TRIM: {'Enabled' if self.trim_enable.isChecked() else 'Disabled'}\n"
+        summary += f"  L2ARC: {'Enabled' if self.l2arc_enable.isChecked() else 'Disabled'}\n"
+        summary += f"  Separate ZIL: {'Enabled' if self.zil_enable.isChecked() else 'Disabled'}\n"
         
-        self.summary_buffer.set_text(summary)
+        self.summary_text.setPlainText(summary)
     
-    def get_configuration(self) -> Dict[str, Any]:
-        """Get the complete ZFS configuration"""
-        # Get boot pool configuration
-        boot_disks = [row[1] for row in self.boot_disk_store if row[0]]
+    def validate_configuration(self):
+        """Validate the current configuration"""
+        errors = []
         
-        if not boot_disks:
-            return None
+        # Check boot pool
+        if not self.boot_pool_name.text():
+            errors.append("Boot pool name is required")
         
-        boot_pool = {
-            "name": self.boot_pool_name.get_text() or "bpool",
-            "vdev_config": {
-                "layout": self.boot_layout.get_active_text() or "mirror",
-                "disks": boot_disks
-            },
-            "compression": self.boot_compression.get_active_text() or "lz4",
-            "encryption": {
-                "enabled": self.boot_encrypt.get_active(),
-                "keylocation": "prompt",
-                "keyformat": "passphrase"
-            },
-            "ashift": "auto"
-        }
+        # Check if at least one disk is selected for boot pool
+        selected_boot_disks = 0
+        for row in range(self.boot_disk_table.rowCount()):
+            item = self.boot_disk_table.item(row, 0)
+            if item and item.checkState() == Qt.Checked:
+                selected_boot_disks += 1
         
-        # Build complete configuration
-        config = {
-            "boot_pool": boot_pool,
-            "data_pools": self.data_pools,
-            "datasets": self.dataset_configs,
-            "compression_defaults": self.compression_defaults,
-            "special_vdevs": {}
-        }
+        if selected_boot_disks == 0:
+            errors.append("At least one disk must be selected for boot pool")
         
-        # Add special vdevs if configured
-        if self.enable_l2arc.get_active():
-            config["special_vdevs"]["l2arc"] = {
-                "disks": [self.l2arc_disks.get_active_text()]
-            }
+        # Check layout requirements
+        layout = self.boot_layout.currentText()
+        if layout == "mirror" and selected_boot_disks < 2:
+            errors.append("Mirror layout requires at least 2 disks")
+        elif layout == "raidz1" and selected_boot_disks < 3:
+            errors.append("RAIDZ1 layout requires at least 3 disks")
         
-        if self.enable_slog.get_active():
-            config["special_vdevs"]["slog"] = {
-                "disks": [self.slog_disks.get_active_text()],
-                "mirror": True
-            }
+        # Check ARC settings
+        if self.arc_min.value() > self.arc_max.value():
+            errors.append("ARC minimum cannot be greater than maximum")
         
-        if self.enable_special.get_active():
-            config["special_vdevs"]["special"] = {
-                "disks": [self.special_disks.get_active_text()],
-                "mirror": True
-            }
-        
-        # ARC configuration
-        if self.arc_max.get_value() > 0:
-            config["arc_max_gb"] = int(self.arc_max.get_value())
-        
-        return config
-
-
-class PoolConfigDialog(Gtk.Dialog):
-    """Dialog for configuring a data pool"""
+        if errors:
+            self.status_label.setText(f"Validation failed: {', '.join(errors)}")
+            self.status_label.setStyleSheet("color: red")
+            self.apply_button.setEnabled(False)
+        else:
+            self.status_label.setText("Configuration is valid")
+            self.status_label.setStyleSheet("color: green")
+            self.apply_button.setEnabled(True)
     
-    def __init__(self, parent, available_disks, compression_defaults, existing_config=None):
-        super().__init__(title="Configure Data Pool", parent=parent)
-        self.add_buttons(
-            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-            Gtk.STOCK_OK, Gtk.ResponseType.OK
-        )
+    def apply_configuration(self):
+        """Apply the configuration to global storage"""
+        config = self.get_configuration()
         
-        self.available_disks = available_disks
-        self.compression_defaults = compression_defaults
-        self.existing_config = existing_config
+        # Store in global storage
+        self.gs.setValue("zfsRichConfig", json.dumps(config))
         
-        self._build_ui()
-        
-        if existing_config:
-            self._load_existing_config()
+        self.status_label.setText("Configuration applied successfully")
+        self.status_label.setStyleSheet("color: green")
     
-    def _build_ui(self):
-        """Build dialog UI"""
-        box = self.get_content_area()
-        box.set_spacing(10)
-        box.set_margin_left(20)
-        box.set_margin_right(20)
-        box.set_margin_top(20)
-        
-        # Pool name
-        name_box = Gtk.Box(spacing=10)
-        name_box.pack_start(Gtk.Label(label="Pool Name:"), False, False, 0)
-        self.name_entry = Gtk.Entry()
-        self.name_entry.set_width_chars(20)
-        name_box.pack_start(self.name_entry, False, False, 0)
-        box.pack_start(name_box, False, False, 0)
-        
-        # Layout selection
-        layout_box = Gtk.Box(spacing=10)
-        layout_box.pack_start(Gtk.Label(label="Layout:"), False, False, 0)
-        self.layout_combo = Gtk.ComboBoxText()
-        for layout in ["stripe", "mirror", "raidz1", "raidz2", "raidz3", "draid"]:
-            self.layout_combo.append_text(layout)
-        self.layout_combo.set_active(1)  # Default to mirror
-        layout_box.pack_start(self.layout_combo, False, False, 0)
-        box.pack_start(layout_box, False, False, 0)
-        
-        # Disk selection
-        box.pack_start(Gtk.Label(label="Select Disks:"), False, False, 0)
-        
-        self.disk_store = Gtk.ListStore(bool, str, str, str, str)
-        self.disk_view = Gtk.TreeView(model=self.disk_store)
-        
-        renderer_toggle = Gtk.CellRendererToggle()
-        renderer_toggle.connect("toggled", self._on_disk_toggled)
-        col_select = Gtk.TreeViewColumn("Select", renderer_toggle, active=0)
-        self.disk_view.append_column(col_select)
-        
-        for i, title in enumerate(["Device", "Size", "Type", "Model"], 1):
-            renderer = Gtk.CellRendererText()
-            column = Gtk.TreeViewColumn(title, renderer, text=i)
-            self.disk_view.append_column(column)
-        
-        for disk in self.available_disks:
-            self.disk_store.append([
-                False,
-                disk["device"],
-                disk["size"],
-                disk["type"],
-                disk["model"]
-            ])
-        
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_min_content_height(200)
-        scroll.add(self.disk_view)
-        box.pack_start(scroll, True, True, 0)
-        
-        # Compression
-        comp_box = Gtk.Box(spacing=10)
-        comp_box.pack_start(Gtk.Label(label="Compression:"), False, False, 0)
-        self.compression_combo = Gtk.ComboBoxText()
-        for comp in ["off", "lz4", "zstd", "zstd-3", "zstd-6", "zstd-9", "gzip", "gzip-9"]:
-            self.compression_combo.append_text(comp)
-        self.compression_combo.set_active_text(self.compression_defaults.get("general", "lz4"))
-        comp_box.pack_start(self.compression_combo, False, False, 0)
-        box.pack_start(comp_box, False, False, 0)
-        
-        # Encryption
-        self.encrypt_check = Gtk.CheckButton(label="Enable encryption")
-        box.pack_start(self.encrypt_check, False, False, 0)
-        
-        # Deduplication
-        dedup_box = Gtk.Box(spacing=10)
-        dedup_box.pack_start(Gtk.Label(label="Deduplication:"), False, False, 0)
-        self.dedup_combo = Gtk.ComboBoxText()
-        for dedup in ["off", "on", "verify"]:
-            self.dedup_combo.append_text(dedup)
-        self.dedup_combo.set_active(0)  # Default off
-        dedup_box.pack_start(self.dedup_combo, False, False, 0)
-        box.pack_start(dedup_box, False, False, 0)
-        
-        box.show_all()
-    
-    def _on_disk_toggled(self, widget, path):
-        """Handle disk selection toggle"""
-        self.disk_store[path][0] = not self.disk_store[path][0]
-    
-    def _load_existing_config(self):
-        """Load existing configuration"""
-        config = self.existing_config
-        self.name_entry.set_text(config["name"])
-        self.layout_combo.set_active_text(config["vdev_config"]["layout"])
-        self.compression_combo.set_active_text(config.get("compression", "lz4"))
-        self.encrypt_check.set_active(config.get("encryption", {}).get("enabled", False))
-        self.dedup_combo.set_active_text(config.get("dedup", "off"))
-        
-        # Mark selected disks
-        selected_disks = config["vdev_config"]["disks"]
-        for row in self.disk_store:
-            if row[1] in selected_disks:
-                row[0] = True
-    
-    def get_configuration(self) -> Dict[str, Any]:
-        """Get pool configuration"""
-        name = self.name_entry.get_text()
-        if not name:
-            return None
-        
-        selected_disks = [row[1] for row in self.disk_store if row[0]]
-        if not selected_disks:
-            return None
-        
-        return {
-            "name": name,
-            "vdev_config": {
-                "layout": self.layout_combo.get_active_text(),
-                "disks": selected_disks
-            },
-            "compression": self.compression_combo.get_active_text(),
-            "encryption": {
-                "enabled": self.encrypt_check.get_active(),
-                "keylocation": "prompt",
-                "keyformat": "passphrase"
-            },
-            "dedup": self.dedup_combo.get_active_text(),
-            "ashift": "auto"
-        }
-
-
-class DatasetConfigDialog(Gtk.Dialog):
-    """Dialog for configuring a dataset"""
-    
-    def __init__(self, parent, pool_name, compression_defaults):
-        super().__init__(title=f"Configure Dataset on {pool_name}", parent=parent)
-        self.add_buttons(
-            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-            Gtk.STOCK_OK, Gtk.ResponseType.OK
-        )
-        
-        self.pool_name = pool_name
-        self.compression_defaults = compression_defaults
-        
-        self._build_ui()
-    
-    def _build_ui(self):
-        """Build dialog UI"""
-        box = self.get_content_area()
-        box.set_spacing(10)
-        box.set_margin_left(20)
-        box.set_margin_right(20)
-        box.set_margin_top(20)
-        
-        # Dataset name
-        name_box = Gtk.Box(spacing=10)
-        name_box.pack_start(Gtk.Label(label="Dataset Name:"), False, False, 0)
-        self.name_entry = Gtk.Entry()
-        self.name_entry.set_width_chars(30)
-        name_box.pack_start(self.name_entry, False, False, 0)
-        box.pack_start(name_box, False, False, 0)
-        
-        # Mountpoint
-        mount_box = Gtk.Box(spacing=10)
-        mount_box.pack_start(Gtk.Label(label="Mountpoint:"), False, False, 0)
-        self.mount_entry = Gtk.Entry()
-        self.mount_entry.set_width_chars(30)
-        mount_box.pack_start(self.mount_entry, False, False, 0)
-        box.pack_start(mount_box, False, False, 0)
-        
-        # Compression
-        comp_box = Gtk.Box(spacing=10)
-        comp_box.pack_start(Gtk.Label(label="Compression:"), False, False, 0)
-        self.compression_combo = Gtk.ComboBoxText()
-        for comp in ["inherit", "off", "lz4", "zstd", "zstd-3", "zstd-6", "zstd-9", "gzip"]:
-            self.compression_combo.append_text(comp)
-        self.compression_combo.set_active(0)  # Default inherit
-        comp_box.pack_start(self.compression_combo, False, False, 0)
-        box.pack_start(comp_box, False, False, 0)
-        
-        # Record size
-        record_box = Gtk.Box(spacing=10)
-        record_box.pack_start(Gtk.Label(label="Record Size:"), False, False, 0)
-        self.recordsize_combo = Gtk.ComboBoxText()
-        for size in ["inherit", "4K", "8K", "16K", "32K", "64K", "128K", "256K", "512K", "1M"]:
-            self.recordsize_combo.append_text(size)
-        self.recordsize_combo.set_active_text("128K")
-        record_box.pack_start(self.recordsize_combo, False, False, 0)
-        box.pack_start(record_box, False, False, 0)
-        
-        # Sync
-        sync_box = Gtk.Box(spacing=10)
-        sync_box.pack_start(Gtk.Label(label="Sync:"), False, False, 0)
-        self.sync_combo = Gtk.ComboBoxText()
-        for sync in ["standard", "always", "disabled"]:
-            self.sync_combo.append_text(sync)
-        self.sync_combo.set_active(0)
-        sync_box.pack_start(self.sync_combo, False, False, 0)
-        box.pack_start(sync_box, False, False, 0)
-        
-        # Quota
-        quota_box = Gtk.Box(spacing=10)
-        quota_box.pack_start(Gtk.Label(label="Quota:"), False, False, 0)
-        self.quota_entry = Gtk.Entry()
-        self.quota_entry.set_placeholder_text("e.g., 100G")
-        self.quota_entry.set_width_chars(20)
-        quota_box.pack_start(self.quota_entry, False, False, 0)
-        box.pack_start(quota_box, False, False, 0)
-        
-        box.show_all()
-    
-    def get_configuration(self) -> Dict[str, Any]:
-        """Get dataset configuration"""
-        name = self.name_entry.get_text()
-        if not name:
-            return None
+    def get_configuration(self) -> Dict:
+        """Get the complete configuration"""
+        # Get selected boot disks
+        boot_disks = []
+        for row in range(self.boot_disk_table.rowCount()):
+            item = self.boot_disk_table.item(row, 0)
+            if item and item.checkState() == Qt.Checked:
+                device_item = self.boot_disk_table.item(row, 1)
+                if device_item:
+                    boot_disks.append(device_item.text())
         
         config = {
-            "name": name,
-            "mountpoint": self.mount_entry.get_text() or f"/{name}"
+            "boot_pool": {
+                "name": self.boot_pool_name.text(),
+                "layout": self.boot_layout.currentText(),
+                "disks": boot_disks,
+                "compression": self.boot_compression.currentText(),
+                "encryption": self.boot_encrypt.isChecked()
+            },
+            "data_pools": self.data_pool_configs,
+            "advanced": {
+                "arc_max": self.arc_max.value() * 1024 * 1024 * 1024,  # Convert to bytes
+                "arc_min": self.arc_min.value() * 1024 * 1024 * 1024,
+                "record_size": self.record_size.currentText(),
+                "sync_mode": self.sync_mode.currentText(),
+                "trim_enabled": self.trim_enable.isChecked(),
+                "l2arc_enabled": self.l2arc_enable.isChecked(),
+                "zil_enabled": self.zil_enable.isChecked(),
+                "module_params": self.module_params.toPlainText()
+            }
         }
-        
-        # Only add non-default values
-        if self.compression_combo.get_active_text() != "inherit":
-            config["compression"] = self.compression_combo.get_active_text()
-        
-        if self.recordsize_combo.get_active_text() != "inherit":
-            config["recordsize"] = self.recordsize_combo.get_active_text()
-        
-        if self.sync_combo.get_active_text() != "standard":
-            config["sync"] = self.sync_combo.get_active_text()
-        
-        if self.quota_entry.get_text():
-            config["quota"] = self.quota_entry.get_text()
         
         return config

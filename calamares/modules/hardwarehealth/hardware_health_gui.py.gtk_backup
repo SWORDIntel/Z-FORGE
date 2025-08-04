@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""
+Hardware Health Monitor GUI for Calamares
+"""
+
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
+from typing import Dict
+
+class HardwareHealthGui(Gtk.Box):
+    """Hardware health monitoring configuration widget"""
+    
+    def __init__(self, globalstorage):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.gs = globalstorage
+        self.config = {
+            "monitoring": {},
+            "alerts": {},
+            "services": []
+        }
+        
+        self.setup_ui()
+        
+    def setup_ui(self):
+        """Build the UI"""
+        # Header
+        header = Gtk.Label()
+        header.set_markup("<b>Hardware Monitoring Configuration</b>")
+        self.pack_start(header, False, False, 0)
+        
+        # Monitoring options
+        monitor_frame = Gtk.Frame(label="Monitoring Services")
+        monitor_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        monitor_box.set_margin_top(10)
+        monitor_box.set_margin_bottom(10)
+        monitor_box.set_margin_left(10)
+        monitor_box.set_margin_right(10)
+        
+        self.temp_check = Gtk.CheckButton(label="Temperature Monitoring (lm-sensors)")
+        self.temp_check.set_active(True)
+        monitor_box.pack_start(self.temp_check, False, False, 0)
+        
+        self.smart_check = Gtk.CheckButton(label="Disk Health (smartmontools)")
+        self.smart_check.set_active(True)
+        monitor_box.pack_start(self.smart_check, False, False, 0)
+        
+        self.raid_check = Gtk.CheckButton(label="RAID Status (megacli/perccli)")
+        self.raid_check.set_active(True)
+        monitor_box.pack_start(self.raid_check, False, False, 0)
+        
+        self.power_check = Gtk.CheckButton(label="Power Monitoring (IPMI)")
+        self.power_check.set_active(True)
+        monitor_box.pack_start(self.power_check, False, False, 0)
+        
+        monitor_frame.add(monitor_box)
+        self.pack_start(monitor_frame, False, False, 0)
+        
+        # Alert configuration
+        alert_frame = Gtk.Frame(label="Alert Configuration")
+        alert_grid = Gtk.Grid()
+        alert_grid.set_column_spacing(10)
+        alert_grid.set_row_spacing(10)
+        alert_grid.set_margin_top(10)
+        alert_grid.set_margin_bottom(10)
+        alert_grid.set_margin_left(10)
+        alert_grid.set_margin_right(10)
+        
+        # Email alerts
+        email_label = Gtk.Label(label="Alert Email:")
+        alert_grid.attach(email_label, 0, 0, 1, 1)
+        
+        self.email_entry = Gtk.Entry()
+        self.email_entry.set_placeholder_text("admin@example.com")
+        self.email_entry.set_hexpand(True)
+        alert_grid.attach(self.email_entry, 1, 0, 2, 1)
+        
+        # Temperature thresholds
+        cpu_warn_label = Gtk.Label(label="CPU Temp Warning:")
+        alert_grid.attach(cpu_warn_label, 0, 1, 1, 1)
+        
+        self.cpu_warn_spin = Gtk.SpinButton.new_with_range(50, 100, 5)
+        self.cpu_warn_spin.set_value(75)
+        alert_grid.attach(self.cpu_warn_spin, 1, 1, 1, 1)
+        
+        cpu_crit_label = Gtk.Label(label="CPU Temp Critical:")
+        alert_grid.attach(cpu_crit_label, 0, 2, 1, 1)
+        
+        self.cpu_crit_spin = Gtk.SpinButton.new_with_range(60, 105, 5)
+        self.cpu_crit_spin.set_value(85)
+        alert_grid.attach(self.cpu_crit_spin, 1, 2, 1, 1)
+        
+        # Disk thresholds
+        disk_temp_label = Gtk.Label(label="Disk Temp Warning:")
+        alert_grid.attach(disk_temp_label, 0, 3, 1, 1)
+        
+        self.disk_temp_spin = Gtk.SpinButton.new_with_range(40, 70, 5)
+        self.disk_temp_spin.set_value(50)
+        alert_grid.attach(self.disk_temp_spin, 1, 3, 1, 1)
+        
+        disk_space_label = Gtk.Label(label="Disk Space Warning:")
+        alert_grid.attach(disk_space_label, 0, 4, 1, 1)
+        
+        self.disk_space_spin = Gtk.SpinButton.new_with_range(50, 95, 5)
+        self.disk_space_spin.set_value(80)
+        alert_grid.attach(self.disk_space_spin, 1, 4, 1, 1)
+        
+        percent_label = Gtk.Label(label="%")
+        alert_grid.attach(percent_label, 2, 4, 1, 1)
+        
+        alert_frame.add(alert_grid)
+        self.pack_start(alert_frame, False, False, 0)
+        
+        # Additional options
+        options_frame = Gtk.Frame(label="Additional Options")
+        options_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        options_box.set_margin_top(10)
+        options_box.set_margin_bottom(10)
+        options_box.set_margin_left(10)
+        options_box.set_margin_right(10)
+        
+        self.syslog_check = Gtk.CheckButton(label="Log to local syslog")
+        self.syslog_check.set_active(True)
+        options_box.pack_start(self.syslog_check, False, False, 0)
+        
+        self.remote_syslog_check = Gtk.CheckButton(label="Log to remote syslog")
+        options_box.pack_start(self.remote_syslog_check, False, False, 0)
+        
+        remote_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        remote_label = Gtk.Label(label="Remote server:")
+        remote_box.pack_start(remote_label, False, False, 0)
+        
+        self.remote_entry = Gtk.Entry()
+        self.remote_entry.set_placeholder_text("syslog.example.com:514")
+        self.remote_entry.set_sensitive(False)
+        remote_box.pack_start(self.remote_entry, True, True, 0)
+        
+        options_box.pack_start(remote_box, False, False, 0)
+        
+        self.remote_syslog_check.connect("toggled", self.on_remote_toggled)
+        
+        options_frame.add(options_box)
+        self.pack_start(options_frame, False, False, 0)
+        
+        self.show_all()
+        
+    def on_remote_toggled(self, button):
+        """Handle remote syslog toggle"""
+        self.remote_entry.set_sensitive(button.get_active())
+        
+    def get_configuration(self) -> Dict:
+        """Get the hardware monitoring configuration"""
+        config = {
+            "monitoring": {
+                "temperature": self.temp_check.get_active(),
+                "smart": self.smart_check.get_active(),
+                "raid": self.raid_check.get_active(),
+                "power": self.power_check.get_active()
+            },
+            "alerts": {
+                "email": self.email_entry.get_text(),
+                "cpu_temp_warning": int(self.cpu_warn_spin.get_value()),
+                "cpu_temp_critical": int(self.cpu_crit_spin.get_value()),
+                "disk_temp_warning": int(self.disk_temp_spin.get_value()),
+                "disk_space_warning": int(self.disk_space_spin.get_value())
+            },
+            "services": []
+        }
+        
+        # Determine required services
+        if config["monitoring"]["temperature"]:
+            config["services"].append("lm-sensors")
+        if config["monitoring"]["smart"]:
+            config["services"].append("smartmontools")
+        if config["monitoring"]["power"]:
+            config["services"].append("ipmitool")
+            
+        return config

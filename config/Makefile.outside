@@ -1,0 +1,214 @@
+# Z-FORGE Outside Build Makefile
+# Build as many packages as possible outside chroot
+
+SHELL := /bin/bash
+PROJECT_ROOT := $(shell pwd)
+PACKAGES_DIR := $(PROJECT_ROOT)/prebuilt_packages
+BUILD_SPEC := build_spec_outside_packages.yml
+
+# Colors for output
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+NC := \033[0m
+
+# Default target
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help: ## Show this help message
+	@echo -e "$(GREEN)Z-FORGE Outside Build System$(NC)"
+	@echo -e "$(GREEN)=============================$(NC)"
+	@echo ""
+	@echo "Build as many packages as possible outside the chroot for speed and safety"
+	@echo ""
+	@echo -e "$(YELLOW)Available targets:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}'
+	@echo ""
+	@echo -e "$(YELLOW)Quick start:$(NC)"
+	@echo "  make all              # Build everything (packages + ISO)"
+	@echo "  make packages         # Build all packages outside chroot"
+	@echo "  make iso              # Build ISO using prebuilt packages"
+	@echo ""
+
+.PHONY: all
+all: packages iso ## Build all packages outside chroot then create ISO
+
+.PHONY: check-root
+check-root:
+	@if [ "$$(id -u)" != "0" ]; then \
+		echo -e "$(RED)Error: This must be run as root$(NC)"; \
+		echo "  sudo make -f Makefile.outside $(MAKECMDGOALS)"; \
+		exit 1; \
+	fi
+
+.PHONY: deps
+deps: check-root ## Install build dependencies
+	@echo -e "$(GREEN)Installing build dependencies...$(NC)"
+	@apt-get update
+	@apt-get install -y \
+		build-essential devscripts debhelper python3-venv \
+		git wget curl cmake meson ninja-build \
+		python3-yaml python3-dev || true
+	@echo -e "$(GREEN)Core dependencies installed$(NC)"
+
+.PHONY: packages
+packages: check-root deps build-zfs build-kernel build-bootloaders build-utilities build-calamares ## Build all packages outside chroot
+	@echo -e "$(GREEN)✅ All packages built successfully!$(NC)"
+	@echo -e "$(GREEN)Packages location: $(PACKAGES_DIR)$(NC)"
+	@ls -la $(PACKAGES_DIR)/
+
+.PHONY: build-zfs
+build-zfs: check-root ## Build ZFS packages from Proxmox source
+	@echo -e "$(GREEN)Building ZFS packages...$(NC)"
+	@if [ -f scripts/build/build_zfs_on_host.sh ]; then \
+		bash scripts/build/build_zfs_on_host.sh; \
+	else \
+		bash scripts/build/build_all_packages_outside.sh zfs; \
+	fi
+
+.PHONY: build-proxmox
+build-proxmox: check-root ## Build Proxmox packages
+	@echo -e "$(GREEN)Building Proxmox packages...$(NC)"
+	@if [ -f scripts/build/build_proxmox_on_host.sh ]; then \
+		bash scripts/build/build_proxmox_on_host.sh; \
+	else \
+		echo -e "$(YELLOW)Proxmox build script not found, skipping...$(NC)"; \
+	fi
+
+.PHONY: build-kernel
+build-kernel: check-root ## Build kernel modules outside chroot
+	@echo -e "$(GREEN)Building kernel modules...$(NC)"
+	@bash scripts/build/build_all_packages_outside.sh kernel
+
+.PHONY: build-bootloaders
+build-bootloaders: check-root ## Build bootloader packages (ZFSBootMenu, etc)
+	@echo -e "$(GREEN)Building bootloader packages...$(NC)"
+	@bash scripts/build/build_all_packages_outside.sh bootloaders
+
+.PHONY: build-utilities
+build-utilities: check-root ## Build system utilities
+	@echo -e "$(GREEN)Building system utilities...$(NC)"
+	@bash scripts/build/build_all_packages_outside.sh utilities
+
+.PHONY: build-calamares
+build-calamares: check-root ## Build Calamares installer
+	@echo -e "$(GREEN)Building Calamares installer...$(NC)"
+	@bash scripts/build/build_all_packages_outside.sh calamares
+
+.PHONY: list-packages
+list-packages: ## List all built packages
+	@echo -e "$(GREEN)Built packages:$(NC)"
+	@if [ -d $(PACKAGES_DIR) ]; then \
+		echo ""; \
+		echo "ZFS packages:"; \
+		ls -la $(PACKAGES_DIR)/zfs/*.deb 2>/dev/null | wc -l; \
+		echo ""; \
+		echo "Kernel modules:"; \
+		ls -la $(PACKAGES_DIR)/kernel/*.deb 2>/dev/null | wc -l; \
+		echo ""; \
+		echo "Bootloaders:"; \
+		ls -la $(PACKAGES_DIR)/bootloaders/*.deb 2>/dev/null | wc -l; \
+		echo ""; \
+		echo "System packages:"; \
+		ls -la $(PACKAGES_DIR)/system/*.deb 2>/dev/null | wc -l; \
+		echo ""; \
+		echo "Utilities:"; \
+		ls -la $(PACKAGES_DIR)/utilities/*.deb 2>/dev/null | wc -l; \
+		echo ""; \
+		echo "Calamares:"; \
+		ls -la $(PACKAGES_DIR)/calamares/*.deb 2>/dev/null | wc -l; \
+		echo ""; \
+		echo -e "$(GREEN)Total: $$(find $(PACKAGES_DIR) -name '*.deb' | wc -l) packages$(NC)"; \
+	else \
+		echo -e "$(RED)No packages built yet$(NC)"; \
+	fi
+
+.PHONY: iso
+iso: check-root check-packages ## Build ISO using prebuilt packages
+	@echo -e "$(GREEN)Building ISO with prebuilt packages...$(NC)"
+	@rm -rf ~/zforge_workspace
+	@python3 build.py --spec $(BUILD_SPEC)
+
+.PHONY: check-packages
+check-packages:
+	@if [ ! -d $(PACKAGES_DIR) ] || [ "$$(find $(PACKAGES_DIR) -name '*.deb' | wc -l)" -eq 0 ]; then \
+		echo -e "$(RED)Error: No prebuilt packages found!$(NC)"; \
+		echo "Run 'make packages' first to build packages"; \
+		exit 1; \
+	fi
+
+.PHONY: clean-packages
+clean-packages: ## Remove all built packages
+	@echo -e "$(YELLOW)Removing built packages...$(NC)"
+	@rm -rf $(PACKAGES_DIR)
+	@rm -rf outside_build
+	@echo -e "$(GREEN)Package directories cleaned$(NC)"
+
+.PHONY: clean-workspace
+clean-workspace: ## Clean build workspace
+	@echo -e "$(YELLOW)Cleaning workspace...$(NC)"
+	@rm -rf ~/zforge_workspace
+	@echo -e "$(GREEN)Workspace cleaned$(NC)"
+
+.PHONY: clean
+clean: clean-workspace ## Clean workspace but keep packages
+
+.PHONY: distclean
+distclean: clean-packages clean-workspace ## Clean everything (packages + workspace)
+	@echo -e "$(GREEN)Everything cleaned$(NC)"
+
+.PHONY: test-zfs
+test-zfs: ## Test ZFS package build only
+	@echo -e "$(GREEN)Testing ZFS package build...$(NC)"
+	@bash scripts/build/build_all_packages_outside.sh test-zfs
+
+.PHONY: verify
+verify: ## Verify built packages
+	@echo -e "$(GREEN)Verifying packages...$(NC)"
+	@if [ -d $(PACKAGES_DIR) ]; then \
+		echo "Checking package integrity..."; \
+		find $(PACKAGES_DIR) -name "*.deb" -exec dpkg-deb --info {} \; > /dev/null; \
+		echo -e "$(GREEN)✅ All packages valid$(NC)"; \
+	else \
+		echo -e "$(RED)No packages to verify$(NC)"; \
+	fi
+
+.PHONY: summary
+summary: ## Show build summary
+	@if [ -f outside_build_summary.txt ]; then \
+		cat outside_build_summary.txt; \
+	else \
+		echo -e "$(RED)No build summary found. Run 'make packages' first.$(NC)"; \
+	fi
+
+# Advanced targets
+
+.PHONY: parallel-build
+parallel-build: check-root ## Build all packages in parallel (experimental)
+	@echo -e "$(GREEN)Starting parallel package build...$(NC)"
+	@$(MAKE) -f $(MAKEFILE_LIST) -j4 build-zfs build-kernel build-bootloaders build-utilities
+
+.PHONY: quick-iso
+quick-iso: check-root check-packages ## Quick ISO build (skip package building)
+	@echo -e "$(GREEN)Quick ISO build using existing packages...$(NC)"
+	@python3 build.py --spec $(BUILD_SPEC) --skip-package-build
+
+.PHONY: rebuild-iso
+rebuild-iso: clean-workspace iso ## Clean workspace and rebuild ISO
+
+# Timing targets
+.PHONY: time-build
+time-build: ## Time the complete build process
+	@echo -e "$(GREEN)Timing complete build...$(NC)"
+	@time $(MAKE) -f $(MAKEFILE_LIST) all
+
+.PHONY: benchmark
+benchmark: clean ## Run build benchmark
+	@echo -e "$(GREEN)Running build benchmark...$(NC)"
+	@echo "Starting at: $$(date)"
+	@time $(MAKE) -f $(MAKEFILE_LIST) packages
+	@echo "Packages built at: $$(date)"
+	@time $(MAKE) -f $(MAKEFILE_LIST) iso
+	@echo "ISO built at: $$(date)"
+	@echo -e "$(GREEN)Benchmark complete$(NC)"

@@ -3,19 +3,20 @@
 Network Configuration GUI for Calamares
 """
 
-import gi
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QPushButton, QComboBox, QCheckBox, QLineEdit, 
+                             QTextEdit, QGroupBox, QRadioButton, QScrollArea)
+from PyQt5.QtCore import Qt, pyqtSignal
 import subprocess
 import json
 import ipaddress
 from typing import Dict, List
 
-class NetworkConfigWidget(Gtk.Box):
+class NetworkConfigGui(QGroupBox):
     """Network configuration widget"""
     
     def __init__(self, globalstorage):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        super().__init__("Network Configuration")
         self.gs = globalstorage
         self.interfaces = {}
         self.network_config = {
@@ -28,41 +29,47 @@ class NetworkConfigWidget(Gtk.Box):
         
     def setup_ui(self):
         """Build the UI"""
-        # Header
-        header = Gtk.Label()
-        header.set_markup("<b>Network Configuration</b>")
-        self.pack_start(header, False, False, 0)
+        layout = QVBoxLayout()
+        self.setLayout(layout)
         
-        # Interface list
-        self.interface_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_min_content_height(300)
-        scroll.add(self.interface_box)
-        self.pack_start(scroll, True, True, 0)
+        # Header
+        header = QLabel("<b>Network Configuration</b>")
+        layout.addWidget(header)
+        
+        # Interface list in scroll area
+        scroll = QScrollArea()
+        scroll.setMinimumHeight(300)
+        
+        self.interface_widget = QWidget()
+        self.interface_layout = QVBoxLayout()
+        self.interface_widget.setLayout(self.interface_layout)
+        
+        scroll.setWidget(self.interface_widget)
+        scroll.setWidgetResizable(True)
+        layout.addWidget(scroll)
         
         # DNS configuration
-        dns_frame = Gtk.Frame(label="DNS Servers")
-        dns_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        dns_box.set_margin_top(10)
-        dns_box.set_margin_bottom(10)
-        dns_box.set_margin_left(10)
-        dns_box.set_margin_right(10)
+        dns_frame = QGroupBox("DNS Servers")
+        dns_layout = QVBoxLayout()
+        dns_frame.setLayout(dns_layout)
         
-        self.dns1_entry = Gtk.Entry()
-        self.dns1_entry.set_text("8.8.8.8")
-        self.dns1_entry.set_placeholder_text("Primary DNS")
-        dns_box.pack_start(self.dns1_entry, False, False, 0)
+        dns1_layout = QHBoxLayout()
+        dns1_layout.addWidget(QLabel("Primary DNS:"))
+        self.dns1_entry = QLineEdit("8.8.8.8")
+        self.dns1_entry.setPlaceholderText("Primary DNS")
+        dns1_layout.addWidget(self.dns1_entry)
+        dns_layout.addLayout(dns1_layout)
         
-        self.dns2_entry = Gtk.Entry()
-        self.dns2_entry.set_text("8.8.4.4")
-        self.dns2_entry.set_placeholder_text("Secondary DNS")
-        dns_box.pack_start(self.dns2_entry, False, False, 0)
+        dns2_layout = QHBoxLayout()
+        dns2_layout.addWidget(QLabel("Secondary DNS:"))
+        self.dns2_entry = QLineEdit("8.8.4.4")
+        self.dns2_entry.setPlaceholderText("Secondary DNS")
+        dns2_layout.addWidget(self.dns2_entry)
+        dns_layout.addLayout(dns2_layout)
         
-        dns_frame.add(dns_box)
-        self.pack_start(dns_frame, False, False, 0)
+        layout.addWidget(dns_frame)
         
-        self.show_all()
+        self.show()
         
     def detect_interfaces(self):
         """Detect network interfaces"""
@@ -70,60 +77,68 @@ class NetworkConfigWidget(Gtk.Box):
             output = subprocess.check_output(["ip", "link", "show"]).decode()
             for line in output.split('\n'):
                 if ': ' in line and 'lo:' not in line:
+                    # Parse interface name
                     parts = line.split(': ')
                     if len(parts) >= 2:
-                        iface_name = parts[1].split('@')[0]
-                        if iface_name and not iface_name.startswith('vir'):
-                            self.add_interface(iface_name)
+                        # Format: "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP>"
+                        iface_parts = parts[1].split(':')
+                        if iface_parts:
+                            iface_name = iface_parts[0].strip()
+                            
+                            # Skip virtual interfaces
+                            if iface_name and not iface_name.startswith('vir'):
+                                self.add_interface(iface_name)
         except Exception as e:
             print(f"Error detecting interfaces: {e}")
             
     def add_interface(self, iface_name):
         """Add interface to configuration UI"""
-        frame = Gtk.Frame(label=f"Interface: {iface_name}")
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        box.set_margin_top(10)
-        box.set_margin_bottom(10)
-        box.set_margin_left(10)
-        box.set_margin_right(10)
+        frame = QGroupBox(f"Interface: {iface_name}")
+        layout = QVBoxLayout()
+        frame.setLayout(layout)
         
         # DHCP/Static selection
-        dhcp_radio = Gtk.RadioButton.new_with_label(None, "DHCP")
-        static_radio = Gtk.RadioButton.new_with_label_from_widget(dhcp_radio, "Static IP")
+        dhcp_radio = QRadioButton("DHCP")
+        dhcp_radio.setChecked(True)
+        static_radio = QRadioButton("Static IP")
         
-        radio_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        radio_box.pack_start(dhcp_radio, False, False, 0)
-        radio_box.pack_start(static_radio, False, False, 0)
-        box.pack_start(radio_box, False, False, 0)
+        radio_layout = QHBoxLayout()
+        radio_layout.addWidget(dhcp_radio)
+        radio_layout.addWidget(static_radio)
+        layout.addLayout(radio_layout)
         
         # Static IP configuration
-        static_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        static_widget = QWidget()
+        static_layout = QVBoxLayout()
+        static_widget.setLayout(static_layout)
         
         # IP Address
-        ip_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-        ip_label = Gtk.Label(label="IP Address:")
-        ip_label.set_size_request(100, -1)
-        ip_box.pack_start(ip_label, False, False, 0)
-        ip_entry = Gtk.Entry()
-        ip_entry.set_placeholder_text("192.168.1.100/24")
-        ip_box.pack_start(ip_entry, True, True, 0)
-        static_box.pack_start(ip_box, False, False, 0)
+        ip_layout = QHBoxLayout()
+        ip_label = QLabel("IP Address:")
+        ip_label.setMinimumWidth(100)
+        ip_layout.addWidget(ip_label)
+        
+        ip_entry = QLineEdit()
+        ip_entry.setPlaceholderText("192.168.1.100/24")
+        ip_layout.addWidget(ip_entry)
+        static_layout.addLayout(ip_layout)
         
         # Gateway
-        gw_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-        gw_label = Gtk.Label(label="Gateway:")
-        gw_label.set_size_request(100, -1)
-        gw_box.pack_start(gw_label, False, False, 0)
-        gw_entry = Gtk.Entry()
-        gw_entry.set_placeholder_text("192.168.1.1")
-        gw_box.pack_start(gw_entry, True, True, 0)
-        static_box.pack_start(gw_box, False, False, 0)
+        gw_layout = QHBoxLayout()
+        gw_label = QLabel("Gateway:")
+        gw_label.setMinimumWidth(100)
+        gw_layout.addWidget(gw_label)
+        
+        gw_entry = QLineEdit()
+        gw_entry.setPlaceholderText("192.168.1.1")
+        gw_layout.addWidget(gw_entry)
+        static_layout.addLayout(gw_layout)
         
         # Bridge option
-        bridge_check = Gtk.CheckButton(label="Create bridge for VMs (vmbr0)")
-        static_box.pack_start(bridge_check, False, False, 0)
+        bridge_check = QCheckBox("Create bridge for VMs (vmbr0)")
+        static_layout.addWidget(bridge_check)
         
-        box.pack_start(static_box, False, False, 0)
+        layout.addWidget(static_widget)
         
         # Store references
         self.interfaces[iface_name] = {
@@ -132,76 +147,47 @@ class NetworkConfigWidget(Gtk.Box):
             "ip_entry": ip_entry,
             "gw_entry": gw_entry,
             "bridge_check": bridge_check,
-            "static_box": static_box
+            "static_widget": static_widget
         }
         
         # Connect signals
-        dhcp_radio.connect("toggled", self.on_dhcp_toggled, iface_name)
-        static_radio.connect("toggled", self.on_static_toggled, iface_name)
+        dhcp_radio.toggled.connect(lambda checked: self.on_dhcp_toggled(checked, iface_name))
+        static_radio.toggled.connect(lambda checked: self.on_static_toggled(checked, iface_name))
         
-        frame.add(box)
-        self.interface_box.pack_start(frame, False, False, 0)
-        frame.show_all()
+        self.interface_layout.addWidget(frame)
         
         # Set initial state
-        dhcp_radio.set_active(True)
-        static_box.set_sensitive(False)
+        dhcp_radio.setChecked(True)
+        static_widget.setEnabled(False)
         
-    def on_dhcp_toggled(self, button, iface_name):
-        if button.get_active():
-            self.interfaces[iface_name]["static_box"].set_sensitive(False)
+    def on_dhcp_toggled(self, checked, iface_name):
+        """Handle DHCP radio toggle"""
+        if checked and iface_name in self.interfaces:
+            self.interfaces[iface_name]["static_widget"].setEnabled(False)
             
-    def on_static_toggled(self, button, iface_name):
-        if button.get_active():
-            self.interfaces[iface_name]["static_box"].set_sensitive(True)
+    def on_static_toggled(self, checked, iface_name):
+        """Handle static IP radio toggle"""
+        if checked and iface_name in self.interfaces:
+            self.interfaces[iface_name]["static_widget"].setEnabled(True)
             
     def get_configuration(self) -> Dict:
         """Get the network configuration"""
         config = {
             "interfaces": {},
-            "dns_servers": []
+            "dns_servers": [
+                self.dns1_entry.text(),
+                self.dns2_entry.text()
+            ]
         }
         
-        # Get interface configurations
         for iface_name, widgets in self.interfaces.items():
-            if widgets["dhcp_radio"].get_active():
-                config["interfaces"][iface_name] = {"type": "dhcp"}
-            else:
-                ip_text = widgets["ip_entry"].get_text()
-                gw_text = widgets["gw_entry"].get_text()
-                
-                if not ip_text:
-                    continue
-                    
-                try:
-                    # Parse IP address with CIDR
-                    ip_net = ipaddress.ip_network(ip_text, strict=False)
-                    ip_addr = ip_text.split('/')[0]
-                    netmask = str(ip_net.netmask)
-                    
-                    iface_config = {
-                        "type": "static",
-                        "address": ip_addr,
-                        "netmask": netmask,
-                        "gateway": gw_text
-                    }
-                    
-                    if widgets["bridge_check"].get_active():
-                        iface_config["bridge"] = True
-                        iface_config["bridge_name"] = "vmbr0"
-                        
-                    config["interfaces"][iface_name] = iface_config
-                    
-                except Exception as e:
-                    print(f"Invalid IP configuration: {e}")
-                    
-        # Get DNS servers
-        dns1 = self.dns1_entry.get_text()
-        dns2 = self.dns2_entry.get_text()
-        
-        if dns1:
-            config["dns_servers"].append(dns1)
-        if dns2:
-            config["dns_servers"].append(dns2)
+            iface_config = {
+                "dhcp": widgets["dhcp_radio"].isChecked(),
+                "static": widgets["static_radio"].isChecked(),
+                "ip_address": widgets["ip_entry"].text() if widgets["static_radio"].isChecked() else "",
+                "gateway": widgets["gw_entry"].text() if widgets["static_radio"].isChecked() else "",
+                "bridge": widgets["bridge_check"].isChecked()
+            }
+            config["interfaces"][iface_name] = iface_config
             
         return config

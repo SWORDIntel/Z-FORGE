@@ -65,10 +65,10 @@ def _camel_to_snake(name: str) -> str:
 class ZForgeBuilder:
     """
     Main orchestration engine for Z-Forge ISO builder
-    Implements modular build pipeline based on build_spec.yml
+    Implements modular build pipeline based on build_specs/build_spec.yml
     """
 
-    def __init__(self, config_path: str = "build_spec.yml"):
+    def __init__(self, config_path: str = "build_specs/build_spec.yml"):
         """Initialize builder with configuration"""
         self.config = BuildConfig(config_path)
         builder_config = self.config.get('builder_config', {})

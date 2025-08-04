@@ -12,7 +12,7 @@ import subprocess
 from typing import Dict, List, Optional, Tuple
 import math
 
-class ZFSConfigurationGUI:
+class CalamaresZfsEnhanced:
     """Enhanced ZFS configuration interface with visual pool designer"""
     
     def __init__(self):
@@ -865,5 +865,5 @@ zpool create {self.build_zpool_command()}
         Gtk.main()
 
 if __name__ == "__main__":
-    app = ZFSConfigurationGUI()
+    app = CalamaresZfsEnhanced()
     app.run()

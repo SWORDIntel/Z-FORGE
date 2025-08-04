@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import logging
 
-class ZFSPoolConfig:
+class ZfsPoolConfig:
     """Handles advanced ZFS pool configuration with multiple pools"""
     
     def __init__(self, workspace: Path, config: Dict):

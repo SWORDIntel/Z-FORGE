@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 #!/usr/bin/env python3
 """
 Post-Installation Checklist Module for Calamares
@@ -13,7 +17,7 @@ from pathlib import Path
 from datetime import datetime
 
 sys.path.append(os.path.dirname(__file__))
-from postinstall_gui import PostInstallWidget
+from postinstall_gui import PostinstallGui as PostInstallWidget
 
 def pretty_name():
     return "Post-Install Setup"
@@ -486,7 +490,7 @@ def save_checklist_config(root_path, config):
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=2)
 
-class PostInstallViewStep:
+class PostinstallJob:
     """Calamares ViewStep for post-install checklist"""
     
     def __init__(self):
@@ -519,4 +523,4 @@ class PostInstallViewStep:
     def jobs(self):
         return []
 
-calamares_module = PostInstallViewStep
+calamares_module = PostinstallJob

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import logging
 
-class ZFSEncryption:
+class ZfsEncryption:
     """Handles ZFS native encryption configuration"""
     
     def __init__(self, workspace: Path, config: Dict):

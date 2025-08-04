@@ -17,7 +17,7 @@ except ImportError:
     # Fallback to wget/curl if requests not available
     requests = None
 
-class OpenCoreNVME:
+class OpenCoreNvme:
     """Handles OpenCore installation for NVMe boot support"""
     
     OPENCORE_VERSION = "0.9.7"

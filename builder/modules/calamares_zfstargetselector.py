@@ -27,7 +27,7 @@ def run():
         return ("No pools available", "No ZFS pools were detected in the previous step.")
 
     # Create custom selection dialog
-    dialog = ZFSTargetSelector(pool_info)
+    dialog = CalamaresZfstargetselector(pool_info)
     dialog.run()
     selected = dialog.get_selected()
 
@@ -51,7 +51,7 @@ def run():
 
     return None
 
-class ZFSTargetSelector:
+class CalamaresZfstargetselector:
     """Custom GTK dialog for ZFS target selection with encryption options"""
 
     def __init__(self, pool_info: Dict):
@@ -226,8 +226,8 @@ class ZFSTargetSelector:
         mode_vbox.pack_start(self.mode_new, False, False, 0)
         mode_vbox.pack_start(self.mode_replace, False, False, 0)
         mode_vbox.pack_start(self.mode_alongside, False, False, 0)
-        mode_frame.add(mode_vbox)
-        vbox.pack_start(mode_frame, False, False, 0)
+        self.mode_frame.add(mode_vbox)
+        vbox.pack_start(self.mode_frame, False, False, 0)
 
         # Dataset name entry
         dataset_frame = Gtk.Frame(label="Target Dataset")

@@ -293,6 +293,15 @@ class PresetCLI:
             
         except Exception as e:
             print(f"Error applying preset: {e}")
+    
+    def execute(self, resume_data: Optional[Dict] = None) -> Dict[str, Any]:
+        """Execute method for compatibility with module loader"""
+        # This is a helper module, not meant to be executed directly
+        return {
+            'status': 'success',
+            'message': 'PresetLoader is a helper module',
+            'available_presets': list(self.list_presets())
+        }
 
 
 def main():

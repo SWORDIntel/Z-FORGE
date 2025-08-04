@@ -4,7 +4,7 @@ from typing import Dict, Optional
 import logging
 from builder.core.lockfile import BuildLockfile
 
-class KDEThemeConfig:
+class KdeThemeConfig:
     def __init__(self, workspace: Path, config: dict):
         self.workspace = workspace
         self.config = config

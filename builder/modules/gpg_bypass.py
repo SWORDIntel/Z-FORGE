@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 
-class GPGBypass:
+class GpgBypass:
     """Bypass GPG verification for build process"""
     
     def __init__(self, workspace: Path, config: Dict[str, Any]):

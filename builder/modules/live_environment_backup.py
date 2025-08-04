@@ -11,7 +11,7 @@ from typing import Dict, Optional
 import logging
 from builder.core.lockfile import BuildLockfile
 
-class LiveEnvironment:
+class LiveEnvironmentBackup:
     """Sets up live boot environment"""
 
     def __init__(self, workspace: Path, config: Dict):

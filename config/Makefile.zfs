@@ -1,0 +1,105 @@
+# Z-FORGE ZFS Outside Build Makefile
+# Focused on building ZFS packages outside chroot
+
+SHELL := /bin/bash
+PROJECT_ROOT := $(shell pwd)
+PACKAGES_DIR := $(PROJECT_ROOT)/prebuilt_packages/zfs
+
+# Colors
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+RED := \033[0;31m
+NC := \033[0m
+
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help: ## Show help
+	@echo -e "$(GREEN)Z-FORGE ZFS Package Builder$(NC)"
+	@echo -e "$(GREEN)===========================$(NC)"
+	@echo ""
+	@echo "Build ZFS packages outside chroot for faster builds"
+	@echo ""
+	@echo -e "$(YELLOW)Targets:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-15s$(NC) %s\n", $$1, $$2}'
+
+.PHONY: all
+all: zfs ## Build ZFS packages
+
+.PHONY: check-root
+check-root:
+	@if [ "$$(id -u)" != "0" ]; then \
+		echo -e "$(RED)Error: Run as root$(NC)"; \
+		echo "  sudo make -f Makefile.zfs $(MAKECMDGOALS)"; \
+		exit 1; \
+	fi
+
+.PHONY: deps
+deps: check-root ## Install ZFS build dependencies only
+	@echo -e "$(GREEN)Installing ZFS build dependencies...$(NC)"
+	@apt-get update
+	@apt-get install -y \
+		build-essential autotools-dev autoconf automake libtool \
+		gawk alien fakeroot checkinstall dkms debhelper dh-python \
+		dh-sequence-dkms libblkid-dev uuid-dev libudev-dev \
+		libssl-dev zlib1g-dev libaio-dev libattr1-dev libelf-dev \
+		python3 python3-dev python3-setuptools python3-cffi libffi-dev \
+		libpam0g-dev libcurl4-openssl-dev po-debconf \
+		git wget || true
+	@echo -e "$(GREEN)Dependencies installed$(NC)"
+
+.PHONY: zfs
+zfs: check-root deps ## Build ZFS packages (Debian way)
+	@echo -e "$(GREEN)Building ZFS packages the Debian way...$(NC)"
+	@bash scripts/build/build_zfs_debian_way.sh
+
+.PHONY: zfs-simple
+zfs-simple: check-root deps ## Build ZFS packages (simple method)
+	@echo -e "$(GREEN)Building ZFS packages (simple method)...$(NC)"
+	@bash scripts/build/build_zfs_simple_outside.sh
+
+.PHONY: list
+list: ## List built packages
+	@if [ -d $(PACKAGES_DIR) ]; then \
+		echo -e "$(GREEN)ZFS packages:$(NC)"; \
+		ls -la $(PACKAGES_DIR)/*.deb 2>/dev/null || echo "No packages found"; \
+	else \
+		echo -e "$(RED)No packages built yet$(NC)"; \
+	fi
+
+.PHONY: verify
+verify: ## Verify package integrity
+	@if [ -d $(PACKAGES_DIR) ]; then \
+		echo -e "$(GREEN)Verifying packages...$(NC)"; \
+		for pkg in $(PACKAGES_DIR)/*.deb; do \
+			dpkg-deb --info "$$pkg" > /dev/null && echo "✓ $$pkg" || echo "✗ $$pkg"; \
+		done; \
+	else \
+		echo -e "$(RED)No packages to verify$(NC)"; \
+	fi
+
+.PHONY: clean
+clean: ## Clean build artifacts
+	@echo -e "$(YELLOW)Cleaning...$(NC)"
+	@rm -rf zfs_build_tmp
+	@rm -rf outside_build
+	@echo -e "$(GREEN)Cleaned$(NC)"
+
+.PHONY: distclean
+distclean: clean ## Clean everything including packages
+	@echo -e "$(YELLOW)Removing packages...$(NC)"
+	@rm -rf $(PACKAGES_DIR)
+	@echo -e "$(GREEN)All clean$(NC)"
+
+.PHONY: test-install
+test-install: ## Test install packages locally (careful!)
+	@if [ -d $(PACKAGES_DIR) ] && [ -f $(PACKAGES_DIR)/install_zfs.sh ]; then \
+		echo -e "$(YELLOW)Test installing ZFS packages...$(NC)"; \
+		echo -e "$(RED)Warning: This will install on your system!$(NC)"; \
+		read -p "Continue? (y/N) " -n 1 -r; echo; \
+		if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+			cd $(PACKAGES_DIR) && bash install_zfs.sh; \
+		fi; \
+	else \
+		echo -e "$(RED)No packages to install$(NC)"; \
+	fi

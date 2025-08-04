@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional, Any
 
-class PerfectKernelAcquisition:
+class KernelAcquisitionPerfect:
     """Perfect kernel acquisition that always works"""
     
     def __init__(self, workspace: Path, config: Dict[str, Any]):

@@ -1,0 +1,34 @@
+---
+# Z-FORGE Branding Configuration
+componentName: zforge
+
+# Strings
+strings:
+    productName:         Z-FORGE
+    shortProductName:    Z-FORGE
+    version:             3.0
+    shortVersion:        3.0
+    versionedName:       Z-FORGE 3.0
+    shortVersionedName:  Z-FORGE 3.0
+    bootloaderEntryName: Z-FORGE
+    productUrl:          https://github.com/your-org/z-forge
+    supportUrl:          https://github.com/your-org/z-forge/issues
+    knownIssuesUrl:      https://github.com/your-org/z-forge/issues
+    releaseNotesUrl:     https://github.com/your-org/z-forge/releases
+
+# Images
+images:
+    productLogo:         "logo.png"
+    productIcon:         "icon.png"
+    productWelcome:      "welcome.png"
+
+# Slideshow
+slideshow:               "show.qml"
+slideshowAPI:            2
+
+# Style
+style:
+   sidebarBackground:    "#2c3e50"
+   sidebarText:          "#FFFFFF"
+   sidebarTextSelect:    "#3498db"
+   sidebarTextHighlight: "#1abc9c"

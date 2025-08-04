@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 #!/usr/bin/env python3
 """
 Hardware Health Monitor Module for Calamares
@@ -12,7 +16,7 @@ import libcalamares
 from pathlib import Path
 
 sys.path.append(os.path.dirname(__file__))
-from hardware_health_gui import HardwareHealthWidget
+from hardware_health_gui import HardwareHealthGui as HardwareHealthWidget
 
 def pretty_name():
     return "Hardware Monitoring"
@@ -212,7 +216,7 @@ check_raid_status
     cron_path = Path(root_path) / "etc/cron.d/hardware-monitoring"
     cron_path.write_text(cron_content)
 
-class HardwareHealthViewStep:
+class HardwarehealthJob:
     """Calamares ViewStep for hardware health monitoring"""
     
     def __init__(self):
@@ -245,4 +249,4 @@ class HardwareHealthViewStep:
     def jobs(self):
         return []
 
-calamares_module = HardwareHealthViewStep
+calamares_module = HardwarehealthJob

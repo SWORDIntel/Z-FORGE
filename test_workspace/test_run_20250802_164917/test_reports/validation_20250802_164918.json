@@ -1,0 +1,783 @@
+{
+  "timestamp": "2025-08-02T16:49:18.078558",
+  "total_checks": 81,
+  "passed_checks": 81,
+  "failed_checks": 0,
+  "critical_failures": 0,
+  "error_failures": 0,
+  "warning_count": 0,
+  "overall_status": "ALL_CHECKS_PASSED",
+  "results": [
+    {
+      "component": "build_system",
+      "check_name": "modular_class_configurationmanager",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found modular class: ConfigurationManager",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "build_system",
+      "check_name": "modular_class_argumentparser",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found modular class: ArgumentParser",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "build_system",
+      "check_name": "modular_class_environmentmanager",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found modular class: EnvironmentManager",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "build_system",
+      "check_name": "modular_class_buildlauncher",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found modular class: BuildLauncher",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "build_system",
+      "check_name": "error_handling",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Error handling implemented",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "build_system",
+      "check_name": "build_specifications",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found 3 build specifications",
+      "details": {
+        "specs": [
+          "build_spec_proxmox_full.yml",
+          "build_spec_no_tmp.yml",
+          "build_spec.yml"
+        ]
+      },
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_calamares_integration",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found builder module: calamares_integration.py",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_calamares_integration_enhanced",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found builder module: calamares_integration_enhanced.py",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_zfs_build",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found builder module: zfs_build.py",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_iso_generation",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found builder module: iso_generation.py",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_live_environment",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found builder module: live_environment.py",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_encryption_support",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module encryption_support.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_proxmox_repo_setup",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module proxmox_repo_setup.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_iso_generation",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module iso_generation.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_proxmox_storage_config",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module proxmox_storage_config.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_live_environment",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module live_environment.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_mirror_selector",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module mirror_selector.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_zfs_compression_optimizer",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module zfs_compression_optimizer.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_progress_monitor",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module progress_monitor.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_proxmox_integration",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module proxmox_integration.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_debootstrap",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module debootstrap.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_build_optimizer",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module build_optimizer.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_build_cache",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module build_cache.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_cleanup_handler",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module cleanup_handler.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_proxmox_service_config",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module proxmox_service_config.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_gpg_bypass",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module gpg_bypass.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_opencore_enhanced",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module opencore_enhanced.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_zfs_pool_config",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module zfs_pool_config.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_bootloader_support",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module bootloader_support.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_module_verifier",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module module_verifier.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_kernel_acquisition",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module kernel_acquisition.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_live_environment_fixed",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module live_environment_fixed.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_security_hardening",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module security_hardening.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_autooptimizer",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module autooptimizer.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_proxmox_package_install",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module proxmox_package_install.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_calamares_integration_enhanced",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module calamares_integration_enhanced.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_gpgbypass",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module gpgbypass.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_universal_hardware_detect",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module universal_hardware_detect.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_workspace_setup",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module workspace_setup.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_zfs_encryption",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module zfs_encryption.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_workspace_safety",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module workspace_safety.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_zfsbootmenu_install",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module zfsbootmenu_install.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_zfs_build",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module zfs_build.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_live_environment_backup",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module live_environment_backup.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_kde_theme_config",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module kde_theme_config.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_proxmox_network_config",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module proxmox_network_config.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_open_core_nvme",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module open_core_nvme.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_zfs_build_perfect",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module zfs_build_perfect.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_system_prerequisites",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module system_prerequisites.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_proxmox_cluster_setup",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module proxmox_cluster_setup.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_desktop_environment",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module desktop_environment.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_workspace_cleanup",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module workspace_cleanup.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_non_interactive_fixes",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module non_interactive_fixes.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_zfs_boot_menu_install",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module zfs_boot_menu_install.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_calamares_integration",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module calamares_integration.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_auto_optimizer",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module auto_optimizer.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_dell_t30_optimize",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module dell_t30_optimize.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_kernel_acquisition_perfect",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module kernel_acquisition_perfect.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_opencorenvme",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module opencorenvme.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_hardware_profiler_integration",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module hardware_profiler_integration.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_build_pipeline_validator",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module build_pipeline_validator.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_auto_install_deps",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module auto_install_deps.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_dracut_config",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module dracut_config.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "builder_modules",
+      "check_name": "module_structure_bootloader_setup",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Module bootloader_setup.py has proper structure",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "calamares_integration",
+      "check_name": "custom_modules",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found 15 custom Calamares modules",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "calamares_integration",
+      "check_name": "zfs_modules",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found 4 ZFS modules",
+      "details": {
+        "modules": [
+          "zfsrootselect",
+          "zfspooldetect",
+          "zfsenhancedconfig",
+          "zfsbootloader"
+        ]
+      },
+      "fix_suggestion": null
+    },
+    {
+      "component": "calamares_integration",
+      "check_name": "settings_configuration",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Calamares settings.conf found",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "spec_completeness_build_spec_proxmox_full",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Build spec build_spec_proxmox_full.yml is complete",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "builder_config_validation_build_spec_proxmox_full",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "builder_config properly configured",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "module_name_validation_build_spec_proxmox_full",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "All module names are valid",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "calamares_reference_build_spec_proxmox_full",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Build spec references Calamares integration",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "spec_completeness_build_spec_no_tmp",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Build spec build_spec_no_tmp.yml is complete",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "builder_config_validation_build_spec_no_tmp",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "builder_config properly configured",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "module_name_validation_build_spec_no_tmp",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "All module names are valid",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "calamares_reference_build_spec_no_tmp",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Build spec references Calamares integration",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "spec_completeness_build_spec",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Build spec build_spec.yml is complete",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "builder_config_validation_build_spec",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "builder_config properly configured",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "module_name_validation_build_spec",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "All module names are valid",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "configuration",
+      "check_name": "calamares_reference_build_spec",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Build spec references Calamares integration",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "live_environment",
+      "check_name": "module_exists",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Live environment module found",
+      "details": null,
+      "fix_suggestion": null
+    },
+    {
+      "component": "live_environment",
+      "check_name": "desktop_setup",
+      "level": "ValidationLevel.INFO",
+      "status": true,
+      "message": "Found 2 desktop setup scripts",
+      "details": null,
+      "fix_suggestion": null
+    }
+  ],
+  "integration_matrix": {
+    "build_system": [
+      "builder_modules",
+      "configuration_files",
+      "workspace_setup"
+    ],
+    "builder_modules": [
+      "calamares_integration",
+      "zfs_modules",
+      "live_environment",
+      "iso_generation"
+    ],
+    "calamares_integration": [
+      "custom_modules",
+      "settings_configuration",
+      "zfs_modules",
+      "live_environment"
+    ],
+    "live_environment": [
+      "desktop_setup",
+      "calamares_launcher",
+      "user_configuration"
+    ],
+    "configuration": [
+      "build_specifications",
+      "module_configs",
+      "hardware_profiles"
+    ]
+  }
+}

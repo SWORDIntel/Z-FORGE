@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 import logging
 
-class ZFSBootMenuInstall:
+class ZfsbootmenuInstall:
     """Handles ZFSBootMenu installation from releases"""
     
     # Latest stable version - update as needed

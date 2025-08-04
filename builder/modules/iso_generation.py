@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, Optional
 from builder.core.lockfile import BuildLockfile
 
-class ISOGeneration:
+class IsoGeneration:
     def __init__(self, workspace: Path, config: Dict):
         self.workspace = workspace
         self.config = config

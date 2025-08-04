@@ -1,0 +1,170 @@
+# Z-FORGE Stable Build Specification
+# Using Debian Bookworm (stable) instead of Trixie (testing)
+
+name: Z-FORGE Stable
+version: 3.0
+
+builder_config:
+  # Base configuration
+  workspace_path: /home/john/zforge_workspace
+  debian_release: bookworm  # STABLE instead of trixie
+  debian_mirror: http://deb.debian.org/debian
+  kernel_version: 6.1.0-23-amd64  # Bookworm stable kernel
+  
+  # Output configuration
+  output_iso_name: zforge-stable.iso
+  iso_label: ZFORGE_STABLE
+  
+  # Build options
+  enable_cache: true
+  cache_dir: ~/zforge_cache
+  parallel_downloads: 4
+  retry_attempts: 3
+  
+  # Security
+  verify_signatures: false  # Disabled for build reliability
+  
+modules:
+  # Core build modules (minimal for stability)
+  - name: workspace_setup
+    enabled: true
+    config:
+      clean_on_start: true
+      
+  - name: debootstrap
+    enabled: true
+    config:
+      variant: minbase
+      components:
+        - main
+        - contrib
+        - non-free
+        - non-free-firmware
+      extra_packages:
+        - apt-utils
+        - ca-certificates
+        
+  - name: gpg_bypass
+    enabled: true
+    config:
+      disable_verification: true
+      
+  # chroot_setup is handled by debootstrap module
+      
+  - name: kernel_acquisition
+    enabled: true
+    config:
+      kernel_package: linux-image-amd64
+      headers_package: linux-headers-amd64
+      
+  - name: dracut_config
+    enabled: true
+    config:
+      compress: zstd
+      
+  - name: live_environment
+    enabled: true
+    config:
+      live_user: user
+      live_password: live
+      autologin: true
+      
+  - name: bootloader_setup
+    enabled: true
+    config:
+      timeout: 5
+      default_entry: 0
+      
+  # squashfs is handled by iso_generation module
+      
+  - name: iso_generation
+    enabled: true
+    config:
+      bootloader: isolinux
+      uefi_support: true
+      
+  # ZFS modules - disabled for initial stable build
+  - name: zfs_build
+    enabled: false
+    
+  # Proxmox modules - disabled for initial stable build  
+  - name: proxmox_integration
+    enabled: false
+    
+  # Calamares - disabled for initial stable build
+  - name: calamares_integration
+    enabled: false
+
+# Package lists for stable build
+packages:
+  base:
+    - systemd
+    - systemd-sysv
+    - systemd-timesyncd
+    - dbus
+    - udev
+    - kmod
+    - util-linux
+    - coreutils
+    - procps
+    - psmisc
+    - bash
+    - dash
+    - grep
+    - sed
+    - gawk
+    - findutils
+    - diffutils
+    - e2fsprogs
+    - mount
+    - passwd
+    
+  live:
+    - live-boot
+    - live-config
+    - live-config-systemd
+    - user-setup
+    - sudo
+    
+  networking:
+    - iproute2
+    - isc-dhcp-client
+    - network-manager
+    - iputils-ping
+    - wget
+    - curl
+    - ca-certificates
+    
+  bootloader:
+    - grub-common
+    - grub-pc-bin
+    - grub-efi-amd64-bin
+    - efibootmgr
+    - os-prober
+    
+  filesystem:
+    - dosfstools
+    - mtools
+    - squashfs-tools
+    - xorriso
+    - isolinux
+    - syslinux-common
+    
+  utilities:
+    - nano
+    - less
+    - htop
+    - lsof
+    - pciutils
+    - usbutils
+    - dmidecode
+    
+# Validation rules
+validation:
+  required_space_gb: 20
+  required_memory_mb: 2048
+  required_tools:
+    - debootstrap
+    - squashfs-tools
+    - xorriso
+    - grub-mkrescue

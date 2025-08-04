@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
-Hardware Health Monitor GUI for Calamares
+Hardware Health Monitoring Configuration GUI for Calamares
 """
 
-import gi
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QPushButton, QComboBox, QCheckBox, QLineEdit, 
+                             QTextEdit, QGroupBox, QSpinBox, QGridLayout)
+from PyQt5.QtCore import Qt, pyqtSignal
 from typing import Dict
 
-class HardwareHealthWidget(Gtk.Box):
+class HardwareHealthGui(QGroupBox):
     """Hardware health monitoring configuration widget"""
     
     def __init__(self, globalstorage):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        super().__init__("Hardware Monitoring Configuration")
         self.gs = globalstorage
         self.config = {
             "monitoring": {},
@@ -24,155 +25,158 @@ class HardwareHealthWidget(Gtk.Box):
         
     def setup_ui(self):
         """Build the UI"""
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        
         # Header
-        header = Gtk.Label()
-        header.set_markup("<b>Hardware Monitoring Configuration</b>")
-        self.pack_start(header, False, False, 0)
+        header = QLabel("<b>Hardware Monitoring Configuration</b>")
+        layout.addWidget(header)
         
         # Monitoring options
-        monitor_frame = Gtk.Frame(label="Monitoring Services")
-        monitor_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        monitor_box.set_margin_top(10)
-        monitor_box.set_margin_bottom(10)
-        monitor_box.set_margin_left(10)
-        monitor_box.set_margin_right(10)
+        monitor_frame = QGroupBox("Monitoring Services")
+        monitor_layout = QVBoxLayout()
+        monitor_frame.setLayout(monitor_layout)
         
-        self.temp_check = Gtk.CheckButton(label="Temperature Monitoring (lm-sensors)")
-        self.temp_check.set_active(True)
-        monitor_box.pack_start(self.temp_check, False, False, 0)
+        self.temp_check = QCheckBox("Temperature Monitoring (lm-sensors)")
+        self.temp_check.setChecked(True)
+        monitor_layout.addWidget(self.temp_check)
         
-        self.smart_check = Gtk.CheckButton(label="Disk Health (smartmontools)")
-        self.smart_check.set_active(True)
-        monitor_box.pack_start(self.smart_check, False, False, 0)
+        self.smart_check = QCheckBox("Disk Health (smartmontools)")
+        self.smart_check.setChecked(True)
+        monitor_layout.addWidget(self.smart_check)
         
-        self.raid_check = Gtk.CheckButton(label="RAID Status (megacli/perccli)")
-        self.raid_check.set_active(True)
-        monitor_box.pack_start(self.raid_check, False, False, 0)
+        self.raid_check = QCheckBox("RAID Status (megacli/perccli)")
+        self.raid_check.setChecked(True)
+        monitor_layout.addWidget(self.raid_check)
         
-        self.power_check = Gtk.CheckButton(label="Power Monitoring (IPMI)")
-        self.power_check.set_active(True)
-        monitor_box.pack_start(self.power_check, False, False, 0)
+        self.power_check = QCheckBox("Power Monitoring (IPMI)")
+        self.power_check.setChecked(True)
+        monitor_layout.addWidget(self.power_check)
         
-        monitor_frame.add(monitor_box)
-        self.pack_start(monitor_frame, False, False, 0)
+        layout.addWidget(monitor_frame)
         
         # Alert configuration
-        alert_frame = Gtk.Frame(label="Alert Configuration")
-        alert_grid = Gtk.Grid()
-        alert_grid.set_column_spacing(10)
-        alert_grid.set_row_spacing(10)
-        alert_grid.set_margin_top(10)
-        alert_grid.set_margin_bottom(10)
-        alert_grid.set_margin_left(10)
-        alert_grid.set_margin_right(10)
+        alert_frame = QGroupBox("Alert Configuration")
+        alert_layout = QGridLayout()
+        alert_frame.setLayout(alert_layout)
         
         # Email alerts
-        email_label = Gtk.Label(label="Alert Email:")
-        alert_grid.attach(email_label, 0, 0, 1, 1)
+        email_label = QLabel("Alert Email:")
+        alert_layout.addWidget(email_label, 0, 0)
         
-        self.email_entry = Gtk.Entry()
-        self.email_entry.set_placeholder_text("admin@example.com")
-        self.email_entry.set_hexpand(True)
-        alert_grid.attach(self.email_entry, 1, 0, 2, 1)
+        self.email_entry = QLineEdit()
+        self.email_entry.setPlaceholderText("admin@example.com")
+        alert_layout.addWidget(self.email_entry, 0, 1, 1, 2)
         
-        # Temperature thresholds
-        cpu_warn_label = Gtk.Label(label="CPU Temp Warning:")
-        alert_grid.attach(cpu_warn_label, 0, 1, 1, 1)
+        # Temperature threshold
+        temp_label = QLabel("Temperature Alert:")
+        alert_layout.addWidget(temp_label, 1, 0)
         
-        self.cpu_warn_spin = Gtk.SpinButton.new_with_range(50, 100, 5)
-        self.cpu_warn_spin.set_value(75)
-        alert_grid.attach(self.cpu_warn_spin, 1, 1, 1, 1)
+        self.temp_spin = QSpinBox()
+        self.temp_spin.setMinimum(40)
+        self.temp_spin.setMaximum(100)
+        self.temp_spin.setValue(75)
+        alert_layout.addWidget(self.temp_spin, 1, 1)
         
-        cpu_crit_label = Gtk.Label(label="CPU Temp Critical:")
-        alert_grid.attach(cpu_crit_label, 0, 2, 1, 1)
+        temp_unit_label = QLabel("°C")
+        alert_layout.addWidget(temp_unit_label, 1, 2)
         
-        self.cpu_crit_spin = Gtk.SpinButton.new_with_range(60, 105, 5)
-        self.cpu_crit_spin.set_value(85)
-        alert_grid.attach(self.cpu_crit_spin, 1, 2, 1, 1)
+        # CPU usage threshold
+        cpu_label = QLabel("CPU Alert:")
+        alert_layout.addWidget(cpu_label, 2, 0)
         
-        # Disk thresholds
-        disk_temp_label = Gtk.Label(label="Disk Temp Warning:")
-        alert_grid.attach(disk_temp_label, 0, 3, 1, 1)
+        self.cpu_spin = QSpinBox()
+        self.cpu_spin.setMinimum(50)
+        self.cpu_spin.setMaximum(100)
+        self.cpu_spin.setValue(90)
+        alert_layout.addWidget(self.cpu_spin, 2, 1)
         
-        self.disk_temp_spin = Gtk.SpinButton.new_with_range(40, 70, 5)
-        self.disk_temp_spin.set_value(50)
-        alert_grid.attach(self.disk_temp_spin, 1, 3, 1, 1)
+        cpu_unit_label = QLabel("%")
+        alert_layout.addWidget(cpu_unit_label, 2, 2)
         
-        disk_space_label = Gtk.Label(label="Disk Space Warning:")
-        alert_grid.attach(disk_space_label, 0, 4, 1, 1)
+        # Memory threshold
+        mem_label = QLabel("Memory Alert:")
+        alert_layout.addWidget(mem_label, 3, 0)
         
-        self.disk_space_spin = Gtk.SpinButton.new_with_range(50, 95, 5)
-        self.disk_space_spin.set_value(80)
-        alert_grid.attach(self.disk_space_spin, 1, 4, 1, 1)
+        self.mem_spin = QSpinBox()
+        self.mem_spin.setMinimum(50)
+        self.mem_spin.setMaximum(100)
+        self.mem_spin.setValue(85)
+        alert_layout.addWidget(self.mem_spin, 3, 1)
         
-        percent_label = Gtk.Label(label="%")
-        alert_grid.attach(percent_label, 2, 4, 1, 1)
+        mem_unit_label = QLabel("%")
+        alert_layout.addWidget(mem_unit_label, 3, 2)
         
-        alert_frame.add(alert_grid)
-        self.pack_start(alert_frame, False, False, 0)
+        # Disk space threshold
+        disk_label = QLabel("Disk Space Alert:")
+        alert_layout.addWidget(disk_label, 4, 0)
+        
+        self.disk_space_spin = QSpinBox()
+        self.disk_space_spin.setMinimum(50)
+        self.disk_space_spin.setMaximum(95)
+        self.disk_space_spin.setValue(80)
+        alert_layout.addWidget(self.disk_space_spin, 4, 1)
+        
+        disk_unit_label = QLabel("%")
+        alert_layout.addWidget(disk_unit_label, 4, 2)
+        
+        layout.addWidget(alert_frame)
         
         # Additional options
-        options_frame = Gtk.Frame(label="Additional Options")
-        options_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        options_box.set_margin_top(10)
-        options_box.set_margin_bottom(10)
-        options_box.set_margin_left(10)
-        options_box.set_margin_right(10)
+        options_frame = QGroupBox("Additional Options")
+        options_layout = QVBoxLayout()
+        options_frame.setLayout(options_layout)
         
-        self.syslog_check = Gtk.CheckButton(label="Log to local syslog")
-        self.syslog_check.set_active(True)
-        options_box.pack_start(self.syslog_check, False, False, 0)
+        self.syslog_check = QCheckBox("Log to local syslog")
+        self.syslog_check.setChecked(True)
+        options_layout.addWidget(self.syslog_check)
         
-        self.remote_syslog_check = Gtk.CheckButton(label="Log to remote syslog")
-        options_box.pack_start(self.remote_syslog_check, False, False, 0)
+        self.remote_syslog_check = QCheckBox("Log to remote syslog")
+        self.remote_syslog_check.toggled.connect(self.on_remote_toggled)
+        options_layout.addWidget(self.remote_syslog_check)
         
-        remote_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-        remote_label = Gtk.Label(label="Remote server:")
-        remote_box.pack_start(remote_label, False, False, 0)
+        remote_layout = QHBoxLayout()
+        remote_label = QLabel("Remote server:")
+        remote_layout.addWidget(remote_label)
         
-        self.remote_entry = Gtk.Entry()
-        self.remote_entry.set_placeholder_text("syslog.example.com:514")
-        self.remote_entry.set_sensitive(False)
-        remote_box.pack_start(self.remote_entry, True, True, 0)
+        self.remote_entry = QLineEdit()
+        self.remote_entry.setPlaceholderText("syslog.example.com:514")
+        self.remote_entry.setEnabled(False)
+        remote_layout.addWidget(self.remote_entry)
         
-        options_box.pack_start(remote_box, False, False, 0)
+        options_layout.addLayout(remote_layout)
         
-        self.remote_syslog_check.connect("toggled", self.on_remote_toggled)
+        layout.addWidget(options_frame)
         
-        options_frame.add(options_box)
-        self.pack_start(options_frame, False, False, 0)
+        self.show()
         
-        self.show_all()
-        
-    def on_remote_toggled(self, button):
+    def on_remote_toggled(self, checked):
         """Handle remote syslog toggle"""
-        self.remote_entry.set_sensitive(button.get_active())
+        self.remote_entry.setEnabled(checked)
         
     def get_configuration(self) -> Dict:
         """Get the hardware monitoring configuration"""
         config = {
             "monitoring": {
-                "temperature": self.temp_check.get_active(),
-                "smart": self.smart_check.get_active(),
-                "raid": self.raid_check.get_active(),
-                "power": self.power_check.get_active()
+                "temperature": self.temp_check.isChecked(),
+                "smart": self.smart_check.isChecked(),
+                "raid": self.raid_check.isChecked(),
+                "power": self.power_check.isChecked()
             },
             "alerts": {
-                "email": self.email_entry.get_text(),
-                "cpu_temp_warning": int(self.cpu_warn_spin.get_value()),
-                "cpu_temp_critical": int(self.cpu_crit_spin.get_value()),
-                "disk_temp_warning": int(self.disk_temp_spin.get_value()),
-                "disk_space_warning": int(self.disk_space_spin.get_value())
+                "email": self.email_entry.text(),
+                "thresholds": {
+                    "temperature": self.temp_spin.value(),
+                    "cpu": self.cpu_spin.value(),
+                    "memory": self.mem_spin.value(),
+                    "disk_space": self.disk_space_spin.value()
+                }
             },
-            "services": []
+            "logging": {
+                "local_syslog": self.syslog_check.isChecked(),
+                "remote_syslog": self.remote_syslog_check.isChecked(),
+                "remote_server": self.remote_entry.text() if self.remote_syslog_check.isChecked() else ""
+            }
         }
         
-        # Determine required services
-        if config["monitoring"]["temperature"]:
-            config["services"].append("lm-sensors")
-        if config["monitoring"]["smart"]:
-            config["services"].append("smartmontools")
-        if config["monitoring"]["power"]:
-            config["services"].append("ipmitool")
-            
         return config

@@ -1,0 +1,142 @@
+# Z-FORGE Trixie Build Specification
+# Clean configuration for Debian Trixie (testing)
+
+name: Z-FORGE Trixie
+version: 3.0
+
+builder_config:
+  # Base configuration
+  debian_release: trixie
+  debian_mirror: http://deb.debian.org/debian
+  kernel_version: 6.14.8-1
+  
+  # Output configuration
+  output_iso_name: zforge-trixie-3.0-amd64.iso
+  iso_label: ZFORGE_TRIXIE
+  iso_version: '3.0'
+  
+  # Workspace
+  workspace_path: /home/john/zforge_workspace
+  
+  # Build options
+  enable_cache: true
+  cache_dir: ~/zforge_cache
+  cache_packages: true
+  parallel_downloads: 4
+  retry_attempts: 3
+  
+  # Features
+  auto_detect_hardware: true
+  enable_debug: false
+  
+  # Security
+  verify_signatures: false  # Disabled for build reliability
+
+# ZFS Configuration
+zfs_config:
+  version: 2.3.3
+  build_from_source: false
+  enable_encryption: true
+  compression:
+    default: lz4
+    algorithm: auto
+
+# Bootloader Configuration
+bootloader_config:
+  primary: grub
+  enable_zfsbootmenu: true
+  encryption_support: true
+
+# Hardware Detection
+hardware_detection:
+  enabled: true
+  enforce_zfs_mode: true
+
+# Modules to execute
+modules:
+  # Core setup
+  - name: workspace_setup
+    enabled: true
+    config:
+      clean_on_start: true
+      
+  - name: gpg_bypass
+    enabled: true
+    config:
+      disable_verification: true
+      
+  - name: universal_hardware_detect
+    enabled: true
+    
+  - name: debootstrap
+    enabled: true
+    config:
+      variant: minbase
+      components:
+        - main
+        - contrib
+        - non-free
+        - non-free-firmware
+      extra_packages:
+        - apt-utils
+        - ca-certificates
+        - debian-archive-keyring
+        
+  - name: kernel_acquisition
+    enabled: true
+    config:
+      kernel_package: linux-image-amd64
+      headers_package: linux-headers-amd64
+      
+  - name: dracut_config
+    enabled: true
+    config:
+      compress: zstd
+      
+  - name: zfs_build
+    enabled: true
+    config:
+      install_method: apt
+      
+  - name: proxmox_integration
+    enabled: false  # Disable for clean build
+    
+  - name: live_environment
+    enabled: true
+    config:
+      packages:
+        base:
+          - systemd
+          - systemd-sysv
+          - dbus
+          - udev
+          - kmod
+          - util-linux
+          - coreutils
+          - procps
+          - bash
+          - nano
+        live:
+          - live-boot
+          - live-config
+          - live-config-systemd
+          - sudo
+        network:
+          - iproute2
+          - iputils-ping
+          - wget
+          - curl
+        
+  - name: bootloader_setup
+    enabled: true
+    config:
+      timeout: 5
+      default_entry: 0
+      
+  - name: iso_generation
+    enabled: true
+    config:
+      bootloader: grub
+      uefi_support: true
+      compression: xz
+      compression_level: 6

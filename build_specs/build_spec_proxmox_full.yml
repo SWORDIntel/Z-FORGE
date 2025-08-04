@@ -1,0 +1,177 @@
+# Z-FORGE Build Specification - Proxmox VE Full Integration
+# Corrected version with proper structure
+
+builder_config:
+  debian_release: trixie
+  kernel_version: 6.14.8-1
+  output_iso_name: zforge-proxmox-ultimate-3.0-amd64.iso
+  enable_debug: false
+  workspace_path: /home/john/zforge_workspace
+  cache_packages: true
+  auto_detect_hardware: true
+  iso_version: '3.0'
+
+proxmox_config:
+  version: '9.0-beta'
+  minimal_install: false
+  build_from_source: true
+  include_packages:
+    - proxmox-ve
+    - pve-manager
+    - pve-kernel-6.14
+    - proxmox-backup-server
+    - ceph
+    - corosync
+    - pve-ha-manager
+    - pve-storage-portal
+    - pve-firewall
+    - pve-container
+    - qemu-server
+    - spiceterm
+    - vncterm
+    - pve-docs
+    - pve-cluster
+    - pve-qemu-kvm
+    - libpve-common-perl
+    - libpve-storage-perl
+    - libpve-guest-common-perl
+    - libpve-access-control
+    - libpve-http-server-perl
+    - lxc-pve
+    - lxcfs
+    - novnc-pve
+    - proxmox-widget-toolkit
+    - pve-xtermjs
+    - pve-i18n
+    - pve-zsync
+    - zfsutils-linux
+    - spl-linux
+
+zfs_config:
+  version: 2.3.3
+  build_from_source: true
+  enable_encryption: true
+  compression:
+    default: lz4
+    algorithm: auto
+  features:
+    - raid_z_expansion
+    - block_cloning
+    - improved_performance
+    - proxmox_optimizations
+
+bootloader_config:
+  primary: grub
+  enable_zfsbootmenu: true
+  encryption_support: true
+  proxmox_boot_options: true
+
+hardware_detection:
+  enabled: true
+  enforce_zfs_mode: true
+  detect_gpu: true
+  detect_nvme: true
+  detect_raid_controllers: true
+
+calamares_config:
+  enabled: true
+  proxmox_mode: true
+  show_advanced_storage: true
+
+desktop_config:
+  environment: none  # Proxmox is web-based
+  install_web_console: true
+
+modules:
+- name: workspace_setup
+  enabled: true
+- name: gpg_bypass
+  enabled: true
+- name: universal_hardware_detect
+  enabled: true
+- name: debootstrap
+  enabled: true
+  config:
+    components: ["main", "contrib", "non-free", "non-free-firmware"]
+- name: kernel_acquisition
+  enabled: true
+  config:
+    additional_kernels:
+      - pve-kernel-6.14
+- name: zfs_build
+  enabled: true
+- name: proxmox_integration
+  enabled: true
+  config:
+    full_install: true
+- name: proxmox_package_install
+  enabled: true
+- name: proxmox_repo_setup
+  enabled: true
+- name: proxmox_network_config
+  enabled: true
+- name: proxmox_storage_config
+  enabled: true
+- name: proxmox_service_config
+  enabled: true
+- name: proxmox_cluster_setup
+  enabled: true
+- name: live_environment
+  enabled: true
+- name: dracut_config
+  enabled: true
+- name: zfsbootmenu_install
+  enabled: true
+- name: bootloader_setup
+  enabled: true
+- name: security_hardening
+  enabled: true
+- name: zfs_encryption
+  enabled: true
+- name: zfs_pool_config
+  enabled: true
+- name: zfs_compression_optimizer
+  enabled: true
+- name: calamares_integration
+  enabled: true
+- name: cleanup_handler
+  enabled: true
+- name: iso_generation
+  enabled: true
+  config:
+    compression: xz
+    include_sources: false
+
+name: Z-FORGE-PROXMOX-ULTIMATE
+version: '3.0'
+codename: proxmox9-beta-full
+architecture: amd64
+
+# Advanced Proxmox features
+advanced_features:
+  ceph_integration: true
+  gpu_passthrough: true
+  sdn_fabrics: true
+  lvm_thin_provisioning: true
+  zfs_raid_expansion: true
+  backup_server: true
+  high_availability: true
+
+# Security settings
+security:
+  enable_root: false
+  password_hash: "$6$rounds=4096$defaultsalt$defaulthash"
+  two_factor_auth: optional
+  
+# Performance optimizations
+performance:
+  cpu_governor: performance
+  io_scheduler: noop  # For VMs
+  vm_swappiness: 10
+  transparent_hugepages: never
+  
+# Output settings
+output:
+  iso_size_limit: none  # No limit for full build
+  include_documentation: true
+  include_source_packages: false

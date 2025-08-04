@@ -17,7 +17,7 @@ try:
 except ImportError:
     requests = None
 
-class OpenCoreNVME:
+class OpencoreEnhanced:
     """Enhanced OpenCore installation with flexible target options"""
     
     OPENCORE_VERSION = "0.9.9"

@@ -13,8 +13,8 @@ import sys
 # Add modules to path
 sys.path.append(str(Path(__file__).parent))
 
-from hardware_db import HardwareDatabase
-from preset_loader import PresetLoader
+from .hardware_db import HardwareDatabase
+from .preset_loader import PresetLoader
 
 logger = logging.getLogger(__name__)
 

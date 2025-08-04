@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class BuildConfig:
     """
-    Manages the Z-Forge build configuration loaded from `build_spec.yml`.
+    Manages the Z-Forge build configuration loaded from `build_specs/build_spec.yml`.
 
     This class is responsible for loading the YAML configuration file,
     validating its basic structure, providing access to configuration values,
@@ -27,7 +27,7 @@ class BuildConfig:
     and the sequence of builder modules to execute.
     """
 
-    def __init__(self, config_path: Union[str, Path] = "build_spec.yml") -> None:
+    def __init__(self, config_path: Union[str, Path] = "build_specs/build_spec.yml") -> None:
         """
         Load and validate the build configuration from the given path.
 
@@ -35,8 +35,8 @@ class BuildConfig:
         will be created and saved at `config_path`.
 
         Args:
-            config_path: Path to the `build_spec.yml` configuration file.
-                         Defaults to "build_spec.yml" in the current working directory.
+            config_path: Path to the `build_specs/build_spec.yml` configuration file.
+                         Defaults to "build_specs/build_spec.yml" in the current working directory.
 
         Raises:
             SystemExit: If the config file is invalid (e.g., missing required fields)
@@ -102,7 +102,7 @@ class BuildConfig:
         """
         Create and return a default build configuration dictionary.
 
-        This default configuration is used if `build_spec.yml` is not found.
+        This default configuration is used if `build_specs/build_spec.yml` is not found.
         It defines a standard build pipeline with common settings for Proxmox,
         ZFS, and necessary builder modules.
 

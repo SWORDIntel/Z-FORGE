@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 #!/usr/bin/env python3
 """
 GPU Passthrough Configuration Module for Calamares
@@ -13,7 +17,7 @@ import libcalamares
 from pathlib import Path
 
 sys.path.append(os.path.dirname(__file__))
-from gpu_passthrough_gui import GPUPassthroughWidget
+from gpu_passthrough_gui import GpuPassthroughGui as GPUPassthroughWidget
 
 def pretty_name():
     return "GPU Passthrough"
@@ -226,7 +230,7 @@ def check_reset_support(pci_addr):
     except:
         return False
 
-class GPUPassthroughViewStep:
+class GpupassthroughJob:
     """Calamares ViewStep for GPU passthrough configuration"""
     
     def __init__(self):
@@ -260,4 +264,4 @@ class GPUPassthroughViewStep:
     def jobs(self):
         return []
 
-calamares_module = GPUPassthroughViewStep
+calamares_module = GpupassthroughJob

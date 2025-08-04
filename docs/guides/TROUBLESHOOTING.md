@@ -1,313 +1,297 @@
 # Z-FORGE Troubleshooting Guide
 
+**Last Updated:** January 31, 2025
+
 ## Common Issues and Solutions
 
-### 1. Permission Denied Errors
+### 1. Bootstrap Issues
 
-**Symptoms:**
-- `Permission denied` when running scripts
-- Cannot access files in Z-FORGE directory
-
-**Solutions:**
+#### Problem: Bootstrap hangs or fails
 ```bash
-# Fix ownership
-sudo chown -R $USER:$USER /opt/github/Z-FORGE
-
-# Fix script permissions
-find scripts -name "*.sh" -exec chmod +x {} \;
-
-# Fix Python scripts
-find scripts -name "*.py" -exec chmod +x {} \;
+# Symptoms:
+# - Process hangs at "Extracting..."
+# - Network errors during download
+# - Permission denied errors
 ```
 
-### 2. Chroot Bootstrap Fails
-
-**Symptoms:**
-- `debootstrap` fails to create chroot
-- Network errors during bootstrap
-
 **Solutions:**
 ```bash
-# Check internet connection
-ping google.com
+# Try alternative bootstrap method
+sudo ./scripts/chroot/bootstrap_chroot.sh debootstrap
 
-# Try different mirror
-sudo ./scripts/chroot/bootstrap_chroot.sh auto ~/zforge_workspace/chroot http://deb.debian.org/debian
+# If still failing, check DNS
+cat /etc/resolv.conf
+# Should contain valid nameservers
+
+# Fix DNS if needed
+echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
 
 # Clean and retry
-sudo rm -rf ~/zforge_workspace/chroot
+rm -rf ~/zforge_workspace/chroot
 sudo ./scripts/chroot/bootstrap_chroot.sh auto
 ```
 
-### 3. Network Issues in Chroot
-
-**Symptoms:**
-- `apt update` fails in chroot
-- DNS resolution errors
-- Cannot download packages
-
-**Solutions:**
+#### Problem: arch-chroot hangs with no response
 ```bash
-# Quick fix
-sudo ./scripts/fixes/fix_chroot_network.sh
-
-# Manual fix
-sudo cp /etc/resolv.conf ~/zforge_workspace/chroot/etc/resolv.conf
-
-# Fix systemd-resolved
-sudo ./scripts/fixes/fix_systemd_resolved_dns.sh
+# Symptom: Can't exit with Ctrl+C
 ```
 
-### 4. ZFS Installation Fails
-
-**Symptoms:**
-- `zfs` command not found
-- DKMS build errors
-- Kernel module issues
-
-**Solutions:**
+**Solution:**
 ```bash
-# Use complete installation (handles most issues)
-sudo ./scripts/chroot/complete_zfs_install.sh
+# Use emergency cleanup
+./scripts/chroot/emergency_cleanup.sh
 
-# Manual fix for repositories
-sudo ./scripts/fixes/fix_zfs_backports.py
-
-# Alternative: Use Debian packages
+# Use standard chroot instead
 sudo ./scripts/chroot/use_arch_chroot.sh
-apt install -y zfsutils-linux
+# This auto-detects and falls back to standard chroot
 ```
 
-### 5. Build Fails with Python Errors
+### 2. Permission Issues
 
-**Symptoms:**
-- `ModuleNotFoundError: No module named 'yaml'`
-- Python import errors
-
-**Solutions:**
+#### Problem: Permission denied on chroot directory
 ```bash
-# Install Python dependencies
-sudo apt install -y python3-pip python3-yaml python3-dev
-
-# Install additional modules
-pip3 install pyyaml jinja2 requests
+# Symptom: ls: cannot access 'chroot/usr': Permission denied
 ```
 
-### 6. Workspace Permission Issues
-
-**Symptoms:**
-- Cannot execute scripts from `/tmp`
-- `Operation not permitted` in workspace
-
-**Solutions:**
+**Solution:**
 ```bash
-# Fix noexec mount
-sudo ./scripts/workspace/fix_workspace_noexec.sh
+# Fix permissions
+sudo chmod 755 ~/zforge_workspace/chroot
+sudo chmod 755 ~/zforge_workspace/chroot/usr
 
-# Use HOME workspace instead
+# If persists, check ownership
+sudo chown -R root:root ~/zforge_workspace/chroot
+```
+
+### 3. Workspace Issues
+
+#### Problem: /tmp mounted with noexec
+```bash
+# Symptom: Cannot execute scripts in /tmp
+```
+
+**Solution:**
+```bash
+# Already fixed! All scripts use HOME workspace
+# Verify with:
+echo $ZFORGE_WORKSPACE
+# Should show: /home/youruser/zforge_workspace
+
+# If not set, run:
 export ZFORGE_WORKSPACE="$HOME/zforge_workspace"
-sudo make -f Makefile.no_tmp build
 ```
 
-### 7. APT Repository Issues
+### 4. ZFS Installation Issues
 
-**Symptoms:**
-- GPG signature errors
-- Repository not found
-- Package authentication failures
-
-**Solutions:**
+#### Problem: ZFS package not found
 ```bash
-# Fix APT sources
+# Symptom: E: Unable to locate package zfsutils-linux
+```
+
+**Solution:**
+```bash
+# Fix apt sources
 sudo ./scripts/fixes/fix_apt_sources_zfs.sh
 
-# Fix GPG keys
-sudo ./scripts/fixes/fix_apt_key_missing.sh
-
-# Manual repository fix
-sudo ./scripts/fixes/enhanced_zfs_repo_setup.sh
+# Or manually add backports
+sudo ./scripts/chroot/use_arch_chroot.sh bash -c '
+echo "deb http://deb.debian.org/debian trixie-backports main contrib" >> /etc/apt/sources.list
+apt-get update
+'
 ```
 
-### 8. Missing Dependencies
-
-**Symptoms:**
-- `command not found` errors
-- Build tools missing
-
-**Solutions:**
+#### Problem: Python dependency missing
 ```bash
-# Install complete build environment
-sudo apt install -y \
-    build-essential \
-    debootstrap \
-    squashfs-tools \
-    xorriso \
-    isolinux \
-    syslinux-utils \
-    genisoimage \
-    python3-dev \
-    python3-pip \
-    python3-yaml \
-    arch-install-scripts
+# Symptom: zfsutils-linux depends on python3 but it is not installable
 ```
 
-### 9. Dracut Initramfs Issues
-
-**Symptoms:**
-- Initramfs generation fails
-- Boot errors
-
-**Solutions:**
+**Solution:**
 ```bash
-# Fix dracut configuration
-sudo ./scripts/fixes/fix_dracut_initramfs.py
-
-# Manual dracut fix
-sudo ./scripts/fixes/fix_dracut_issue.py
+# Use our prebuilt package
+sudo cp prebuilt_packages/zfsutils-userspace_2.3.3-1_amd64.deb ~/zforge_workspace/chroot/tmp/
+sudo ./scripts/chroot/use_arch_chroot.sh bash -c '
+dpkg -i /tmp/zfsutils-userspace_2.3.3-1_amd64.deb
+apt-get -f install -y
+'
 ```
 
-### 10. Build Hangs or Freezes
+### 5. Build Failures
 
-**Symptoms:**
-- Build process stops responding
-- No output for extended periods
-
-**Solutions:**
+#### Problem: Makefile not found
 ```bash
-# Kill and restart
-sudo pkill -f python3
-sudo pkill -f make
+# Symptom: make: *** No rule to make target 'build'
+```
 
-# Clean and rebuild
-sudo make clean
-sudo ./scripts/chroot/complete_zfs_install.sh
-sudo make -f Makefile.no_tmp build
+**Solution:**
+```bash
+# Use the no_tmp Makefile
+make -f Makefile.no_tmp build
+
+# Or create standard Makefile symlink
+ln -s Makefile.no_tmp Makefile
+make build
+```
+
+#### Problem: Python module import errors
+```bash
+# Symptom: ImportError: No module named 'builder'
+```
+
+**Solution:**
+```bash
+# Ensure you're in project root
+cd /opt/github/Z-FORGE
+
+# Check Python path
+python3 -c "import sys; print(sys.path)"
+
+# Run with explicit path
+PYTHONPATH=/opt/github/Z-FORGE sudo python3 build.py
+```
+
+### 6. Mount Issues
+
+#### Problem: Hanging mounts after failed build
+```bash
+# Symptom: Device or resource busy
+```
+
+**Solution:**
+```bash
+# Check for active mounts
+mount | grep zforge_workspace
+
+# Clean up mounts
+./scripts/chroot/emergency_cleanup.sh
+
+# Or manually
+sudo umount -l ~/zforge_workspace/chroot/dev/pts
+sudo umount -l ~/zforge_workspace/chroot/dev
+sudo umount -l ~/zforge_workspace/chroot/proc
+sudo umount -l ~/zforge_workspace/chroot/sys
+```
+
+### 7. Git Issues
+
+#### Problem: Permission denied on '=p/' directory
+```bash
+# Symptom: warning: could not open directory '=p/': Permission denied
+```
+
+**Solution:**
+```bash
+# This is a known issue, safe to ignore
+# Or remove the directory
+sudo rm -rf '=p/'
+```
+
+### 8. Script Path Issues
+
+#### Problem: Scripts using old /tmp paths
+```bash
+# This should be fixed, but if you see it...
+```
+
+**Solution:**
+```bash
+# Run path update tool
+./scripts/cleanup/fix_old_paths.sh
+
+# Verify no old paths remain
+grep -r "/tmp/zforge_workspace" scripts/ --include="*.sh" | wc -l
+# Should return 0
 ```
 
 ## Diagnostic Commands
 
-### Check System Status
+### Check System State
 ```bash
-# Check disk space
-df -h
+# Verify workspace
+echo "Workspace: ${ZFORGE_WORKSPACE:-$HOME/zforge_workspace}"
 
-# Check memory
-free -h
+# Check mounts
+mount | grep zforge
 
-# Check processes
-ps aux | grep -E "(python|make|debootstrap)"
+# Check chroot status
+ls -ld ~/zforge_workspace/chroot 2>/dev/null || echo "No chroot found"
+
+# Verify scripts are executable
+find scripts/ -name "*.sh" -not -executable | wc -l
+# Should be 0
 ```
 
-### Check Chroot Status
+### Run Full Diagnostics
 ```bash
-# Verify chroot exists
-ls -la ~/zforge_workspace/chroot/
+# Pre-build check
+./scripts/testing/pre-build-check.sh
 
-# Test chroot access
-sudo ./scripts/chroot/use_arch_chroot.sh ls /
+# Consistency verification
+./scripts/cleanup/verify_project_consistency.sh
 
-# Check ZFS in chroot
-sudo ./scripts/chroot/use_arch_chroot.sh which zfs
+# Check for old paths
+grep -r "/tmp/zforge_workspace" scripts/ --include="*.sh"
 ```
 
-### Check Build Environment
+## Recovery Procedures
+
+### Complete Reset
 ```bash
-# Python modules
-python3 -c "import yaml; print('OK')"
+# Remove everything and start fresh
+rm -rf ~/zforge_workspace
+git clean -fdx
+git reset --hard HEAD
 
-# Build tools
-which debootstrap mksquashfs xorriso
-```
-
-## Emergency Recovery
-
-### Complete Clean Start
-```bash
-# Stop all processes
-sudo pkill -f zforge
-sudo pkill -f python3
-
-# Clean everything
-sudo rm -rf ~/zforge_workspace
-sudo make clean
-
-# Start fresh
+# Rebuild from scratch
+./scripts/workspace/setup_no_tmp_build.sh
+sudo ./scripts/chroot/bootstrap_chroot.sh auto
 sudo ./scripts/chroot/complete_zfs_install.sh
+sudo make -f Makefile.no_tmp build
 ```
 
-### Backup Before Changes
+### Partial Recovery
 ```bash
-# Backup working chroot
-sudo cp -r ~/zforge_workspace/chroot ~/zforge_workspace/chroot.backup
+# Just clean build artifacts
+make -f Makefile.no_tmp clean
 
-# Restore if needed
-sudo rm -rf ~/zforge_workspace/chroot
-sudo mv ~/zforge_workspace/chroot.backup ~/zforge_workspace/chroot
+# Keep chroot, rebuild ISO
+sudo make -f Makefile.no_tmp build
 ```
 
 ## Getting More Help
 
-### Check Logs
-```bash
-# Build logs
-ls -la logs/
-tail -50 logs/zforge_build_*.log
+### Log Files
+- Build log: `~/zforge_workspace/logs/zforge_build_*.log`
+- Bootstrap log: `~/zforge_workspace/logs/bootstrap.log`
+- Module logs: `~/zforge_workspace/logs/modules/*.log`
 
-# System logs
-sudo journalctl -f
-sudo dmesg | tail -20
+### Verbose Output
+```bash
+# Run build with debug output
+sudo make -f Makefile.no_tmp build DEBUG=1
+
+# Or with Python
+sudo python3 build.py --verbose
 ```
 
-### Enable Debug Mode
-```bash
-# Debug build
-sudo make debug
+### Check Documentation
+- Quick Reference: `checkpoint/QUICK_REFERENCE.md`
+- Latest Status: `checkpoint/CHECKPOINT_20250731_SCRIPT_CLEANUP.md`
+- Build Guide: `BUILD_FROM_FRESH.md`
+- Project Docs: `docs/README.md`
 
-# Verbose Python
-sudo python3 build.py --debug --verbose
-```
+## Known Working Configuration
 
-### Use Quick Fixes
-```bash
-# Available quick fixes
-ls scripts/fixes/
+- **OS**: Debian 12/13 or Ubuntu 22.04/24.04
+- **Workspace**: `~/zforge_workspace` (not /tmp)
+- **Scripts**: All 86 scripts using consistent paths
+- **ZFS**: Version 2.3.3 from Proxmox source
+- **Build System**: Makefile.no_tmp
 
-# Run specific fix
-sudo ./scripts/fixes/[fix-name].sh
-```
+## If All Else Fails
 
-### Validation Scripts
-```bash
-# Validate environment
-sudo ./scripts/testing/verify_build_ready.sh
+1. Save your work
+2. Check the latest checkpoint in `checkpoint/`
+3. Review recent git commits
+4. Start fresh with `BUILD_FROM_FRESH.md`
 
-# Check package availability
-python3 scripts/fixes/validate_package_availability.py
-```
-
-## Prevention
-
-### Before Starting
-1. Ensure sufficient disk space (20GB+)
-2. Use stable internet connection
-3. Have sudo access
-4. Update system packages first
-
-### Best Practices
-1. Use HOME workspace over /tmp
-2. Run complete installation script first
-3. Check logs if build fails
-4. Keep backups of working chroot
-5. Test in VM before real hardware
-
-### Regular Maintenance
-```bash
-# Clean old logs
-sudo rm logs/*.log.old
-
-# Update system
-sudo apt update && sudo apt upgrade
-
-# Verify chroot health
-sudo ./scripts/chroot/use_arch_chroot.sh apt update
-```
+Remember: All scripts now use `${ZFORGE_WORKSPACE:-$HOME/zforge_workspace}` consistently!

@@ -23,7 +23,7 @@ import logging
 import os
 from builder.core.lockfile import BuildLockfile
 
-class ZFSBuild:
+class ZfsBuild:
     """
     Handles the compilation and installation of OpenZFS from source.
 

@@ -1,0 +1,123 @@
+{
+  "timestamp": "2025-08-04T14:06:36.708266",
+  "system": {
+    "actual": {
+      "cpu_cores": 22,
+      "memory_gb": 62,
+      "disk_gb": 444
+    },
+    "requirements": {
+      "cpu_cores": 2,
+      "memory_gb": 4,
+      "disk_gb": 50
+    },
+    "status": "PASS"
+  },
+  "dependencies": {
+    "commands": {
+      "python3": "installed",
+      "debootstrap": "installed",
+      "mksquashfs": "installed",
+      "xorriso": "installed",
+      "git": "installed"
+    },
+    "python_modules": {
+      "yaml": "installed",
+      "psutil": "installed",
+      "jinja2": "installed"
+    },
+    "status": "PASS"
+  },
+  "workspace": {
+    "path": "/home/john/zforge_workspace",
+    "exists": true,
+    "writable": true,
+    "space_gb": 444,
+    "status": "PASS"
+  },
+  "network": {
+    "dns": true,
+    "debian_repo": true,
+    "internet": true,
+    "status": "PASS"
+  },
+  "apt": {
+    "lock_files": [
+      "/var/lib/dpkg/lock",
+      "/var/lib/dpkg/lock-frontend",
+      "/var/lib/apt/lists/lock",
+      "/var/cache/apt/archives/lock"
+    ],
+    "broken_packages": false,
+    "sources_list": true,
+    "status": "PASS"
+  },
+  "kernel": {
+    "current_kernel": "6.14.5-mtl-pve",
+    "architecture": "x86_64",
+    "headers_installed": true,
+    "status": "PASS"
+  },
+  "zfs": {
+    "zfs_installed": true,
+    "dkms_installed": true,
+    "build_deps": [
+      "build-essential",
+      "autoconf",
+      "automake",
+      "libtool",
+      "gawk"
+    ],
+    "status": "PASS"
+  },
+  "dracut": {
+    "dracut_installed": true,
+    "initramfs_tools": false,
+    "config_exists": true,
+    "status": "PASS"
+  },
+  "permissions": {
+    "user": "john",
+    "sudo_access": true,
+    "build_py_executable": true,
+    "modules_readable": true,
+    "status": "PASS"
+  },
+  "build_specs": {
+    "specs": {
+      "build_specs/build_spec.yml": "valid",
+      "build_specs/build_spec_stable.yml": "valid",
+      "build_specs/build_spec_no_tmp.yml": "valid",
+      "build_specs/build_spec_outside_packages.yml": "valid",
+      "build_specs/build_spec_proxmox9.yml": "valid",
+      "build_specs/build_spec_proxmox_full.yml": "valid",
+      "build_specs/build_spec_trixie_clean.yml": "valid"
+    },
+    "status": "PASS"
+  },
+  "summary": {
+    "checks_passed": 10,
+    "checks_failed": 0,
+    "critical_issues": [],
+    "warnings": [
+      "APT lock file exists: /var/lib/dpkg/lock",
+      "APT lock file exists: /var/lib/dpkg/lock-frontend",
+      "APT lock file exists: /var/lib/apt/lists/lock",
+      "APT lock file exists: /var/cache/apt/archives/lock"
+    ],
+    "fixes_applied": [],
+    "ready_to_build": true,
+    "recommendations": [
+      "\nCONSIDER ADDRESSING WARNINGS:",
+      "  \u2022 APT lock file exists: /var/lib/dpkg/lock",
+      "  \u2022 APT lock file exists: /var/lib/dpkg/lock-frontend",
+      "  \u2022 APT lock file exists: /var/lib/apt/lists/lock",
+      "  \u2022 APT lock file exists: /var/cache/apt/archives/lock",
+      "\n\u2705 SYSTEM READY FOR BUILD",
+      "\nRECOMMENDED BUILD COMMANDS:",
+      "  \u2022 GUI: ./launch-enhanced-gui.sh",
+      "  \u2022 Stable: sudo python3 build.py --spec build_specs/build_spec_stable.yml",
+      "  \u2022 Fast: sudo python3 build.py --spec build_specs/build_spec_outside_packages.yml"
+    ]
+  }
+}

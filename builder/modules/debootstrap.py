@@ -217,6 +217,7 @@ class Debootstrap:
             "debootstrap",
             "--verbose",      # Add verbose flag for more detailed output
             "--arch=amd64",
+            "--components=main,contrib,non-free,non-free-firmware",  # Include all components
             f"--include={','.join(include_packages)}",
             debian_release,
             str(self.chroot_path),
