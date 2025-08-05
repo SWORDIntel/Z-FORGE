@@ -64,14 +64,7 @@ def convert_gtk_to_qt(file_path):
 
 def main():
     """Convert all GTK modules to Qt"""
-    # Get the correct path to modules directory
-    script_dir = Path(__file__).parent
-    modules_dir = script_dir / "modules"
-    
-    if not modules_dir.exists():
-        print(f"Error: modules directory not found at {modules_dir}")
-        return
-    
+    modules_dir = Path("modules")
     converted_count = 0
     
     for module_dir in modules_dir.iterdir():

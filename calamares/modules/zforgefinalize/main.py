@@ -9,8 +9,8 @@ from typing import Dict, Optional
 class ZforgefinalizeJob:
     """Calamares job for zforgefinalize"""
     
-    def __init__(self, config: Dict):
-        self.config = config
+    def __init__(self):
+        self.config = {}
         
     def run(self) -> Optional[str]:
         """Main execution method for Calamares"""

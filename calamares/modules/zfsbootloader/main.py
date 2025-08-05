@@ -11,10 +11,10 @@ from typing import Dict, Optional
 class ZfsbootloaderJob:
     """Calamares job for configuring ZFS bootloader"""
     
-    def __init__(self, config: Dict):
-        self.config = config
-        self.root_pool = config.get('rootPool', 'rpool')
-        self.boot_device = config.get('bootDevice', '/dev/sda')
+    def __init__(self):
+        self.config = {}
+        self.root_pool = 'rpool'
+        self.boot_device = '/dev/sda'
         
     def configure_grub_zfs(self) -> bool:
         """Configure GRUB for ZFS boot"""

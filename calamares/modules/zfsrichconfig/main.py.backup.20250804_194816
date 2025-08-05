@@ -1,0 +1,360 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# === Rich ZFS Configuration Module for Calamares ===
+#
+# Provides comprehensive ZFS configuration with:
+# - Boot drive selection
+# - Multiple pools and datasets
+# - Hardware-aware compression defaults
+# - Fine-tuning options
+
+import os
+import sys
+import subprocess
+import json
+import libcalamares
+from pathlib import Path
+
+# Import the rich GUI module
+sys.path.append(os.path.dirname(__file__))
+from zfs_rich_gui import ZFSRichConfigWidget
+
+def pretty_name():
+    """Module display name"""
+    return "Advanced ZFS Configuration"
+
+def icon():
+    """Module icon"""
+    return "drive-harddisk"
+
+def run():
+    """
+    Main entry point for Calamares module execution
+    This is called when the module executes (after UI)
+    """
+    try:
+        gs = libcalamares.globalstorage
+        zfs_config = gs.value("zfsRichConfig")
+        
+        if not zfs_config:
+            return "No ZFS configuration found", "You must configure ZFS pools before continuing"
+        
+        # Validate configuration
+        if not zfs_config.get("boot_pool") or not zfs_config.get("boot_pool").get("disks"):
+            return "No boot pool configured", "You must configure a boot pool"
+        
+        # Store configuration for later modules
+        try:
+            gs.insert("zfsBootPool", zfs_config["boot_pool"])
+            gs.insert("zfsDataPools", zfs_config.get("data_pools", []))
+            gs.insert("zfsDatasets", zfs_config.get("datasets", {}))
+            gs.insert("zfsCompressionDefaults", zfs_config.get("compression_defaults", {}))
+            gs.insert("zfsSpecialVdevs", zfs_config.get("special_vdevs", {}))
+        except Exception as e:
+            return "Configuration storage failed", f"Failed to store ZFS configuration: {str(e)}"
+        
+        # Build commands for all pools
+        try:
+            commands = build_zfs_commands(zfs_config)
+            gs.insert("zfsCreateCommands", commands)
+        except Exception as e:
+            return "Command generation failed", f"Failed to generate ZFS commands: {str(e)}"
+        
+        libcalamares.utils.debug(f"ZFS rich configuration: {json.dumps(zfs_config, indent=2)}")
+        
+        return None
+        
+    except Exception as e:
+        libcalamares.utils.debug(f"ZFS rich config error: {str(e)}")
+        return "Configuration error", f"ZFS rich configuration failed: {str(e)}"
+
+def build_zfs_commands(config):
+    """Build all ZFS creation commands from configuration"""
+    commands = []
+    
+    # Boot pool commands
+    boot_pool = config["boot_pool"]
+    commands.append({
+        "type": "boot_pool",
+        "commands": build_pool_commands(boot_pool, is_boot=True)
+    })
+    
+    # Data pool commands
+    for pool in config.get("data_pools", []):
+        commands.append({
+            "type": "data_pool",
+            "name": pool["name"],
+            "commands": build_pool_commands(pool, is_boot=False)
+        })
+    
+    # Dataset commands
+    dataset_cmds = []
+    for pool_name, datasets in config.get("datasets", {}).items():
+        for dataset in datasets:
+            dataset_cmds.extend(build_dataset_commands(pool_name, dataset))
+    
+    if dataset_cmds:
+        commands.append({
+            "type": "datasets",
+            "commands": dataset_cmds
+        })
+    
+    return commands
+
+def build_pool_commands(pool_config, is_boot=False):
+    """Build zpool create commands for a pool"""
+    commands = []
+    
+    # Main pool creation
+    cmd_parts = ["zpool", "create"]
+    
+    # Pool options
+    options = []
+    
+    # Ashift based on disk type
+    ashift = pool_config.get("ashift", "auto")
+    if ashift == "auto":
+        # Will be determined at runtime based on disk
+        options.append("-o ashift=12")  # Default to 4K
+    else:
+        options.append(f"-o ashift={ashift}")
+    
+    # Features for boot pool
+    if is_boot:
+        options.extend([
+            "-o cachefile=/etc/zfs/zpool.cache",
+            "-o compatibility=grub2",
+            "-o autotrim=on",
+            "-o autoexpand=on"
+        ])
+    else:
+        options.extend([
+            "-o autotrim=on",
+            "-o autoexpand=on",
+            "-o failmode=wait"
+        ])
+    
+    # Root dataset options
+    if pool_config.get("encryption", {}).get("enabled", False):
+        enc_config = pool_config["encryption"]
+        options.extend([
+            "-O encryption=aes-256-gcm",
+            f"-O keylocation={enc_config.get('keylocation', 'prompt')}",
+            f"-O keyformat={enc_config.get('keyformat', 'passphrase')}"
+        ])
+    
+    # Compression based on hardware
+    compression = pool_config.get("compression", "lz4")
+    if compression != "off":
+        options.append(f"-O compression={compression}")
+    
+    # Other dataset properties
+    options.extend([
+        "-O acltype=posixacl",
+        "-O xattr=sa",
+        "-O dnodesize=auto",
+        "-O normalization=formD",
+        "-O mountpoint=none",
+        "-O canmount=off",
+        "-O devices=off"
+    ])
+    
+    if pool_config.get("dedup", "off") != "off":
+        options.append(f"-O dedup={pool_config['dedup']}")
+    
+    # Build command
+    cmd_parts.extend(options)
+    cmd_parts.append(pool_config["name"])
+    
+    # Add vdev configuration
+    vdev_config = pool_config["vdev_config"]
+    cmd_parts.extend(build_vdev_spec(vdev_config))
+    
+    commands.append(" ".join(cmd_parts))
+    
+    # Add special vdevs if configured
+    if "special_vdevs" in pool_config:
+        for vdev_type, vdev_config in pool_config["special_vdevs"].items():
+            if vdev_config.get("disks"):
+                cmd = build_special_vdev_command(pool_config["name"], vdev_type, vdev_config)
+                commands.append(cmd)
+    
+    return commands
+
+def build_vdev_spec(vdev_config):
+    """Build vdev specification for zpool create"""
+    vdev_parts = []
+    
+    layout = vdev_config["layout"]
+    disks = vdev_config["disks"]
+    
+    if layout == "stripe":
+        # Simple stripe, just add disks
+        vdev_parts.extend(disks)
+    elif layout == "mirror":
+        # Can have multiple mirror vdevs
+        if vdev_config.get("vdev_count", 1) > 1:
+            # Multiple mirrors (like RAID10)
+            disks_per_vdev = len(disks) // vdev_config["vdev_count"]
+            for i in range(vdev_config["vdev_count"]):
+                vdev_parts.append("mirror")
+                start = i * disks_per_vdev
+                end = start + disks_per_vdev
+                vdev_parts.extend(disks[start:end])
+        else:
+            # Single mirror
+            vdev_parts.append("mirror")
+            vdev_parts.extend(disks)
+    elif layout.startswith("raidz"):
+        # RAID-Z variants
+        vdev_parts.append(layout)
+        vdev_parts.extend(disks)
+    elif layout == "draid":
+        # Distributed RAID-Z (ZFS 2.1+)
+        draid_config = vdev_config.get("draid_config", {})
+        data = draid_config.get("data", 8)
+        parity = draid_config.get("parity", 2)
+        spares = draid_config.get("spares", 1)
+        vdev_parts.append(f"draid{parity}:{data}d:{spares}s")
+        vdev_parts.extend(disks)
+    
+    return vdev_parts
+
+def build_special_vdev_command(pool_name, vdev_type, vdev_config):
+    """Build command to add special vdev to pool"""
+    cmd_parts = ["zpool", "add", pool_name]
+    
+    if vdev_type == "cache":
+        cmd_parts.append("cache")
+    elif vdev_type == "log":
+        cmd_parts.append("log")
+        if vdev_config.get("mirror", True):
+            cmd_parts.append("mirror")
+    elif vdev_type == "special":
+        cmd_parts.append("special")
+        if vdev_config.get("mirror", True):
+            cmd_parts.append("mirror")
+    elif vdev_type == "dedup":
+        cmd_parts.append("dedup")
+        if vdev_config.get("mirror", True):
+            cmd_parts.append("mirror")
+    
+    cmd_parts.extend(vdev_config["disks"])
+    
+    return " ".join(cmd_parts)
+
+def build_dataset_commands(pool_name, dataset):
+    """Build zfs create commands for datasets"""
+    commands = []
+    
+    cmd_parts = ["zfs", "create"]
+    
+    # Dataset options
+    options = []
+    
+    # Mountpoint
+    if "mountpoint" in dataset:
+        options.append(f"-o mountpoint={dataset['mountpoint']}")
+    
+    # Compression (may differ from pool default)
+    if "compression" in dataset:
+        options.append(f"-o compression={dataset['compression']}")
+    
+    # Record size for specific workloads
+    if "recordsize" in dataset:
+        options.append(f"-o recordsize={dataset['recordsize']}")
+    
+    # Sync behavior
+    if "sync" in dataset:
+        options.append(f"-o sync={dataset['sync']}")
+    
+    # Quota/reservation
+    if "quota" in dataset:
+        options.append(f"-o quota={dataset['quota']}")
+    if "reservation" in dataset:
+        options.append(f"-o reservation={dataset['reservation']}")
+    
+    # Special properties for specific datasets
+    if dataset.get("special_props"):
+        for prop, value in dataset["special_props"].items():
+            options.append(f"-o {prop}={value}")
+    
+    # Build command
+    cmd_parts.extend(options)
+    cmd_parts.append(f"{pool_name}/{dataset['name']}")
+    
+    commands.append(" ".join(cmd_parts))
+    
+    # Create child datasets if any
+    for child in dataset.get("children", []):
+        child_name = f"{dataset['name']}/{child['name']}"
+        child["name"] = child_name
+        commands.extend(build_dataset_commands(pool_name, child))
+    
+    return commands
+
+class ZfsrichconfigJob:
+    """Calamares ViewStep for rich ZFS configuration"""
+    
+    def __init__(self):
+        self.widget = None
+        self.gs = libcalamares.globalstorage
+    
+    def name(self):
+        return "zfsrichconfig"
+    
+    def pretty_name(self):
+        return "Advanced ZFS Configuration"
+    
+    def icon(self):
+        return "drive-harddisk"
+    
+    def widget(self):
+        """Get the GUI widget"""
+        if self.widget is None:
+            # Get hardware info from earlier detection
+            hardware_info = self.gs.value("hardwareInfo") or {}
+            self.widget = ZFSRichConfigWidget(self.gs, hardware_info)
+        return self.widget
+    
+    def next(self):
+        """Called when Next is clicked"""
+        if self.widget:
+            config = self.widget.get_configuration()
+            
+            if not config:
+                return ("Configuration Error", "Please complete the ZFS configuration")
+            
+            # Validate boot pool
+            if not config.get("boot_pool"):
+                return ("Boot Pool Required", "You must configure a boot pool")
+            
+            boot_disks = config["boot_pool"].get("disks", [])
+            if not boot_disks:
+                return ("Boot Disks Required", "You must select at least one disk for the boot pool")
+            
+            # Store configuration
+            self.gs.insert("zfsRichConfig", config)
+            
+            libcalamares.utils.debug(f"ZFS rich configuration stored: {json.dumps(config, indent=2)}")
+        
+        return None
+    
+    def back(self):
+        return None
+    
+    def jobs(self):
+        """Return jobs for execution phase"""
+        # Configuration only, actual creation in exec phase
+        return []
+
+# Create module instance for Calamares
+def create_view_module():
+    return ZfsrichconfigJob()
+
+calamares_module = ZfsrichconfigJob

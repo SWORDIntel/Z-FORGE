@@ -505,7 +505,7 @@ def test_module(module_name):
         if hasattr(main, class_name):
             # Try to instantiate
             job_class = getattr(main, class_name)
-            job = job_class({})
+            job = job_class()  # Don't pass any arguments
             print(f"  ✅ {module_name}: OK (class {class_name} found)")
             return True
         else:

@@ -1,0 +1,215 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# === Enhanced ZFS Configuration Module for Calamares ===
+#
+# This module provides an advanced GUI for ZFS pool configuration
+# with visual design, workload profiles, and real-time validation
+
+import os
+import sys
+import subprocess
+import json
+import libcalamares
+from pathlib import Path
+
+# Import the enhanced GUI module
+sys.path.append(os.path.dirname(__file__))
+from zfs_enhanced_gui import ZfsEnhancedGui as ZFSEnhancedConfigWidget
+
+def pretty_name():
+    """
+    Module display name
+    """
+    return "ZFS Pool Configuration"
+
+def icon():
+    """
+    Module icon
+    """
+    return "drive-harddisk"
+
+def run():
+    """
+    Main entry point for Calamares module execution
+    This is called when the module executes (after UI)
+    """
+    try:
+        # Get configuration from global storage
+        gs = libcalamares.globalstorage
+        pool_config = gs.value("zfsPoolConfig")
+        
+        if not pool_config:
+            return "No ZFS pool configuration found", "You must configure a ZFS pool before continuing"
+        
+        # Validate configuration
+        if not pool_config.get("disks"):
+            return "No disks selected", "You must select at least one disk for the ZFS pool"
+        
+        # Store configuration for later modules
+        gs.insert("zfsPoolName", pool_config["name"])
+        gs.insert("zfsPoolType", pool_config["raid_type"])
+        gs.insert("zfsPoolDisks", pool_config["disks"])
+        gs.insert("zfsPoolCompression", pool_config.get("compression", "lz4"))
+        gs.insert("zfsPoolEncryption", pool_config.get("encryption", False))
+        gs.insert("zfsPoolAshift", pool_config.get("ashift", 12))
+        
+        # Build the zpool create command
+        try:
+            cmd = build_zpool_command(pool_config)
+            gs.insert("zfsPoolCreateCommand", cmd)
+        except Exception as e:
+            return "ZFS command generation failed", f"Failed to generate ZFS commands: {str(e)}"
+        
+        libcalamares.utils.debug(f"ZFS pool configuration: {json.dumps(pool_config, indent=2)}")
+        libcalamares.utils.debug(f"ZFS pool create command: {cmd}")
+        
+        return None
+        
+    except Exception as e:
+        libcalamares.utils.debug(f"ZFS enhanced config error: {str(e)}")
+        return "Configuration error", f"ZFS enhanced configuration failed: {str(e)}"
+
+def build_zpool_command(config):
+    """
+    Build the zpool create command from configuration
+    """
+    cmd_parts = ["zpool", "create"]
+    
+    # Add pool name
+    pool_name = config["name"]
+    
+    # Add options
+    cmd_parts.extend(["-o", f"ashift={config.get('ashift', 12)}"])
+    
+    if config.get("compression", "off") != "off":
+        cmd_parts.extend(["-o", f"compression={config['compression']}"])
+    
+    if config.get("encryption", False):
+        cmd_parts.extend([
+            "-o", "encryption=on",
+            "-o", "keylocation=prompt",
+            "-o", "keyformat=passphrase"
+        ])
+    
+    # Add pool name
+    cmd_parts.append(pool_name)
+    
+    # Add RAID configuration
+    raid_type = config["raid_type"]
+    disks = config["disks"]
+    
+    if raid_type == "stripe":
+        cmd_parts.extend(disks)
+    elif raid_type == "mirror":
+        cmd_parts.append("mirror")
+        cmd_parts.extend(disks)
+    else:  # raidz variants
+        cmd_parts.append(raid_type)
+        cmd_parts.extend(disks)
+    
+    return " ".join(cmd_parts)
+
+class ZfsenhancedconfigJob:
+    """
+    Calamares ViewStep for the enhanced ZFS configuration
+    """
+    
+    def __init__(self):
+        # Qt is imported at module level
+        self.widget = None
+        self.gs = libcalamares.globalstorage
+    
+    def name(self):
+        """
+        Step name
+        """
+        return "zfsenhancedconfig"
+    
+    def pretty_name(self):
+        """
+        Display name
+        """
+        return "ZFS Pool Configuration"
+    
+    def icon(self):
+        """
+        Step icon
+        """
+        return "drive-harddisk"
+    
+    def widget(self):
+        """
+        Get the GUI widget
+        """
+        if self.widget is None:
+            self.widget = ZFSEnhancedConfigWidget(self.gs)
+        return self.widget
+    
+    def next(self):
+        """
+        Called when Next is clicked
+        """
+        if self.widget:
+            # Validate configuration
+            config = self.widget.get_configuration()
+            
+            if not config:
+                return ("Configuration Error", "Please complete the ZFS pool configuration")
+            
+            if not config.get("disks"):
+                return ("No Disks Selected", "You must select at least one disk for the ZFS pool")
+            
+            # Check minimum disk requirements
+            raid_type = config["raid_type"]
+            num_disks = len(config["disks"])
+            
+            min_disks = {
+                "stripe": 1,
+                "mirror": 2,
+                "raidz1": 3,
+                "raidz2": 4,
+                "raidz3": 5
+            }
+            
+            required = min_disks.get(raid_type, 1)
+            if num_disks < required:
+                return ("Insufficient Disks", 
+                       f"{raid_type} requires at least {required} disks, but only {num_disks} selected")
+            
+            # Store configuration
+            self.gs.insert("zfsPoolConfig", config)
+            
+            # Generate and store the command
+            cmd = build_zpool_command(config)
+            self.gs.insert("zfsPoolCreateCommand", cmd)
+            
+            libcalamares.utils.debug(f"ZFS configuration stored: {json.dumps(config, indent=2)}")
+        
+        return None
+    
+    def back(self):
+        """
+        Called when Back is clicked
+        """
+        return None
+    
+    def jobs(self):
+        """
+        Return jobs for execution phase
+        """
+        # This module doesn't create the pool directly
+        # It just configures it for a later module
+        return []
+
+# Create module instance for Calamares
+def create_view_module():
+    """Factory function for Calamares to create the view module"""
+    return ZfsenhancedconfigJob()
+
+# For older Calamares versions that expect a direct class
+calamares_module = ZfsenhancedconfigJob

@@ -11,8 +11,8 @@ from typing import Dict, List, Optional
 class ZfspooldetectJob:
     """Calamares job for detecting ZFS pools"""
     
-    def __init__(self, config: Dict):
-        self.config = config
+    def __init__(self):
+        self.config = {}
         self.pools = []
         
     def detect_pools(self) -> List[Dict]:
