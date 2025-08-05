@@ -1,10 +1,10 @@
 {
-  "timestamp": "2025-08-05T05:55:12.287073",
+  "timestamp": "2025-08-05T07:56:48.308497",
   "system": {
     "actual": {
-      "cpu_cores": 21,
+      "cpu_cores": 6,
       "memory_gb": 62,
-      "disk_gb": 429
+      "disk_gb": 425
     },
     "requirements": {
       "cpu_cores": 2,
@@ -32,7 +32,7 @@
     "path": "/home/john/zforge_workspace",
     "exists": true,
     "writable": true,
-    "space_gb": 429,
+    "space_gb": 425,
     "status": "PASS"
   },
   "network": {
@@ -45,7 +45,6 @@
     "lock_files": [
       "/var/lib/dpkg/lock",
       "/var/lib/dpkg/lock-frontend",
-      "/var/lib/apt/lists/lock",
       "/var/cache/apt/archives/lock"
     ],
     "broken_packages": false,
@@ -77,7 +76,7 @@
     "status": "PASS"
   },
   "permissions": {
-    "user": "root",
+    "user": "john",
     "sudo_access": true,
     "build_py_executable": true,
     "modules_readable": true,
@@ -102,7 +101,6 @@
     "warnings": [
       "APT lock file exists: /var/lib/dpkg/lock",
       "APT lock file exists: /var/lib/dpkg/lock-frontend",
-      "APT lock file exists: /var/lib/apt/lists/lock",
       "APT lock file exists: /var/cache/apt/archives/lock"
     ],
     "fixes_applied": [],
@@ -111,7 +109,6 @@
       "\nCONSIDER ADDRESSING WARNINGS:",
       "  \u2022 APT lock file exists: /var/lib/dpkg/lock",
       "  \u2022 APT lock file exists: /var/lib/dpkg/lock-frontend",
-      "  \u2022 APT lock file exists: /var/lib/apt/lists/lock",
       "  \u2022 APT lock file exists: /var/cache/apt/archives/lock",
       "\n\u2705 SYSTEM READY FOR BUILD",
       "\nRECOMMENDED BUILD COMMANDS:",

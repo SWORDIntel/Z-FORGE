@@ -1,0 +1,263 @@
+# Z-FORGE Build Specification - Full Featured with tmpfs (RAM)
+# High-performance build using RAM-based filesystem for maximum speed
+
+name: Z-FORGE Full Featured tmpfs Build
+version: 3.0
+codename: proxmox9-beta-tmpfs
+architecture: amd64
+
+builder_config:
+  debian_release: trixie
+  kernel_version: 6.14.8-1
+  output_iso_name: zforge-3.0-tmpfs-amd64.iso
+  enable_debug: false
+  
+  # tmpfs configuration for RAM-based build
+  use_tmpfs: true
+  tmpfs_size: "8G"  # Adjust based on available RAM
+  tmpfs_mount_options: "noatime,size=8G,nr_inodes=1M"
+  
+  # Primary workspace in RAM
+  workspace_path: /tmp/zforge_tmpfs_workspace
+  
+  # Backup workspace on disk for final output
+  backup_workspace_path: /home/john/zforge_workspace
+  
+  # Cache settings optimized for tmpfs
+  cache_packages: true
+  cache_location: /tmp/zforge_package_cache
+  
+  # Hardware detection
+  auto_detect_hardware: true
+  iso_version: '3.0-tmpfs'
+  
+  # Environment variables for tmpfs optimization
+  environment:
+    TMPDIR: /tmp/zforge_tmpfs_workspace/temp
+    TEMP: /tmp/zforge_tmpfs_workspace/temp
+    TMP: /tmp/zforge_tmpfs_workspace/temp
+    # Compiler optimizations for RAM build
+    CCACHE_DIR: /tmp/zforge_ccache
+    CCACHE_MAXSIZE: 2G
+    MAKEFLAGS: "-j$(nproc)"
+    # Parallel debootstrap/apt operations
+    APT_CONFIG: /tmp/zforge_tmpfs_workspace/apt.conf
+    
+  # tmpfs-specific settings
+  tmpfs_config:
+    # Mount points to create in tmpfs
+    mount_points:
+      - path: /tmp/zforge_tmpfs_workspace
+        size: "8G"
+        options: "noatime,nr_inodes=1M"
+      - path: /tmp/zforge_ccache
+        size: "2G" 
+        options: "noatime"
+      - path: /tmp/zforge_package_cache
+        size: "2G"
+        options: "noatime"
+    
+    # Directories to sync back to disk at completion
+    sync_back_dirs:
+      - source: /tmp/zforge_tmpfs_workspace/output
+        dest: /home/john/zforge_workspace/output
+      - source: /tmp/zforge_tmpfs_workspace/logs
+        dest: /home/john/zforge_workspace/logs
+
+proxmox_config:
+  version: latest
+  minimal_install: false
+  build_from_source: true  # Build from source for better performance
+  include_packages: []
+  # Build in tmpfs for speed
+  build_location: /tmp/zforge_tmpfs_workspace/proxmox_build
+
+zfs_config:
+  version: 2.3.3
+  build_from_source: true  # Build from source in RAM
+  build_location: /tmp/zforge_tmpfs_workspace/zfs_build
+  enable_encryption: true
+  compression:
+    default: lz4
+    algorithm: auto
+  # ZFS build optimizations
+  build_opts:
+    parallel_jobs: "$(nproc)"
+    use_ccache: true
+    optimize_level: "O2"
+
+bootloader_config:
+  primary: grub
+  enable_zfsbootmenu: true
+  encryption_support: true
+  # Build bootloaders in tmpfs
+  build_location: /tmp/zforge_tmpfs_workspace/bootloader_build
+
+hardware_detection:
+  enabled: true
+  enforce_zfs_mode: true
+
+calamares_config:
+  enabled: true
+  build_location: /tmp/zforge_tmpfs_workspace/calamares_build
+
+# Module configuration optimized for tmpfs
+modules:
+- name: tmpfs_setup
+  enabled: true
+  priority: 1
+  config:
+    size: "8G"
+    mount_point: /tmp/zforge_tmpfs_workspace
+    fallback_path: /home/john/zforge_workspace
+    
+- name: workspace_setup
+  enabled: true
+  priority: 2
+  config:
+    primary_workspace: /tmp/zforge_tmpfs_workspace
+    backup_workspace: /home/john/zforge_workspace
+    create_subdirs:
+      - temp
+      - cache
+      - build
+      - chroot
+      - output
+      - logs
+    
+- name: ccache_setup
+  enabled: true
+  priority: 3
+  config:
+    cache_dir: /tmp/zforge_ccache
+    max_size: "2G"
+    compression: true
+    
+- name: gpg_bypass
+  enabled: true
+  priority: 10
+  
+- name: universal_hardware_detect
+  enabled: true
+  priority: 15
+  
+- name: debootstrap
+  enabled: true
+  priority: 20
+  config:
+    # Debootstrap in tmpfs for speed
+    work_dir: /tmp/zforge_tmpfs_workspace/debootstrap
+    mirror: http://deb.debian.org/debian
+    components: ["main", "contrib", "non-free-firmware"]
+    # Use package cache in tmpfs
+    cache_dir: /tmp/zforge_package_cache
+    
+- name: kernel_acquisition
+  enabled: true
+  priority: 25
+  config:
+    build_location: /tmp/zforge_tmpfs_workspace/kernel_build
+    use_ccache: true
+    parallel_jobs: "$(nproc)"
+    
+- name: zfs_build
+  enabled: true
+  priority: 30
+  config:
+    source_dir: /tmp/zforge_tmpfs_workspace/zfs_src
+    build_dir: /tmp/zforge_tmpfs_workspace/zfs_build
+    use_ccache: true
+    parallel_jobs: "$(nproc)"
+    optimization_level: "O2"
+    
+- name: proxmox_integration
+  enabled: true
+  priority: 35
+  config:
+    build_dir: /tmp/zforge_tmpfs_workspace/proxmox_build
+    use_ccache: true
+    
+- name: live_environment
+  enabled: true
+  priority: 40
+  config:
+    work_dir: /tmp/zforge_tmpfs_workspace/live_build
+    
+- name: dracut_config
+  enabled: true
+  priority: 45
+  config:
+    work_dir: /tmp/zforge_tmpfs_workspace/dracut
+    
+- name: zfsbootmenu_install
+  enabled: true
+  priority: 50
+  config:
+    build_dir: /tmp/zforge_tmpfs_workspace/zfsbootmenu
+    
+- name: bootloader_setup
+  enabled: true
+  priority: 55
+  config:
+    work_dir: /tmp/zforge_tmpfs_workspace/bootloader
+    
+- name: security_hardening
+  enabled: true
+  priority: 60
+  
+- name: zfs_encryption
+  enabled: true
+  priority: 65
+  
+- name: calamares_integration
+  enabled: true
+  priority: 70
+  config:
+    build_dir: /tmp/zforge_tmpfs_workspace/calamares_build
+    
+- name: cleanup_handler
+  enabled: true
+  priority: 80
+  config:
+    preserve_logs: true
+    sync_to_disk: true
+    
+- name: iso_generation
+  enabled: true
+  priority: 90
+  config:
+    work_dir: /tmp/zforge_tmpfs_workspace/iso_build
+    output_dir: /tmp/zforge_tmpfs_workspace/output
+    final_output_dir: /home/john/zforge_workspace/output
+    compression: xz
+    compression_level: 6  # Balanced for RAM builds
+    
+- name: tmpfs_sync_back
+  enabled: true
+  priority: 95
+  config:
+    sync_mappings:
+      - source: /tmp/zforge_tmpfs_workspace/output
+        dest: /home/john/zforge_workspace/output
+      - source: /tmp/zforge_tmpfs_workspace/logs  
+        dest: /home/john/zforge_workspace/logs
+
+# Performance optimizations for tmpfs builds
+performance_config:
+  compiler_flags:
+    CFLAGS: "-O2 -march=native -pipe"
+    CXXFLAGS: "-O2 -march=native -pipe"
+    LDFLAGS: "-Wl,-O1 -Wl,--as-needed"
+  
+  parallel_config:
+    make_jobs: "$(nproc)"
+    debootstrap_parallel: true
+    apt_parallel: true
+    
+  memory_optimization:
+    # Use all available cores
+    max_parallel_jobs: "$(nproc)"
+    # Optimize for RAM usage
+    minimize_disk_io: true
+    # Use memory-based temporary files
+    use_tmpfs_tmp: true

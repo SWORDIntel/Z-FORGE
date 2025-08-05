@@ -19,6 +19,22 @@ BOLD='\033[1m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Check if running as root/sudo
+if [ "$EUID" -ne 0 ]; then
+    echo -e "${RED}❌ Z-FORGE TUI Launcher must be run with sudo${NC}"
+    echo ""
+    echo -e "${YELLOW}Reason: Z-FORGE requires root permissions for:${NC}"
+    echo -e "  ${CYAN}•${NC} Chroot operations and package installations"
+    echo -e "  ${CYAN}•${NC} tmpfs mounting for high-performance builds"
+    echo -e "  ${CYAN}•${NC} APT operations and repository management"
+    echo -e "  ${CYAN}•${NC} System-level hardware detection"
+    echo ""
+    echo -e "${GREEN}Please run: sudo ./zforge-launcher.sh${NC}"
+    echo ""
+    read -p "Press Enter to exit..."
+    exit 1
+fi
+
 # Check if running with sudo when needed
 check_sudo() {
     if [ "$EUID" -ne 0 ]; then

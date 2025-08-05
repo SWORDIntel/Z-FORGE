@@ -1,0 +1,12 @@
+--2025-08-05 08:13:43--  http://deb.debian.org/debian/dists/trixie/contrib/binary-amd64/by-hash/SHA256/45f27d2198277f1592e9c8406c574a00afee1e0951792ea544460fd944112993
+Resolving deb.debian.org (deb.debian.org)... 151.101.2.132
+Connecting to deb.debian.org (deb.debian.org)|151.101.2.132|:80... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 53848 (53K)
+Saving to: ‘/home/john/zforge_workspace/chroot/var/lib/apt/lists/partial/deb.debian.org_debian_dists_trixie_contrib_binary-amd64_Packages.xz’
+
+     0K .......... .......... .......... .......... .......... 95% 2.30M 0s
+    50K ..                                                    100% 13.7M=0.02s
+
+2025-08-05 08:13:43 (2.39 MB/s) - ‘/home/john/zforge_workspace/chroot/var/lib/apt/lists/partial/deb.debian.org_debian_dists_trixie_contrib_binary-amd64_Packages.xz’ saved [53848/53848]
+

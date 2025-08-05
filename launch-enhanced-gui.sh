@@ -16,6 +16,22 @@ echo "  ✅ Real-time monitoring"
 echo "  ✅ Build success recommendations"
 echo ""
 
+# Check if running as root/sudo
+if [ "$EUID" -ne 0 ]; then
+    echo "❌ Z-FORGE Enhanced GUI must be run with sudo"
+    echo ""
+    echo "Reason: Z-FORGE requires root permissions for:"
+    echo "  • Chroot operations and package installations"
+    echo "  • tmpfs mounting for high-performance builds"
+    echo "  • APT operations and repository management"
+    echo "  • System-level hardware detection"
+    echo ""
+    echo "Please run: sudo ./launch-enhanced-gui.sh"
+    echo ""
+    read -p "Press Enter to exit..."
+    exit 1
+fi
+
 # Check Python
 if ! command -v python3 &> /dev/null; then
     echo "❌ Python 3 is not installed"

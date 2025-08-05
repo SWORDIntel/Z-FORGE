@@ -349,9 +349,15 @@ Pin-Priority: 100
                         zfs_version = self._build_zfs_in_chroot()
                     except Exception as e:
                         self.logger.warning(f"Chroot build failed: {e}")
-                        # Fallback to APT installation
-                        self.logger.info("Falling back to APT repositories")
-                        zfs_version = self._install_zfs_from_apt()
+                        # Try local prebuilt packages first
+                        try:
+                            self.logger.info("Falling back to local prebuilt ZFS packages")
+                            zfs_version = self._install_zfs_from_local_prebuilt()
+                        except Exception as prebuilt_error:
+                            self.logger.warning(f"Local prebuilt packages failed: {prebuilt_error}")
+                            # Final fallback to APT installation
+                            self.logger.info("Final fallback to APT repositories")
+                            zfs_version = self._install_zfs_from_apt()
                 
                 # Set up dracut for ZFS support
                 self._setup_dracut_for_zfs()
@@ -1005,6 +1011,111 @@ install_items+=" /usr/sbin/zfs /usr/sbin/zpool "
             if mount_check.returncode == 0:
                 self.logger.debug(f"Unmounting {target}")
                 subprocess.run(["umount", str(target)], check=False)
+                
+    def _install_zfs_from_local_prebuilt(self) -> str:
+        """
+        Install ZFS from local prebuilt packages in /opt/github/Z-FORGE/prebuilt_packages/
+        This is used as a fallback when ZFS build from source fails.
+        """
+        self.logger.info("Installing ZFS from local prebuilt packages...")
+        
+        # Check for prebuilt ZFS packages
+        prebuilt_zfs_dir = Path("/opt/github/Z-FORGE/prebuilt_packages/zfs")
+        prebuilt_root_dir = Path("/opt/github/Z-FORGE/prebuilt_packages")
+        
+        # Look for .deb packages
+        zfs_debs = []
+        if prebuilt_zfs_dir.exists():
+            zfs_debs.extend(list(prebuilt_zfs_dir.glob("*.deb")))
+        
+        # Also check root prebuilt directory
+        zfs_debs.extend(list(prebuilt_root_dir.glob("*zfs*.deb")))
+        zfs_debs.extend(list(prebuilt_root_dir.glob("*nvpair*.deb")))
+        zfs_debs.extend(list(prebuilt_root_dir.glob("*uutil*.deb")))
+        zfs_debs.extend(list(prebuilt_root_dir.glob("*zpool*.deb")))
+        
+        if not zfs_debs:
+            raise Exception("No ZFS .deb packages found in prebuilt directory")
+            
+        self.logger.info(f"Found {len(zfs_debs)} ZFS packages to install")
+        
+        # Copy packages to chroot
+        chroot_tmp = self.chroot_path / "tmp" / "zfs_prebuilt"
+        chroot_tmp.mkdir(parents=True, exist_ok=True)
+        
+        copied_packages = []
+        for deb_file in zfs_debs:
+            dest_file = chroot_tmp / deb_file.name
+            shutil.copy2(deb_file, dest_file)
+            copied_packages.append(f"/tmp/zfs_prebuilt/{deb_file.name}")
+            self.logger.info(f"Copied {deb_file.name}")
+            
+        # Install packages in correct order
+        install_order = [
+            "*uutil*",      # libuutil3linux
+            "*nvpair*",     # libnvpair3linux  
+            "*zpool*",      # libzpool5linux
+            "*zfs4*",       # libzfs4linux
+            "zfsutils-*",   # zfsutils-linux
+            "zfs-zed*",     # zfs-zed
+            "zfs-initramfs*", # zfs-initramfs
+            "zfs-dkms*"     # zfs-dkms (if available)
+        ]
+        
+        installed_packages = []
+        for pattern in install_order:
+            matching_packages = [pkg for pkg in copied_packages if any(p in pkg for p in pattern.split("*") if p)]
+            
+            for package in matching_packages:
+                if package not in installed_packages:
+                    try:
+                        self.logger.info(f"Installing {Path(package).name}")
+                        
+                        # Try to install the package
+                        install_cmd = ["dpkg", "-i", package]
+                        result = self._run_chroot_command(install_cmd, check=False)
+                        
+                        if result.returncode != 0:
+                            # Fix dependencies and retry
+                            self.logger.info("Fixing dependencies...")
+                            self._run_chroot_command(["apt-get", "install", "-f", "-y"], check=False)
+                            
+                            # Retry installation
+                            result = self._run_chroot_command(install_cmd, check=False)
+                            
+                        if result.returncode == 0:
+                            installed_packages.append(package)
+                            self.logger.info(f"✅ Installed {Path(package).name}")
+                        else:
+                            self.logger.warning(f"Failed to install {Path(package).name}: {result.stderr}")
+                            
+                    except Exception as e:
+                        self.logger.warning(f"Error installing {package}: {e}")
+                        
+        if not installed_packages:
+            raise Exception("Failed to install any ZFS packages")
+            
+        # Check installation success
+        zfs_check = self._run_chroot_command(["zfs", "--version"], check=False)
+        if zfs_check.returncode == 0:
+            version_output = zfs_check.stdout.strip()
+            self.logger.info(f"✅ ZFS installation successful: {version_output}")
+            
+            # Extract version number
+            if "zfs-" in version_output:
+                version = version_output.split("zfs-")[1].split()[0]
+            else:
+                version = "2.3.3"  # Default assumption
+                
+            return version
+        else:
+            raise Exception("ZFS installation verification failed")
+            
+        # Cleanup temporary files
+        try:
+            shutil.rmtree(chroot_tmp)
+        except Exception:
+            pass
 
 # Example of how this might be used (outside the class, for testing or integration)
 if __name__ == '__main__':

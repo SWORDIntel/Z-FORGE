@@ -60,6 +60,13 @@ class ZForgeGUIEnhanced:
                 "features": ["ZFS 2.3.3+", "Proxmox integration", "Hardware optimization", "Complete bootloader suite"],
                 "success_rate": 70
             },
+            "tmpfs Build (High Performance)": {
+                "file": "build_specs/build_spec_tmpfs.yml",
+                "description": "RAM-based build for maximum performance. Requires 12GB+ RAM for optimal performance.",
+                "features": ["RAM-based filesystem", "Maximum build speed", "Parallel compilation", "ccache optimization"],
+                "success_rate": 80,
+                "ram_required": "12GB"
+            },
             "No /tmp Build": {
                 "file": "build_specs/build_spec_no_tmp.yml",
                 "description": "Avoids /tmp directory usage, good for systems with noexec /tmp.",
