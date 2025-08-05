@@ -225,7 +225,7 @@ Z-FORGE/
 python3 zforge_gui.py
 
 # Or use launcher with dependency checks
-./launch-gui.sh
+./launch-enhanced-gui.sh
 ```
 
 #### GUI Workflow
@@ -333,7 +333,7 @@ python3 test_full_integration.py
 - **Quick Navigation**: `WHERE_ARE_THE_FILES.md`
 
 ### Scripts
-- **GUI Launcher**: `launch-gui.sh`
+- **GUI Launcher**: `launch-enhanced-gui.sh`
 - **Spec Checker**: `check_build_specs.sh`
 - **Dracut Test**: `test_dracut_build.sh`
 

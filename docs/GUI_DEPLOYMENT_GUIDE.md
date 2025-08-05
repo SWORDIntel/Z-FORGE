@@ -44,10 +44,10 @@ python3 zforge_gui.py
 #### Enhanced Setup with Launcher
 ```bash
 # 1. Make launcher executable
-chmod +x launch-gui.sh
+chmod +x launch-enhanced-gui.sh
 
 # 2. Use launcher (includes dependency checks)
-./launch-gui.sh
+./launch-enhanced-gui.sh
 
 # 3. Create desktop shortcut (optional)
 cp zforge-gui.desktop ~/Desktop/
@@ -60,7 +60,7 @@ cp zforge-gui.desktop ~/Desktop/
 # 1. Copy GUI files to system location
 sudo mkdir -p /opt/zforge-gui
 sudo cp zforge_gui.py /opt/zforge-gui/
-sudo cp launch-gui.sh /opt/zforge-gui/
+sudo cp launch-enhanced-gui.sh /opt/zforge-gui/
 sudo cp GUI_GUIDE.md /opt/zforge-gui/
 
 # 2. Create system launcher
@@ -132,7 +132,7 @@ COPY . /opt/zforge
 WORKDIR /opt/zforge
 
 # Setup GUI
-RUN chmod +x zforge_gui.py launch-gui.sh
+RUN chmod +x zforge_gui.py launch-enhanced-gui.sh
 
 # Create entrypoint
 COPY docker-entrypoint.sh /usr/local/bin/
@@ -312,7 +312,7 @@ done
 ### File Permissions
 ```bash
 # Set secure permissions on GUI files
-chmod 755 zforge_gui.py launch-gui.sh
+chmod 755 zforge_gui.py launch-enhanced-gui.sh
 chmod 644 *.md *.yml *.desktop
 
 # Protect configuration files

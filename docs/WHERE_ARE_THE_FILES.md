@@ -16,8 +16,8 @@ WHERE_ARE_THE_FILES.md       # This file - quick navigation
 
 ### 🚀 Main Launchers
 ```bash
-zforge_gui.py                # Graphical GUI application (NEW!)
-launch-gui.sh                # GUI launcher with dependency checks
+zforge_gui.py                # Graphical GUI application
+launch-enhanced-gui.sh       # Enhanced GUI launcher with recovery
 build.py                     # Python build system (command line)
 zforge-launcher.sh           # Interactive TUI launcher
 ```

@@ -44,7 +44,7 @@ pip3 install pyyaml psutil
 python3 zforge_gui.py
 
 # Method 2: Using launcher script (recommended)
-./launch-gui.sh
+./launch-enhanced-gui.sh
 
 # Method 3: From desktop (if installed)
 # Click Z-FORGE Build System icon

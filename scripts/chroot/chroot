@@ -1,0 +1,3 @@
+#!/bin/bash
+# Alias for chroot that uses ultrathink solution
+exec "$(dirname "$0")/ultrathink_chroot_wrapper.sh" chroot "$@"

@@ -39,12 +39,21 @@ class ConfigurationManager:
     
     def find_build_specs(self) -> List[Path]:
         """Find available build spec YAML files"""
-        yaml_files = list(self.project_root.glob("*.yml")) + list(self.project_root.glob("*.yaml"))
+        # Look in both root and build_specs directory
+        yaml_files = []
+        yaml_files.extend(list(self.project_root.glob("*.yml")))
+        yaml_files.extend(list(self.project_root.glob("*.yaml")))
+        
+        # Also check build_specs directory
+        build_specs_dir = self.project_root / "build_specs"
+        if build_specs_dir.exists():
+            yaml_files.extend(list(build_specs_dir.glob("*.yml")))
+            yaml_files.extend(list(build_specs_dir.glob("*.yaml")))
         
         # Filter to build spec files
         build_specs = []
         for yaml_file in yaml_files:
-            if 'build_spec' in yaml_file.name.lower() or yaml_file.name == 'build_specs/build_spec.yml':
+            if 'build_spec' in yaml_file.name.lower():
                 build_specs.append(yaml_file)
         
         return sorted(build_specs)
@@ -67,7 +76,7 @@ class ConfigurationManager:
         else:
             # Multiple specs found, check for default
             for spec in build_specs:
-                if spec.name == 'build_specs/build_spec.yml':
+                if spec.name == 'build_spec.yml' and spec.parent.name == 'build_specs':
                     return spec
             # No default, use first one
             return build_specs[0]

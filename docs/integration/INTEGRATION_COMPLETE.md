@@ -87,7 +87,7 @@ The system is fully integrated and ready for production use.
 python3 zforge_gui.py
 
 # Or use the launcher script
-./launch-gui.sh
+./launch-enhanced-gui.sh
 ```
 
 #### Command Line Method

@@ -53,7 +53,7 @@ test -f build.py && echo "✅ In Z-FORGE directory" || echo "❌ Wrong directory
 ls -la build_spec*.yml
 
 # Verify GUI files are present
-ls -la zforge_gui.py launch-gui.sh test_gui*.py
+ls -la zforge_gui.py launch-enhanced-gui.sh test_gui*.py
 ```
 
 ### Test Execution Sequence
@@ -224,7 +224,7 @@ python3 zforge_gui.py
 #### Method 2: Launcher Script
 ```bash
 # Test launcher script
-./launch-gui.sh
+./launch-enhanced-gui.sh
 
 # Expected: Dependency checks pass, GUI launches
 ```

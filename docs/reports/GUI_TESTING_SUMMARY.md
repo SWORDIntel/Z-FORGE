@@ -105,7 +105,7 @@ Critical: 0, Errors: 0, Warnings: 0
 python3 zforge_gui.py
 
 # With launcher (recommended)
-./launch-gui.sh
+./launch-enhanced-gui.sh
 ```
 
 ### System Installation

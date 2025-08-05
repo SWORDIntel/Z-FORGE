@@ -10,7 +10,7 @@ Z-FORGE is a comprehensive tool for building custom Linux distributions with nat
 python3 zforge_gui.py
 
 # Or use the launcher script
-./launch-gui.sh
+./launch-enhanced-gui.sh
 
 # Test GUI components
 python3 test_gui.py
