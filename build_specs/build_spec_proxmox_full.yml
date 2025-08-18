@@ -2,11 +2,11 @@
 # Corrected version with proper structure
 
 builder_config:
-  debian_release: trixie
-  kernel_version: 6.14.8-1
+  debian_release: trixie  # Proxmox VE 9.0 is based on Debian Trixie
+  kernel_version: 6.14.8-2  # Use Proxmox kernel version for compatibility
   output_iso_name: zforge-proxmox-ultimate-3.0-amd64.iso
   enable_debug: false
-  workspace_path: /home/john/zforge_workspace
+  workspace_path: /root/zforge_workspace
   cache_packages: true
   auto_detect_hardware: true
   iso_version: '3.0'
@@ -18,7 +18,7 @@ proxmox_config:
   include_packages:
     - proxmox-ve
     - pve-manager
-    - pve-kernel-6.14
+    - pve-kernel-6.14.8-2-pve  # Specific Proxmox VE 9.0 kernel
     - proxmox-backup-server
     - ceph
     - corosync
@@ -85,8 +85,15 @@ desktop_config:
 modules:
 - name: workspace_setup
   enabled: true
-- name: gpg_bypass
+- name: repository_validation
   enabled: true
+  config:
+    force_gpg_bypass: true  # Proxmox repos may need bypass
+    debian_mirror: http://deb.debian.org/debian
+    fallback_mirrors:
+      - http://ftp.debian.org/debian
+      - http://httpredir.debian.org/debian
+      - http://ftp.us.debian.org/debian
 - name: universal_hardware_detect
   enabled: true
 - name: debootstrap
@@ -97,7 +104,8 @@ modules:
   enabled: true
   config:
     additional_kernels:
-      - pve-kernel-6.14
+      - pve-kernel-6.14.8-2-pve  # Proxmox VE 9.0 kernel
+      - pve-headers-6.14.8-2-pve  # Kernel headers for ZFS DKMS
 - name: zfs_build
   enabled: true
 - name: proxmox_integration

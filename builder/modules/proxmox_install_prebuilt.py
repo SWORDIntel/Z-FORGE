@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from builder.core.module import BaseModule
-from builder.utils.logger import Logger
+import logging
 
 
 class ProxmoxInstallPrebuilt(BaseModule):
@@ -16,7 +16,7 @@ class ProxmoxInstallPrebuilt(BaseModule):
     
     def __init__(self, config: Dict[str, Any], chroot_path: Optional[Path] = None):
         super().__init__(config, chroot_path)
-        self.logger = Logger(self.__class__.__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.packages_dir = self.config.get('packages_dir', '/tmp/prebuilt_packages/proxmox')
         
     def execute(self) -> bool:
@@ -83,7 +83,7 @@ class ProxmoxInstallPrebuilt(BaseModule):
             output = self._run_in_chroot_output(verify_cmd)
             
             if output and int(output.strip()) > 0:
-                self.logger.success(f"Successfully installed {output.strip()} Proxmox packages")
+                self.logger.info(f"Successfully installed {output.strip()} Proxmox packages")
                 return True
             else:
                 self.logger.error("Proxmox packages not properly installed")

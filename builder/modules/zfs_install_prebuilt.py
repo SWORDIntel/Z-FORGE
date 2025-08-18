@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional
 from builder.core.module import BaseModule
-from builder.utils.logger import Logger
+import logging
 
 
 class ZfsInstallPrebuilt(BaseModule):
@@ -17,7 +17,7 @@ class ZfsInstallPrebuilt(BaseModule):
     
     def __init__(self, config: Dict[str, Any], chroot_path: Optional[Path] = None):
         super().__init__(config, chroot_path)
-        self.logger = Logger(self.__class__.__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.packages_dir = self.config.get('packages_dir', '/tmp/prebuilt_packages/zfs')
         
     def execute(self) -> bool:
@@ -60,7 +60,7 @@ class ZfsInstallPrebuilt(BaseModule):
             output = self._run_in_chroot_output(verify_cmd)
             
             if output and int(output.strip()) > 0:
-                self.logger.success(f"Successfully installed {output.strip()} ZFS packages")
+                self.logger.info(f"Successfully installed {output.strip()} ZFS packages")
                 
                 # Load ZFS module
                 self.logger.info("Loading ZFS kernel module...")
@@ -81,11 +81,6 @@ class ZfsInstallPrebuilt(BaseModule):
             self.logger.error(f"Failed to install ZFS packages: {e}")
             return False
             
-    def _path_exists_in_chroot(self, path: Path) -> bool:
-        """Check if path exists in chroot"""
-        chroot_path = self.chroot_path / path.lstrip('/')
-        return chroot_path.exists()
-        
     def validate_config(self) -> bool:
         """Validate module configuration"""
         return True

@@ -1,67 +1,79 @@
+# Z-FORGE Working Build Specification
+# Uses only modules that don't have BaseModule import issues
+
+name: Z-FORGE Working Build
+version: 3.0
+
 builder_config:
   debian_release: trixie
   kernel_version: 6.14.0-15-generic
-  output_iso_name: zforge-3.0-amd64.iso
+  output_iso_name: zforge-3.0-working-amd64.iso
   enable_debug: false
   workspace_path: /root/zforge_workspace
   cache_packages: true
   auto_detect_hardware: true
-  iso_version: '3.0'
-proxmox_config:
-  version: latest
-  minimal_install: false
-  build_from_source: false
-  include_packages: []
+  iso_version: '3.0-working'
+
 zfs_config:
   version: 2.3.3
-  build_from_source: false
+  build_from_source: true
   enable_encryption: true
   compression:
     default: lz4
     algorithm: auto
+
 bootloader_config:
   primary: grub
   enable_zfsbootmenu: true
   encryption_support: true
+
 hardware_detection:
   enabled: true
   enforce_zfs_mode: true
+
 calamares_config:
   enabled: true
+
+# Only use modules that work without BaseModule import
 modules:
 - name: workspace_setup
   enabled: true
+  
 - name: gpg_bypass
   enabled: true
+  
 - name: universal_hardware_detect
   enabled: true
+  
 - name: debootstrap
   enabled: true
+  config:
+    mirror: http://deb.debian.org/debian
+    components: ["main", "contrib", "non-free-firmware"]
+    
 - name: kernel_acquisition
   enabled: true
+  
 - name: zfs_build
   enabled: true
-- name: proxmox_integration
-  enabled: true
+  
 - name: live_environment
   enabled: true
+  
 - name: dracut_config
   enabled: true
-- name: zfsbootmenu_install
-  enabled: true
-- name: bootloader_setup
-  enabled: true
+  
 - name: security_hardening
   enabled: true
+  
 - name: zfs_encryption
   enabled: true
-- name: calamares_integration
-  enabled: true
+  
 - name: cleanup_handler
   enabled: true
+  
 - name: iso_generation
   enabled: true
-name: Z-FORGE
-version: '3.0'
-codename: proxmox9-beta
-architecture: amd64
+  config:
+    compression: xz
+    compression_level: 6

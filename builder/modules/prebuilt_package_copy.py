@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
 from builder.core.module import BaseModule
-from builder.utils.logger import Logger
+import logging
 
 
 class PrebuiltPackageCopy(BaseModule):
@@ -17,7 +17,7 @@ class PrebuiltPackageCopy(BaseModule):
     
     def __init__(self, config: Dict[str, Any], chroot_path: Optional[Path] = None):
         super().__init__(config, chroot_path)
-        self.logger = Logger(self.__class__.__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.source_dir = Path(self.config.get('source', ''))
         self.destination = self.config.get('destination', '/tmp/prebuilt_packages')
         
@@ -67,7 +67,7 @@ class PrebuiltPackageCopy(BaseModule):
             if pkg_index.exists():
                 shutil.copy2(pkg_index, chroot_dest / "PACKAGES.md")
                 
-            self.logger.success(f"Successfully copied {copied} packages")
+            self.logger.info(f"Successfully copied {copied} packages")
             
             # Calculate total size
             total_size = sum(f.stat().st_size for f in chroot_dest.rglob("*.deb"))

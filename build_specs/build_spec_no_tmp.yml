@@ -3,11 +3,11 @@
 
 builder_config:
   debian_release: trixie
-  kernel_version: 6.14.8-1
+  kernel_version: 6.14.0-15-generic
   output_iso_name: zforge-3.0-notmp-amd64.iso
   enable_debug: false
   # Use home directory workspace instead of /tmp
-  workspace_path: /home/john/zforge_workspace
+  workspace_path: /root/zforge_workspace
   # Alternative: use /var/lib for system-wide builds
   # workspace_path: /var/lib/zforge_workspace
   cache_packages: true
@@ -15,9 +15,9 @@ builder_config:
   iso_version: '3.0'
   # Environment vars to avoid /tmp
   environment:
-    TMPDIR: ${HOME}/zforge_workspace/temp
-    TEMP: ${HOME}/zforge_workspace/temp
-    TMP: ${HOME}/zforge_workspace/temp
+    TMPDIR: /root/zforge_workspace/temp
+    TEMP: /root/zforge_workspace/temp
+    TMP: /root/zforge_workspace/temp
 
 proxmox_config:
   version: latest
@@ -54,7 +54,7 @@ modules:
   enabled: true
   config:
     # Avoid /tmp completely
-    temp_dir: ${HOME}/zforge_workspace/temp
+    temp_dir: /root/zforge_workspace/temp
 - name: gpg_bypass
   enabled: true
 - name: universal_hardware_detect
@@ -65,19 +65,19 @@ modules:
     mirror: http://deb.debian.org/debian
     components: ["main", "contrib", "non-free-firmware"]
     # Use our workspace cache
-    cache_dir: ${HOME}/zforge_workspace/cache/debootstrap
+    cache_dir: /root/zforge_workspace/cache/debootstrap
 - name: kernel_acquisition
   enabled: true
 - name: zfs_build
   enabled: true
   config:
     install_method: prebuilt_packages
-    package_dir: ${HOME}/github/Z-FORGE/prebuilt_packages
+    package_dir: /home/ubuntu/Documents/Z-FORGE/prebuilt_packages
 - name: proxmox_integration
   enabled: true
   config:
     install_method: prebuilt_packages
-    package_dir: ${HOME}/github/Z-FORGE/prebuilt_packages
+    package_dir: /home/ubuntu/Documents/Z-FORGE/prebuilt_packages
 - name: live_environment
   enabled: true
   config:
@@ -100,7 +100,7 @@ modules:
 - name: iso_generation
   enabled: true
   config:
-    output_dir: ${HOME}/zforge_workspace/output
+    output_dir: /root/zforge_workspace/output
     compression: xz
 
 name: Z-FORGE

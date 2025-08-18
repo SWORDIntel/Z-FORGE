@@ -8,7 +8,11 @@ builder_config:
   # Base configuration
   debian_release: trixie
   debian_mirror: http://deb.debian.org/debian
-  kernel_version: 6.14.8-1
+  fallback_mirrors:
+    - http://ftp.debian.org/debian
+    - http://httpredir.debian.org/debian
+    - http://ftp.us.debian.org/debian
+  kernel_version: 6.14.0-15-generic
   
   # Output configuration
   output_iso_name: zforge-trixie-3.0-amd64.iso
@@ -16,11 +20,11 @@ builder_config:
   iso_version: '3.0'
   
   # Workspace
-  workspace_path: /home/john/zforge_workspace
+  workspace_path: /root/zforge_workspace
   
   # Build options
   enable_cache: true
-  cache_dir: ~/zforge_cache
+  cache_dir: /root/zforge_cache
   cache_packages: true
   parallel_downloads: 4
   retry_attempts: 3
@@ -31,6 +35,7 @@ builder_config:
   
   # Security
   verify_signatures: false  # Disabled for build reliability
+  
 
 # ZFS Configuration
 zfs_config:
@@ -60,10 +65,23 @@ modules:
     config:
       clean_on_start: true
       
-  - name: gpg_bypass
+  - name: repository_validation
     enabled: true
     config:
-      disable_verification: true
+      force_gpg_bypass: false  # Try secure validation first
+      enable_pinning: true
+      pinning_preferences: |
+        Package: linux-image-*
+        Pin: version 6.14.0-15-generic
+        Pin-Priority: 1001
+        
+        Package: zfsutils-linux zfs-dkms
+        Pin: version 2.3.3-*
+        Pin-Priority: 1001
+        
+        Package: systemd systemd-sysv
+        Pin: version 257-*
+        Pin-Priority: 1001
       
   - name: universal_hardware_detect
     enabled: true

@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
 from builder.core.module import BaseModule
-from builder.utils.logger import Logger
+import logging
 
 
 class CalamaresInstallPrebuilt(BaseModule):
@@ -17,7 +17,7 @@ class CalamaresInstallPrebuilt(BaseModule):
     
     def __init__(self, config: Dict[str, Any], chroot_path: Optional[Path] = None):
         super().__init__(config, chroot_path)
-        self.logger = Logger(self.__class__.__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.packages_dir = self.config.get('packages_dir', '/tmp/prebuilt_packages/calamares')
         
     def execute(self) -> bool:
@@ -62,7 +62,7 @@ class CalamaresInstallPrebuilt(BaseModule):
             output = self._run_in_chroot_output(verify_cmd)
             
             if output and 'calamares' in output:
-                self.logger.success("Calamares installed successfully")
+                self.logger.info("Calamares installed successfully")
                 return True
             else:
                 self.logger.error("Calamares not properly installed")

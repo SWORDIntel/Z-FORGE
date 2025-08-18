@@ -6,10 +6,14 @@ version: 3.0
 
 builder_config:
   # Base configuration
-  workspace_path: /home/john/zforge_workspace
+  workspace_path: /root/zforge_workspace
   debian_release: bookworm  # STABLE instead of trixie
   debian_mirror: http://deb.debian.org/debian
-  kernel_version: 6.1.0-23-amd64  # Bookworm stable kernel
+  fallback_mirrors:
+    - http://ftp.debian.org/debian
+    - http://httpredir.debian.org/debian
+    - http://ftp.us.debian.org/debian
+  kernel_version: 6.14.0-15-generic  # Current system kernel
   
   # Output configuration
   output_iso_name: zforge-stable.iso
@@ -17,12 +21,21 @@ builder_config:
   
   # Build options
   enable_cache: true
-  cache_dir: ~/zforge_cache
+  cache_dir: /root/zforge_cache
   parallel_downloads: 4
   retry_attempts: 3
   
   # Security
   verify_signatures: false  # Disabled for build reliability
+  
+# ZFS Configuration - Conservative settings
+zfs_config:
+  version: 2.3.3
+  build_from_source: false
+  enable_encryption: false  # Disabled for stability
+  compression:
+    default: lz4
+    algorithm: lz4  # Conservative compression
   
 modules:
   # Core build modules (minimal for stability)
@@ -43,11 +56,22 @@ modules:
       extra_packages:
         - apt-utils
         - ca-certificates
+        - zfsutils-linux  # ZFS utilities
+        - zfs-dkms        # ZFS kernel module
         
-  - name: gpg_bypass
+  - name: repository_validation
     enabled: true
     config:
-      disable_verification: true
+      force_gpg_bypass: false  # Try secure validation first
+      debian_mirror: http://deb.debian.org/debian
+      fallback_mirrors:
+        - http://ftp.debian.org/debian
+        - http://httpredir.debian.org/debian
+      
+  - name: universal_hardware_detect
+    enabled: true
+    config:
+      detect_zfs_compatible: true
       
   # chroot_setup is handled by debootstrap module
       
@@ -56,6 +80,8 @@ modules:
     config:
       kernel_package: linux-image-amd64
       headers_package: linux-headers-amd64
+      # Ensure kernel version compatibility with ZFS
+      target_kernel: 6.8  # Use stable kernel 6.8 instead of 6.14
       
   - name: dracut_config
     enabled: true
@@ -83,9 +109,13 @@ modules:
       bootloader: isolinux
       uefi_support: true
       
-  # ZFS modules - disabled for initial stable build
+  # ZFS modules - enabled with conservative settings
   - name: zfs_build
-    enabled: false
+    enabled: true
+    config:
+      version: 2.3.3
+      build_from_source: false  # Use Debian packages for stability
+      install_method: apt
     
   # Proxmox modules - disabled for initial stable build  
   - name: proxmox_integration
@@ -149,6 +179,11 @@ packages:
     - xorriso
     - isolinux
     - syslinux-common
+    
+  zfs:
+    - zfsutils-linux
+    - zfs-dkms
+    - zfs-initramfs
     
   utilities:
     - nano

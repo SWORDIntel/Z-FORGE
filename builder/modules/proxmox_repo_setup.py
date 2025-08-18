@@ -51,8 +51,9 @@ class ProxmoxRepoSetup:
             
     def _add_repository_key(self):
         """Add Proxmox repository key"""
-        key_url = "https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg"
-        key_path = self.chroot_path / "etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg"
+        # Use Trixie repository for Proxmox VE 9.0 compatibility
+        key_url = "https://enterprise.proxmox.com/debian/proxmox-release-trixie.gpg"
+        key_path = self.chroot_path / "etc/apt/trusted.gpg.d/proxmox-release-trixie.gpg"
         
         self.logger.info("Downloading Proxmox repository key...")
         subprocess.run([
@@ -65,12 +66,13 @@ class ProxmoxRepoSetup:
         
         sources_list = self.chroot_path / "etc/apt/sources.list.d/pve.list"
         
+        # Updated for Proxmox VE 9.0 on Debian Trixie
         if repo_type == 'enterprise':
-            repo_line = "deb https://enterprise.proxmox.com/debian/pve bookworm pve-enterprise\n"
+            repo_line = "deb https://enterprise.proxmox.com/debian/pve trixie pve-enterprise\n"
         elif repo_type == 'test':
-            repo_line = "deb http://download.proxmox.com/debian/pve bookworm pvetest\n"
+            repo_line = "deb http://download.proxmox.com/debian/pve trixie pvetest\n"
         else:  # no-subscription
-            repo_line = "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription\n"
+            repo_line = "deb http://download.proxmox.com/debian/pve trixie pve-no-subscription\n"
             
         with open(sources_list, 'w') as f:
             f.write(repo_line)

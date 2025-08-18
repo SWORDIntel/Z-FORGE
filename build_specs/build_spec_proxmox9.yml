@@ -6,10 +6,10 @@ version: 3.0
 
 builder_config:
   # Base configuration
-  workspace_path: /home/john/zforge_workspace
+  workspace_path: /root/zforge_workspace
   debian_release: trixie  # Required for Proxmox VE 9
   debian_mirror: http://deb.debian.org/debian
-  kernel_version: 6.9.7-amd64  # Latest Trixie kernel
+  kernel_version: 6.14.0-15-generic  # Current system kernel
   
   # Proxmox configuration
   proxmox_version: "9.0"
@@ -22,7 +22,7 @@ builder_config:
   
   # Build options
   enable_cache: true
-  cache_dir: ~/zforge_cache
+  cache_dir: /root/zforge_cache
   use_package_snapshot: true  # Use stable Trixie snapshot
   parallel_downloads: 4
   retry_attempts: 3

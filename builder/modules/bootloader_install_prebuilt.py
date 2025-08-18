@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 from builder.core.module import BaseModule
-from builder.utils.logger import Logger
+import logging
 
 
 class BootloaderInstallPrebuilt(BaseModule):
@@ -16,7 +16,7 @@ class BootloaderInstallPrebuilt(BaseModule):
     
     def __init__(self, config: Dict[str, Any], chroot_path: Optional[Path] = None):
         super().__init__(config, chroot_path)
-        self.logger = Logger(self.__class__.__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.packages_dir = self.config.get('packages_dir', '/tmp/prebuilt_packages/bootloaders')
         
     def execute(self) -> bool:
@@ -77,7 +77,7 @@ class BootloaderInstallPrebuilt(BaseModule):
             output = self._run_in_chroot_output(verify_cmd)
             
             if output:
-                self.logger.success("Bootloader packages installed successfully")
+                self.logger.info("Bootloader packages installed successfully")
                 return True
             else:
                 self.logger.warning("Some bootloader components may be missing")

@@ -107,6 +107,10 @@ class ArgumentParser:
                 result['config_override'] = arg.split('=', 1)[1]
             elif arg == '--config' and i + 1 < len(self.args):
                 result['config_override'] = self.args[i + 1]
+            elif arg.startswith('--spec='):
+                result['config_override'] = arg.split('=', 1)[1]
+            elif arg == '--spec' and i + 1 < len(self.args):
+                result['config_override'] = self.args[i + 1]
             elif arg.startswith('--workspace='):
                 result['workspace_override'] = arg.split('=', 1)[1]
             elif arg == '--workspace' and i + 1 < len(self.args):

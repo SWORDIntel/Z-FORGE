@@ -135,13 +135,25 @@ Examples:
             })
 
 def execute_new_build(options: Dict):
-    """Execute a fresh build from scratch"""
+    """Execute a fresh build from scratch with workspace validation"""
     # Load or create configuration
     config_path = options.get('config_file', 'build_spec.yml')
     if not Path(config_path).exists():
         print(f"[!] Build spec not found: {config_path}")
         print(f"[+] Creating default configuration...")
         create_default_config(config_path)
+    
+    # Validate workspace before starting build
+    workspace_valid = validate_workspace_before_build(config_path)
+    if not workspace_valid['status']:
+        print(f"[!] Workspace validation failed: {workspace_valid['error']}")
+        print(f"[+] Attempting to fix workspace issues...")
+        fix_result = fix_workspace_issues(config_path)
+        if not fix_result['status']:
+            print(f"[!] Could not fix workspace issues: {fix_result['error']}")
+            sys.exit(1)
+        else:
+            print(f"[+] Workspace issues resolved")
     
     print("\n" + "="*60)
     print("Z-FORGE V3 Universal Builder")
@@ -204,7 +216,7 @@ def execute_new_build(options: Dict):
         sys.exit(1)
 
 def execute_resume_build(options: Dict):
-    """Resume a previous build from lockfile"""
+    """Resume a previous build from lockfile with workspace validation"""
     lockfile_path = options.get('lockfile', 'build_spec.lock')
     if not Path(lockfile_path).exists():
         print(f"[!] Lockfile not found: {lockfile_path}")
@@ -215,6 +227,17 @@ def execute_resume_build(options: Dict):
     
     # Initialize builder with the same config file
     config_file = options.get('build_spec', 'build_spec.yml')
+    
+    # Validate workspace before resuming
+    workspace_valid = validate_workspace_before_build(config_file)
+    if not workspace_valid['status']:
+        print(f"[!] Workspace validation failed: {workspace_valid['error']}")
+        print(f"[+] Attempting to fix workspace issues for resume...")
+        fix_result = fix_workspace_issues(config_file)
+        if not fix_result['status']:
+            print(f"[!] Could not fix workspace issues: {fix_result['error']}")
+            sys.exit(1)
+    
     builder = ZForgeBuilder(config_file)
     
     # Resume build pipeline
@@ -269,7 +292,7 @@ def create_default_config(path: str):
             'kernel_version': 'latest',  
             'output_iso_name': 'zforge-universal-proxmox-v3.iso',
             'enable_debug': True,
-            'workspace_path': '/tmp/zforge_workspace',
+            'workspace_path': '/root/zforge_workspace',
             'cache_packages': True,
             'auto_detect_hardware': True,  # Universal build by default
             'safe_optimization': '-O2'  # Safe optimization for all hardware
@@ -431,6 +454,103 @@ def create_default_config(path: str):
     print(f"    - 19 hardware profiles")
     print(f"    - Safe -O2 optimization")
     print(f"    - ZFS 2.3.3 from official repository")
+
+def validate_workspace_before_build(config_path: str) -> Dict:
+    """Validate workspace requirements before starting build"""
+    try:
+        # Load configuration
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        workspace_path = Path(config['builder_config'].get('workspace_path', '/root/zforge_workspace'))
+        
+        # Check disk space
+        if workspace_path.exists():
+            parent_path = workspace_path.parent
+        else:
+            parent_path = workspace_path.parent if workspace_path.parent.exists() else Path('/root')
+            
+        statvfs = os.statvfs(parent_path)
+        available_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024**3)
+        
+        if available_gb < 15:
+            return {
+                'status': False,
+                'error': f'Insufficient disk space: {available_gb:.1f}GB available, 15GB required'
+            }
+        
+        # Check root privileges
+        if os.geteuid() != 0:
+            try:
+                subprocess.run(["sudo", "-n", "true"], check=True, capture_output=True)
+            except subprocess.CalledProcessError:
+                return {
+                    'status': False,
+                    'error': 'Root privileges required. Please run as root or configure sudo.'
+                }
+        
+        # Check workspace directory accessibility
+        if workspace_path.exists():
+            try:
+                test_file = workspace_path / '.access_test'
+                test_file.write_text('test')
+                test_file.unlink()
+            except Exception as e:
+                return {
+                    'status': False,
+                    'error': f'Workspace not accessible: {e}'
+                }
+        
+        return {
+            'status': True,
+            'available_space_gb': available_gb,
+            'workspace': str(workspace_path)
+        }
+        
+    except Exception as e:
+        return {
+            'status': False,
+            'error': f'Validation error: {e}'
+        }
+
+def fix_workspace_issues(config_path: str) -> Dict:
+    """Attempt to fix common workspace issues"""
+    try:
+        # Load configuration
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        workspace_path = Path(config['builder_config'].get('workspace_path', '/root/zforge_workspace'))
+        
+        # Create workspace if missing
+        if not workspace_path.exists():
+            subprocess.run(["sudo", "mkdir", "-p", str(workspace_path)], check=True)
+            subprocess.run(["sudo", "chmod", "777", str(workspace_path)], check=True)
+        
+        # Create required subdirectories
+        required_dirs = ['temp', 'cache', 'build', 'chroot', 'output', 'logs', 'apt_cache', 'apt_state', 'iso_build', 'tmp']
+        for dir_name in required_dirs:
+            dir_path = workspace_path / dir_name
+            if not dir_path.exists():
+                subprocess.run(["sudo", "mkdir", "-p", str(dir_path)], check=True)
+                if dir_name == 'tmp':
+                    subprocess.run(["sudo", "chmod", "1777", str(dir_path)], check=True)
+                else:
+                    subprocess.run(["sudo", "chmod", "777", str(dir_path)], check=True)
+        
+        # Fix permissions
+        subprocess.run(["sudo", "chmod", "777", str(workspace_path)], check=True)
+        
+        return {
+            'status': True,
+            'message': f'Fixed workspace issues at {workspace_path}'
+        }
+        
+    except Exception as e:
+        return {
+            'status': False,
+            'error': f'Failed to fix workspace: {e}'
+        }
 
 if __name__ == "__main__":
     main()

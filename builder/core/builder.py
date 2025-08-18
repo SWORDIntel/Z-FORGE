@@ -104,8 +104,8 @@ class ZForgeBuilder:
         # Check available space (require at least 20GB)
         stat = shutil.disk_usage(parent)
         free_gb = stat.free / (1024**3)
-        if free_gb < 20:
-            raise ValueError(f"Insufficient space in {parent}: {free_gb:.1f}GB free, need 20GB")
+        if free_gb < 15:
+            raise ValueError(f"Insufficient space in {parent}: {free_gb:.1f}GB free, need 15GB")
 
     def _setup_logging(self):
         """Configure comprehensive logging"""
