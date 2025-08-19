@@ -369,20 +369,33 @@ class KernelAcquisition:
         # Note: kernel_packages will be handled specially with fallback
         package_groups_to_install = [base_packages, build_packages, dkms_packages, dracut_packages, zfs_packages, zfsbootmenu_packages]
         
-        # Try to install Proxmox kernel first, fallback to standard Debian kernel
-        self.logger.info("Attempting to install Proxmox kernel 6.14...")
+        # Try to install Proxmox kernel - REQUIRED for Proxmox VE 9
+        self.logger.info("Installing Proxmox kernel 6.14 (required for Proxmox VE 9)...")
+        
+        # Check if this is a Proxmox build
+        is_proxmox_build = any(mod.get('name') == 'proxmox_integration' and mod.get('enabled', False) 
+                              for mod in self.config.get('modules', []))
+        
         try:
             self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends"] + kernel_packages)
             self.logger.info("Successfully installed Proxmox kernel 6.14")
         except subprocess.CalledProcessError as e:
-            self.logger.warning(f"Proxmox kernel not available: {e.stderr if e.stderr else 'Package not found'}")
-            self.logger.info("Falling back to standard Debian kernel...")
-            try:
-                self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends"] + kernel_fallback)
-                self.logger.info("Successfully installed standard Debian kernel")
-            except subprocess.CalledProcessError as e2:
-                self.logger.error(f"Failed to install any kernel: {e2.stderr if e2.stderr else e2.stdout}")
-                raise
+            self.logger.error(f"Proxmox kernel not available: {e.stderr if e.stderr else 'Package not found'}")
+            
+            if is_proxmox_build:
+                # For Proxmox builds, the Proxmox kernel is REQUIRED
+                self.logger.error("FATAL: Proxmox VE 9 requires pve-kernel-6.14. Standard Debian kernels are NOT compatible!")
+                self.logger.error("Please ensure Proxmox repositories are properly configured and accessible.")
+                raise RuntimeError("Cannot build Proxmox VE 9 without pve-kernel-6.14")
+            else:
+                # For non-Proxmox builds, we can use standard kernel
+                self.logger.info("This is not a Proxmox build, using standard Debian kernel...")
+                try:
+                    self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends"] + kernel_fallback)
+                    self.logger.info("Successfully installed standard Debian kernel")
+                except subprocess.CalledProcessError as e2:
+                    self.logger.error(f"Failed to install any kernel: {e2.stderr if e2.stderr else e2.stdout}")
+                    raise
 
         if zfs_encryption_enabled:
             crypt_packages = ["cryptsetup", "cryptsetup-initramfs", "keyutils", "libpam-zfs"]
