@@ -8,20 +8,30 @@ import os
 import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
-from builder.core.module import BaseModule
 import logging
 
 
-class PrebuiltPackageCopy(BaseModule):
+class PrebuiltPackageCopy:
     """Copy prebuilt packages into chroot"""
     
-    def __init__(self, config: Dict[str, Any], chroot_path: Optional[Path] = None):
-        super().__init__(config, chroot_path)
+    def __init__(self, workspace: Path, config: Dict[str, Any]):
+        self.workspace = workspace
+        self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.source_dir = Path(self.config.get('source', ''))
-        self.destination = self.config.get('destination', '/tmp/prebuilt_packages')
+        self.chroot_path = workspace / "chroot"
         
-    def execute(self) -> bool:
+        # Handle different config structures
+        source_path = config.get('source', '/home/ubuntu/Documents/Z-FORGE/prebuilt_packages')
+        if isinstance(source_path, dict):
+            source_path = '/home/ubuntu/Documents/Z-FORGE/prebuilt_packages'
+        self.source_dir = Path(str(source_path))
+        
+        destination_path = config.get('destination', 'prebuilt_packages')  
+        if isinstance(destination_path, dict):
+            destination_path = 'prebuilt_packages'
+        self.destination = str(destination_path)
+        
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[Any] = None) -> Dict:
         """Copy prebuilt packages to chroot"""
         try:
             self.logger.info("Copying prebuilt packages to chroot...")
@@ -32,7 +42,12 @@ class PrebuiltPackageCopy(BaseModule):
                 return False
                 
             # Create destination in chroot
-            chroot_dest = self.chroot_path / self.destination.lstrip('/')
+            # Handle if destination is a Path or str
+            if isinstance(self.destination, Path):
+                dest_path = str(self.destination).lstrip('/')
+            else:
+                dest_path = self.destination.lstrip('/') if self.destination else 'prebuilt_packages'
+            chroot_dest = self.chroot_path / dest_path
             chroot_dest.mkdir(parents=True, exist_ok=True)
             
             # Count packages
@@ -73,11 +88,20 @@ class PrebuiltPackageCopy(BaseModule):
             total_size = sum(f.stat().st_size for f in chroot_dest.rglob("*.deb"))
             self.logger.info(f"Total package size: {total_size / 1024 / 1024:.2f} MB")
             
-            return True
+            return {
+                'status': 'success',
+                'packages_copied': copied,
+                'total_size_mb': total_size / 1024 / 1024,
+                'destination': str(chroot_dest)
+            }
             
         except Exception as e:
             self.logger.error(f"Failed to copy packages: {e}")
-            return False
+            return {
+                'status': 'error',
+                'error': str(e),
+                'module': self.__class__.__name__
+            }
             
     def validate_config(self) -> bool:
         """Validate module configuration"""

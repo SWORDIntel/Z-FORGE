@@ -33,6 +33,10 @@ class DracutConfig:
         self.logger.info("Starting dracut configuration...")
         
         try:
+            # FIRST: Ensure pseudo-filesystems are mounted (critical for package operations)
+            self.logger.info("Ensuring pseudo-filesystems are mounted in chroot...")
+            self._ensure_pseudo_filesystems_mounted()
+            
             # Remove initramfs-tools
             self._remove_initramfs_tools()
             
@@ -121,90 +125,168 @@ class DracutConfig:
         
         self.logger.info("Installing dracut packages...")
         
-        packages = [
-            "dracut",
-            "dracut-core",
-            "dracut-network",
-            "dracut-squash",
-            "binutils",  # For lsinitrd
-            "pigz",      # For parallel compression
-            "squashfs-tools",  # For mksquashfs/unsquashfs needed by dmsquash-live
-            "dmsetup",   # Device mapper tools
-            "kpartx",    # For partition mapping
-            # Essential packages for dracut modules
-            "util-linux",  # For hwclock (warpclock module)
-            "kbd",  # For loadkeys, setfont (i18n module)
-            "systemd-coredump",  # For coredumpctl
-            "cryptsetup",  # For systemd-cryptsetup
-            "systemd-boot",  # For systemd-repart
-            "systemd-resolved",  # For resolvectl
-            "systemd-timesyncd",  # For time sync
-            "systemd-container",  # For systemd-portabled
-            "dbus-broker",  # D-Bus message broker
-            "rng-tools5",  # For rngd (hardware RNG)
-            "btrfs-progs",  # Btrfs support
-            "xfsprogs",  # XFS support
-            "lvm2",  # LVM support
-            "mdadm",  # Software RAID
-            "multipath-tools",  # Multipath I/O
-            "open-iscsi",  # iSCSI support
-            "nfs-common",  # NFS support (we'll keep it excluded in dracut)
-            "nvme-cli",  # NVMe utilities
-            "jq",  # JSON processor for nvmf
-            "cifs-utils",  # SMB/CIFS support
-            "nbd-client",  # Network block device
-            "dmraid",  # Device-mapper RAID
-            "fcoe-utils",  # Fibre Channel over Ethernet
-            "lldpad",  # Link Layer Discovery Protocol
-            "biosdevname",  # Consistent network device naming
-            "tpm2-tools",  # TPM 2.0 support
-            "libtss2-tcti-device0",  # TPM2 library
-            "pcsc-tools",  # Smart card support
-            "erofs-utils"  # Enhanced Read-Only File System
+        # First configure DEBIAN_FRONTEND to prevent interactive prompts
+        self.logger.info("Configuring non-interactive installation...")
+        try:
+            # Set debconf to noninteractive mode
+            subprocess.run([
+                "chroot", str(self.chroot_path),
+                "bash", "-c", "echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections"
+            ], check=True, timeout=30)
+            
+            # Set keyboard configuration to prevent prompts
+            subprocess.run([
+                "chroot", str(self.chroot_path),
+                "bash", "-c", "echo 'keyboard-configuration keyboard-configuration/layout select English (US)' | debconf-set-selections"
+            ], check=True, timeout=30)
+            
+            subprocess.run([
+                "chroot", str(self.chroot_path),
+                "bash", "-c", "echo 'keyboard-configuration keyboard-configuration/variant select English (US)' | debconf-set-selections"
+            ], check=True, timeout=30)
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to configure debconf: {e}")
+        
+        # Update package lists to ensure we have latest versions
+        self.logger.info("Updating package lists...")
+        try:
+            subprocess.run([
+                "chroot", str(self.chroot_path),
+                "env", "DEBIAN_FRONTEND=noninteractive",
+                "apt-get", "update"
+            ], check=True, timeout=120)
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to update package lists: {e}")
+        
+        # Core essential packages only - avoid version conflicts
+        essential_packages = [
+            "dracut-core",  # Start with core only
+            "binutils",     # For lsinitrd  
+            "squashfs-tools", # For live systems
+            "util-linux",   # Essential utilities
+            "systemd",      # Base systemd
         ]
         
-        # Try to install all packages at once first
-        cmd = [
-            "chroot", str(self.chroot_path),
-            "apt-get", "install", "-y", "--no-install-recommends"
-        ] + packages
+        # Install essential packages first
+        self.logger.info("Installing essential dracut packages...")
+        for pkg in essential_packages:
+            try:
+                cmd = [
+                    "chroot", str(self.chroot_path),
+                    "env", "DEBIAN_FRONTEND=noninteractive",
+                    "apt-get", "install", "-y", "--no-install-recommends",
+                    "--allow-downgrades", pkg
+                ]
+                subprocess.run(cmd, check=True, timeout=120)
+                self.logger.info(f"Successfully installed: {pkg}")
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"Failed to install essential package {pkg}: {e}")
+                raise Exception(f"Cannot proceed without {pkg}")
         
+        # Try to install full dracut after core is working
+        self.logger.info("Installing full dracut package...")
         try:
-            subprocess.run(cmd, check=True, timeout=600)  # 10 minutes for package installation
-            self.logger.info("All dracut packages installed successfully")
+            cmd = [
+                "chroot", str(self.chroot_path),
+                "env", "DEBIAN_FRONTEND=noninteractive",
+                "apt-get", "install", "-y", "--no-install-recommends",
+                "--allow-downgrades", "dracut"
+            ]
+            subprocess.run(cmd, check=True, timeout=120)
+            self.logger.info("Full dracut package installed successfully")
         except subprocess.CalledProcessError as e:
-            self.logger.warning(f"Some packages failed to install: {e}")
-            # Try to install essential packages one by one
-            essential = packages[:9]  # Core dracut packages
-            failed = []
-            for pkg in essential:
-                try:
-                    subprocess.run([
-                        "chroot", str(self.chroot_path),
-                        "apt-get", "install", "-y", "--no-install-recommends", pkg
-                    ], check=True, timeout=60)
-                except subprocess.CalledProcessError:
-                    self.logger.error(f"Failed to install essential package: {pkg}")
-                    failed.append(pkg)
+            self.logger.warning(f"Full dracut install failed: {e}")
+            self.logger.info("Continuing with dracut-core only...")
+        
+        # Optional packages - install if available, don't fail if not
+        optional_packages = [
+            "dracut-network",
+            "pigz",
+            "dmsetup",
+            "kpartx",
+            "kbd",
+            "cryptsetup",
+            "lvm2",
+            "mdadm",
+            "nvme-cli",
+            "jq"
+        ]
+        
+        self.logger.info("Installing optional packages...")
+        for pkg in optional_packages:
+            try:
+                cmd = [
+                    "chroot", str(self.chroot_path),
+                    "env", "DEBIAN_FRONTEND=noninteractive",
+                    "apt-get", "install", "-y", "--no-install-recommends", pkg
+                ]
+                subprocess.run(cmd, check=True, timeout=60)
+                self.logger.info(f"Installed optional package: {pkg}")
+            except subprocess.CalledProcessError:
+                self.logger.warning(f"Optional package not available or failed: {pkg}")
+        
+        # Verify dracut is working
+        try:
+            result = subprocess.run([
+                "chroot", str(self.chroot_path),
+                "dracut", "--version"
+            ], capture_output=True, text=True, timeout=30)
             
-            if failed:
-                raise Exception(f"Failed to install essential dracut packages: {', '.join(failed)}")
-            
-            # Try optional packages individually
-            optional = packages[9:]
-            for pkg in optional:
-                try:
-                    subprocess.run([
-                        "chroot", str(self.chroot_path),
-                        "apt-get", "install", "-y", "--no-install-recommends", pkg
-                    ], check=True, timeout=60)
-                except subprocess.CalledProcessError:
-                    self.logger.warning(f"Optional package not available: {pkg}")
+            if result.returncode == 0:
+                self.logger.info(f"Dracut installed successfully: {result.stdout.strip()}")
+            else:
+                raise Exception("Dracut command not working")
+                
+        except Exception as e:
+            self.logger.error(f"Dracut verification failed: {e}")
+            raise Exception("Dracut installation failed verification")
     
+    def _get_available_kernel_modules(self):
+        """Get list of available kernel modules"""
+        try:
+            # Get the kernel version
+            result = subprocess.run([
+                "chroot", str(self.chroot_path),
+                "ls", "-1", "/lib/modules"
+            ], capture_output=True, text=True, check=True)
+            
+            kernel_versions = result.stdout.strip().split('\n')
+            if not kernel_versions or not kernel_versions[0]:
+                return []
+                
+            kernel_version = kernel_versions[-1]  # Use latest
+            self.logger.info(f"Checking available modules for kernel {kernel_version}")
+            
+            # Get available modules
+            modules_dir = f"/lib/modules/{kernel_version}/kernel"
+            result = subprocess.run([
+                "chroot", str(self.chroot_path),
+                "find", modules_dir, "-name", "*.ko", "-type", "f"
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                modules = []
+                for line in result.stdout.strip().split('\n'):
+                    if line:
+                        module_name = Path(line).stem
+                        modules.append(module_name)
+                return modules
+            else:
+                self.logger.warning("Could not list kernel modules")
+                return []
+                
+        except Exception as e:
+            self.logger.warning(f"Failed to get kernel modules: {e}")
+            return []
+
     def _configure_dracut(self, toram_module_available=False):
         """Configure dracut for ZFS boot"""
         
         self.logger.info("Configuring dracut...")
+        
+        # Get available kernel modules
+        available_modules = self._get_available_kernel_modules()
+        self.logger.info(f"Found {len(available_modules)} kernel modules available")
         
         # Create main dracut configuration
         dracut_conf = """# Z-Forge dracut configuration
@@ -225,9 +307,35 @@ add_dracutmodules+=" dracut-systemd fs-lib shutdown "
 # ZFS support (make sure it's available)
 add_dracutmodules+=" zfs "
 
-# Live system support
-add_dracutmodules+=" dmsquash-live dmsquash-live-autooverlay "
+# Live system support (if available)
+# Note: dmsquash-live may not be available in all dracut installations
 """
+        
+        # Check which dracut modules are actually available
+        self.logger.info("Checking available dracut modules...")
+        try:
+            result = subprocess.run([
+                "chroot", str(self.chroot_path),
+                "dracut", "--list-modules"
+            ], capture_output=True, text=True, timeout=30)
+            
+            available_dracut_modules = []
+            if result.returncode == 0:
+                available_dracut_modules = result.stdout.strip().split('\n')
+                self.logger.info(f"Found {len(available_dracut_modules)} dracut modules")
+                
+                # Add live system support if available
+                live_modules = ["dmsquash-live", "dmsquash-live-autooverlay", "livenet"]
+                available_live = [mod for mod in live_modules if mod in available_dracut_modules]
+                if available_live:
+                    self.logger.info(f"Adding live system modules: {' '.join(available_live)}")
+                    dracut_conf += f'\n# Live system support\nadd_dracutmodules+=" {" ".join(available_live)} "\n'
+                else:
+                    self.logger.warning("No live system modules available - will create basic initramfs")
+            else:
+                self.logger.warning("Could not list dracut modules")
+        except Exception as e:
+            self.logger.warning(f"Failed to check dracut modules: {e}")
         
         # Add custom Z-Forge modules only if available
         if toram_module_available:
@@ -243,12 +351,26 @@ omit_dracutmodules+=" bluetooth nfs nbd fcoe fcoe-uefi "
 # Include essential kernel modules for ZFS
 install_items+=" /lib/modules/$kernel/kernel/fs/zfs/ "
 
-# Include any additional drivers needed for NVMe
-add_drivers+=" nvme nvme-core nvme-tcp nvme-rdma nvme-fc nvme-fabrics "
-
-# Dell PowerEdge R730xd specific drivers
-add_drivers+=" megaraid_sas mpt3sas "
-
+"""
+        
+        # Add available drivers dynamically
+        drivers_to_check = [
+            "nvme", "nvme-core", "nvme_common", "nvme-tcp", "nvme-rdma", "nvme-fc", "nvme-fabrics",
+            "megaraid_sas", "mpt3sas", "ahci", "sd_mod", "sr_mod"
+        ]
+        
+        available_drivers = []
+        for driver in drivers_to_check:
+            if driver in available_modules:
+                available_drivers.append(driver)
+        
+        if available_drivers:
+            self.logger.info(f"Adding available drivers: {' '.join(available_drivers)}")
+            dracut_conf += f'\n# Available storage and NVMe drivers\nadd_drivers+=" {" ".join(available_drivers)} "\n'
+        else:
+            self.logger.warning("No additional storage drivers found")
+            
+        dracut_conf += """
 # Include necessary filesystems
 filesystems+=" squashfs ext4 vfat "
 
@@ -416,6 +538,15 @@ kernel_cmdline+=" quiet splash "
         
         self.logger.info(f"Generating initramfs for kernel {kernel_version}")
         
+        # Run depmod first to generate modules.dep
+        self.logger.info(f"Running depmod for kernel {kernel_version}...")
+        depmod_cmd = ["sudo", "chroot", str(self.chroot_path), "depmod", "-a", kernel_version]
+        result = subprocess.run(depmod_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            self.logger.warning(f"depmod failed: {result.stderr}")
+        else:
+            self.logger.info("depmod completed successfully")
+        
         # First, list available dracut modules to debug
         self.logger.info("Listing available dracut modules...")
         list_cmd = ["sudo", "chroot", str(self.chroot_path), "dracut", "--list-modules"]
@@ -436,19 +567,36 @@ kernel_cmdline+=" quiet splash "
             self.logger.error(f"Dracut output: {result.stdout}")
             self.logger.error(f"Dracut errors: {result.stderr}")
             
-            # Try without the custom toram module if it fails
-            self.logger.warning("Trying without custom toram module...")
-            cmd_fallback = [
+            # Try with minimal modules
+            self.logger.warning("Initial dracut failed, trying with minimal configuration...")
+            cmd_minimal = [
                 "sudo", "chroot", str(self.chroot_path),
                 "dracut", "-f",
-                "--omit", "90zforge-toram",
+                "--omit", "90zforge-toram", "--omit", "dmsquash-live", 
+                "--omit", "dmsquash-live-autooverlay", "--omit", "livenet",
+                "--add", "base", "--add", "systemd", "--add", "kernel-modules",
+                "--add", "rootfs-block", "--add", "zfs",
                 f"/boot/initramfs-{kernel_version}.img", kernel_version,
                 "--no-hostonly"
             ]
-            result = subprocess.run(cmd_fallback, capture_output=True, text=True)
+            result = subprocess.run(cmd_minimal, capture_output=True, text=True)
             
             if result.returncode != 0:
-                raise Exception(f"Failed to generate initramfs: {result.stderr}")
+                self.logger.error(f"Minimal dracut also failed: {result.stderr}")
+                # Last resort: try with absolute minimal setup
+                self.logger.warning("Trying absolute minimal dracut configuration...")
+                cmd_absolute_minimal = [
+                    "sudo", "chroot", str(self.chroot_path),
+                    "dracut", "-f", "--no-hostonly", 
+                    "--add", "base", "--add", "systemd",
+                    f"/boot/initramfs-{kernel_version}.img", kernel_version
+                ]
+                result = subprocess.run(cmd_absolute_minimal, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    raise Exception(f"All dracut attempts failed: {result.stderr}")
+                else:
+                    self.logger.info("Absolute minimal initramfs generated successfully")
         
         # Verify initramfs was created
         initramfs_path = self.chroot_path / f"boot/initramfs-{kernel_version}.img"

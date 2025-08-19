@@ -19,8 +19,10 @@ class BuildDiagnosticTool:
     """Comprehensive build diagnostics and validation"""
     
     def __init__(self):
-        self.project_root = Path("/opt/github/Z-FORGE")
-        self.workspace = Path("/home/john/zforge_workspace")
+        # Detect actual project root dynamically
+        current_file = Path(__file__).resolve()
+        self.project_root = current_file.parent.parent
+        self.workspace = self.project_root / "workspace"
         self.checks_passed = 0
         self.checks_failed = 0
         self.critical_issues = []
@@ -659,7 +661,7 @@ def main():
     tool.print_summary(results)
     
     # Save results
-    results_file = Path("/opt/github/Z-FORGE/diagnostic_results.json")
+    results_file = tool.project_root / "diagnostic_results.json"
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=2, default=str)
     

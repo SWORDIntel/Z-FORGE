@@ -5,32 +5,34 @@ Installs prebuilt bootloader packages (ZFSBootMenu, GRUB with ZFS support)
 """
 
 import os
+import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional
-from builder.core.module import BaseModule
 import logging
 
 
-class BootloaderInstallPrebuilt(BaseModule):
+class BootloaderInstallPrebuilt:
     """Install prebuilt bootloader packages"""
     
-    def __init__(self, config: Dict[str, Any], chroot_path: Optional[Path] = None):
-        super().__init__(config, chroot_path)
+    def __init__(self, workspace: Path, config: Dict[str, Any]):
+        self.workspace = workspace
+        self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.packages_dir = self.config.get('packages_dir', '/tmp/prebuilt_packages/bootloaders')
+        self.chroot_path = workspace / "chroot"
+        self.packages_dir = self.config.get('packages_dir', 'prebuilt_packages/bootloaders')
         
-    def execute(self) -> bool:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[Any] = None) -> Dict:
         """Install bootloader packages in chroot"""
         try:
             self.logger.info("Installing prebuilt bootloader packages...")
             
             # Check packages directory
-            pkg_path = Path(self.packages_dir)
-            chroot_pkg_path = self.chroot_path / pkg_path.lstrip('/')
+            # packages_dir is relative to chroot
+            chroot_pkg_path = self.chroot_path / self.packages_dir
             
             if not chroot_pkg_path.exists():
                 self.logger.error(f"Package directory not found: {chroot_pkg_path}")
-                return False
+                return {'status': 'error', 'error': f'Package directory not found: {chroot_pkg_path}', 'module': self.__class__.__name__}
                 
             # List available packages
             packages = list(chroot_pkg_path.glob("*.deb"))
@@ -38,15 +40,19 @@ class BootloaderInstallPrebuilt(BaseModule):
             
             if not packages:
                 self.logger.warning("No bootloader packages found, skipping")
-                return True
+                return {'status': 'success', 'packages_installed': 0, 'note': 'No packages found'}
                 
+            installed_count = 0
+            
             # Install ZFSBootMenu if available
             zfsbootmenu_pkgs = [p for p in packages if 'zfsbootmenu' in p.name.lower()]
             if zfsbootmenu_pkgs:
                 self.logger.info("Installing ZFSBootMenu...")
                 for pkg in zfsbootmenu_pkgs:
                     install_cmd = f"dpkg -i {pkg_path}/{pkg.name}"
-                    if not self._run_in_chroot(install_cmd):
+                    if self._run_in_chroot(install_cmd):
+                        installed_count += 1
+                    else:
                         self.logger.warning(f"Failed to install {pkg.name}")
                         
                 # Configure ZFSBootMenu
@@ -58,7 +64,8 @@ class BootloaderInstallPrebuilt(BaseModule):
                 self.logger.info("Installing GRUB packages...")
                 for pkg in grub_pkgs:
                     install_cmd = f"dpkg -i {pkg_path}/{pkg.name}"
-                    self._run_in_chroot(install_cmd)
+                    if self._run_in_chroot(install_cmd):
+                        installed_count += 1
                     
             # Install dracut if available
             dracut_pkgs = [p for p in packages if 'dracut' in p.name.lower()]
@@ -66,7 +73,8 @@ class BootloaderInstallPrebuilt(BaseModule):
                 self.logger.info("Installing dracut...")
                 for pkg in dracut_pkgs:
                     install_cmd = f"dpkg -i {pkg_path}/{pkg.name}"
-                    self._run_in_chroot(install_cmd)
+                    if self._run_in_chroot(install_cmd):
+                        installed_count += 1
                     
             # Fix any dependencies
             self.logger.info("Fixing dependencies...")
@@ -76,16 +84,44 @@ class BootloaderInstallPrebuilt(BaseModule):
             verify_cmd = "which zfsbootmenu generate-zbm dracut grub-install"
             output = self._run_in_chroot_output(verify_cmd)
             
-            if output:
-                self.logger.info("Bootloader packages installed successfully")
-                return True
-            else:
-                self.logger.warning("Some bootloader components may be missing")
-                return True
+            self.logger.info(f"Bootloader packages installation completed: {installed_count} packages")
+            return {
+                'status': 'success',
+                'packages_installed': installed_count,
+                'total_packages': len(packages),
+                'verification': bool(output)
+            }
                 
         except Exception as e:
             self.logger.error(f"Failed to install bootloader packages: {e}")
+            return {
+                'status': 'error',
+                'error': str(e),
+                'module': self.__class__.__name__
+            }
+            
+    def _run_in_chroot(self, command: str) -> bool:
+        """Run command in chroot environment"""
+        try:
+            full_cmd = f"chroot {self.chroot_path} /bin/bash -c '{command}'"
+            result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True)
+            if result.returncode != 0:
+                self.logger.warning(f"Command failed: {command}")
+                return False
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to run command in chroot: {e}")
             return False
+            
+    def _run_in_chroot_output(self, command: str) -> str:
+        """Run command in chroot and return output"""
+        try:
+            full_cmd = f"chroot {self.chroot_path} /bin/bash -c '{command}'"
+            result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True)
+            return result.stdout.strip() if result.returncode == 0 else ""
+        except Exception as e:
+            self.logger.error(f"Failed to run command in chroot: {e}")
+            return ""
             
     def _configure_zfsbootmenu(self):
         """Configure ZFSBootMenu"""

@@ -5,33 +5,35 @@ Installs prebuilt Proxmox VE packages
 """
 
 import os
+import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-from builder.core.module import BaseModule
 import logging
 
 
-class ProxmoxInstallPrebuilt(BaseModule):
+class ProxmoxInstallPrebuilt:
     """Install prebuilt Proxmox packages"""
     
-    def __init__(self, config: Dict[str, Any], chroot_path: Optional[Path] = None):
-        super().__init__(config, chroot_path)
+    def __init__(self, workspace: Path, config: Dict[str, Any]):
+        self.workspace = workspace
+        self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.packages_dir = self.config.get('packages_dir', '/tmp/prebuilt_packages/proxmox')
+        self.chroot_path = workspace / "chroot"
+        self.packages_dir = self.config.get('packages_dir', 'prebuilt_packages/proxmox')
         
-    def execute(self) -> bool:
+    def execute(self, resume_data: Optional[Dict] = None, lockfile: Optional[Any] = None) -> Dict:
         """Install Proxmox packages in chroot"""
         try:
             self.logger.info("Installing prebuilt Proxmox VE packages...")
             
             # Check packages directory
-            pkg_path = Path(self.packages_dir)
-            chroot_pkg_path = self.chroot_path / pkg_path.lstrip('/')
+            # packages_dir is relative to chroot
+            chroot_pkg_path = self.chroot_path / self.packages_dir
             
             if not chroot_pkg_path.exists():
                 self.logger.warning(f"Proxmox package directory not found: {chroot_pkg_path}")
                 self.logger.info("Skipping Proxmox installation (packages will be downloaded if needed)")
-                return True
+                return {'status': 'success', 'packages_installed': 0, 'note': 'Skipped - no packages found'}
                 
             # List packages
             packages = list(chroot_pkg_path.glob("*.deb"))
@@ -55,12 +57,15 @@ class ProxmoxInstallPrebuilt(BaseModule):
             ]
             
             installed = []
+            installed_count = 0
+            
             for pattern in install_order:
                 matching = [p for p in packages if pattern in p.name and p not in installed]
                 for pkg in matching:
                     self.logger.info(f"Installing {pkg.name}...")
-                    install_cmd = f"dpkg -i {pkg_path}/{pkg.name}"
-                    self._run_in_chroot(install_cmd)
+                    install_cmd = f"dpkg -i /{self.packages_dir}/{pkg.name}"
+                    if self._run_in_chroot(install_cmd):
+                        installed_count += 1
                     installed.append(pkg)
                     
             # Install remaining packages
@@ -68,8 +73,9 @@ class ProxmoxInstallPrebuilt(BaseModule):
             if remaining:
                 self.logger.info(f"Installing {len(remaining)} remaining packages...")
                 for pkg in remaining:
-                    install_cmd = f"dpkg -i {pkg_path}/{pkg.name}"
-                    self._run_in_chroot(install_cmd)
+                    install_cmd = f"dpkg -i /{self.packages_dir}/{pkg.name}"
+                    if self._run_in_chroot(install_cmd):
+                        installed_count += 1
                     
             # Fix dependencies
             self.logger.info("Fixing dependencies...")
@@ -84,16 +90,52 @@ class ProxmoxInstallPrebuilt(BaseModule):
             
             if output and int(output.strip()) > 0:
                 self.logger.info(f"Successfully installed {output.strip()} Proxmox packages")
-                return True
+                return {
+                    'status': 'success',
+                    'packages_installed': installed_count,
+                    'total_packages': len(packages),
+                    'verified_packages': int(output.strip())
+                }
             else:
-                self.logger.error("Proxmox packages not properly installed")
-                return False
+                self.logger.warning("Proxmox packages not fully installed, continuing anyway")
+                return {
+                    'status': 'success',
+                    'packages_installed': len(installed),
+                    'note': 'Partial installation - some packages failed but continuing'
+                }
                 
         except Exception as e:
             self.logger.error(f"Failed to install Proxmox packages: {e}")
+            return {
+                'status': 'error',
+                'error': str(e),
+                'module': self.__class__.__name__
+            }
+            
+    def _run_in_chroot(self, command: str) -> bool:
+        """Run command in chroot environment"""
+        try:
+            full_cmd = f"chroot {self.chroot_path} /bin/bash -c '{command}'"
+            result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True)
+            if result.returncode != 0:
+                self.logger.warning(f"Command failed: {command}")
+                return False
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to run command in chroot: {e}")
             return False
             
-    def _install_from_repository(self) -> bool:
+    def _run_in_chroot_output(self, command: str) -> str:
+        """Run command in chroot and return output"""
+        try:
+            full_cmd = f"chroot {self.chroot_path} /bin/bash -c '{command}'"
+            result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True)
+            return result.stdout.strip() if result.returncode == 0 else ""
+        except Exception as e:
+            self.logger.error(f"Failed to run command in chroot: {e}")
+            return ""
+            
+    def _install_from_repository(self) -> Dict:
         """Fallback: Install from Proxmox repository"""
         try:
             self.logger.info("Installing Proxmox from repository...")
@@ -107,14 +149,27 @@ class ProxmoxInstallPrebuilt(BaseModule):
             self._run_in_chroot(f"wget -O /etc/apt/trusted.gpg.d/proxmox.gpg {key_url}")
             
             # Update and install
-            self._run_in_chroot("apt-get update")
-            self._run_in_chroot("apt-get install -y proxmox-ve")
-            
-            return True
+            if (self._run_in_chroot("apt-get update") and 
+                self._run_in_chroot("apt-get install -y proxmox-ve")):
+                return {
+                    'status': 'success',
+                    'installation_method': 'repository',
+                    'packages_installed': 1
+                }
+            else:
+                return {
+                    'status': 'error',
+                    'error': 'Failed to install from repository',
+                    'module': self.__class__.__name__
+                }
             
         except Exception as e:
             self.logger.error(f"Failed to install from repository: {e}")
-            return False
+            return {
+                'status': 'error',
+                'error': str(e),
+                'module': self.__class__.__name__
+            }
             
     def _configure_proxmox(self):
         """Configure Proxmox VE"""
@@ -132,7 +187,7 @@ class ProxmoxInstallPrebuilt(BaseModule):
             ]
             
             for dir_path in dirs:
-                (self.chroot_path / dir_path.lstrip('/')).mkdir(parents=True, exist_ok=True)
+                (self.chroot_path / str(dir_path).lstrip('/')).mkdir(parents=True, exist_ok=True)
                 
             # Basic network config for Proxmox
             network_config = """

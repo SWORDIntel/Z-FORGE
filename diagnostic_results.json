@@ -1,17 +1,20 @@
 {
-  "timestamp": "2025-08-05T08:39:10.228988",
+  "timestamp": "2025-08-18T14:43:00.510876",
   "system": {
     "actual": {
-      "cpu_cores": 21,
+      "cpu_cores": 22,
       "memory_gb": 62,
-      "disk_gb": 425
+      "disk_gb": 20
     },
     "requirements": {
       "cpu_cores": 2,
       "memory_gb": 4,
       "disk_gb": 50
     },
-    "status": "PASS"
+    "status": "FAIL",
+    "issues": [
+      "Insufficient disk space: 20GB < 50GB"
+    ]
   },
   "dependencies": {
     "commands": {
@@ -29,10 +32,10 @@
     "status": "PASS"
   },
   "workspace": {
-    "path": "/home/john/zforge_workspace",
+    "path": "/home/ubuntu/Documents/Z-FORGE/workspace",
     "exists": true,
     "writable": true,
-    "space_gb": 425,
+    "space_gb": 20,
     "status": "PASS"
   },
   "network": {
@@ -53,7 +56,7 @@
     "status": "PASS"
   },
   "kernel": {
-    "current_kernel": "6.14.5-mtl-pve",
+    "current_kernel": "6.14.0-15-generic",
     "architecture": "x86_64",
     "headers_installed": true,
     "status": "PASS"
@@ -71,9 +74,9 @@
     "status": "PASS"
   },
   "dracut": {
-    "dracut_installed": true,
-    "initramfs_tools": false,
-    "config_exists": true,
+    "dracut_installed": false,
+    "initramfs_tools": true,
+    "config_exists": false,
     "status": "PASS"
   },
   "permissions": {
@@ -96,28 +99,30 @@
     "status": "PASS"
   },
   "summary": {
-    "checks_passed": 10,
-    "checks_failed": 0,
-    "critical_issues": [],
+    "checks_passed": 9,
+    "checks_failed": 1,
+    "critical_issues": [
+      "Insufficient disk space: 20GB < 50GB"
+    ],
     "warnings": [
+      "Low workspace space: 20GB",
       "APT lock file exists: /var/lib/dpkg/lock",
       "APT lock file exists: /var/lib/dpkg/lock-frontend",
       "APT lock file exists: /var/lib/apt/lists/lock",
-      "APT lock file exists: /var/cache/apt/archives/lock"
+      "APT lock file exists: /var/cache/apt/archives/lock",
+      "initramfs-tools installed - may conflict with dracut"
     ],
     "fixes_applied": [],
-    "ready_to_build": true,
+    "ready_to_build": false,
     "recommendations": [
+      "FIX CRITICAL ISSUES BEFORE BUILDING:",
+      "  \u2022 Insufficient disk space: 20GB < 50GB",
       "\nCONSIDER ADDRESSING WARNINGS:",
+      "  \u2022 Low workspace space: 20GB",
       "  \u2022 APT lock file exists: /var/lib/dpkg/lock",
       "  \u2022 APT lock file exists: /var/lib/dpkg/lock-frontend",
       "  \u2022 APT lock file exists: /var/lib/apt/lists/lock",
-      "  \u2022 APT lock file exists: /var/cache/apt/archives/lock",
-      "\n\u2705 SYSTEM READY FOR BUILD",
-      "\nRECOMMENDED BUILD COMMANDS:",
-      "  \u2022 GUI: ./launch-enhanced-gui.sh",
-      "  \u2022 Stable: sudo python3 build.py --spec build_specs/build_spec_stable.yml",
-      "  \u2022 Fast: sudo python3 build.py --spec build_specs/build_spec_outside_packages.yml"
+      "  \u2022 APT lock file exists: /var/cache/apt/archives/lock"
     ]
   }
 }

@@ -1,0 +1,13 @@
+--2025-08-18 14:28:41--  http://deb.debian.org/debian/dists/trixie/InRelease
+Resolving deb.debian.org (deb.debian.org)... 151.101.130.132, 151.101.66.132, 151.101.2.132, ...
+Connecting to deb.debian.org (deb.debian.org)|151.101.130.132|:80... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 137678 (134K)
+Saving to: '/home/john/zforge_workspace/chroot/var/lib/apt/lists/partial/deb.debian.org_debian_dists_trixie_InRelease'
+
+     0K .......... .......... .......... .......... .......... 37% 2.15M 0s
+    50K .......... .......... .......... .......... .......... 74% 6.53M 0s
+   100K .......... .......... .......... ....                 100% 3.17M=0.04s
+
+2025-08-18 14:28:41 (3.21 MB/s) - '/home/john/zforge_workspace/chroot/var/lib/apt/lists/partial/deb.debian.org_debian_dists_trixie_InRelease' saved [137678/137678]
+

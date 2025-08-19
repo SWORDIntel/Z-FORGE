@@ -1,7 +1,7 @@
 {
-  "total_attempts": 4,
+  "total_attempts": 6,
   "successful_builds": 0,
-  "failed_builds": 4,
-  "recovered_builds": 0,
+  "failed_builds": 6,
+  "recovered_builds": 3,
   "average_time": 0
 }
