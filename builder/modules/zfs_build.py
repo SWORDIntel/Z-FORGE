@@ -500,7 +500,11 @@ Pin-Priority: 100
 
     def _run_chroot_command(self, command: List[str], cwd: Optional[Path] = None, check: bool = True, env: Optional[Dict[str, str]] = None) -> subprocess.CompletedProcess:
         """Helper to run commands inside the chroot."""
-        base_cmd = ["sudo", "chroot", str(self.chroot_path)]
+        # Use arch-chroot if available (handles /dev mounts properly), otherwise fallback to regular chroot
+        if subprocess.run(["which", "arch-chroot"], capture_output=True).returncode == 0:
+            base_cmd = ["sudo", "arch-chroot", str(self.chroot_path)]
+        else:
+            base_cmd = ["sudo", "chroot", str(self.chroot_path)]
         if env: # if environment variables are provided, use env in chroot
             env_setup = [f"{k}={v}" for k,v in env.items()]
             base_cmd.extend(["env", "-i"] + env_setup) # -i for clean environment

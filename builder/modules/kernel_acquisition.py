@@ -247,8 +247,11 @@ class KernelAcquisition:
         else:
             kwargs['env'] = env
         
-        # Prepare the full command
-        full_cmd = ["chroot", str(self.chroot_path)] + command
+        # Use arch-chroot if available (handles /dev mounts properly), otherwise fallback to regular chroot
+        if subprocess.run(["which", "arch-chroot"], capture_output=True).returncode == 0:
+            full_cmd = ["arch-chroot", str(self.chroot_path)] + command
+        else:
+            full_cmd = ["chroot", str(self.chroot_path)] + command
         self.logger.info(f"Executing in chroot: {' '.join(command)}")
         
         # Run the command with specified options

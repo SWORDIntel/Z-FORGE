@@ -107,8 +107,12 @@ class Debootstrap:
             # Step 1: Run the debootstrap command.
             self._run_debootstrap(debian_release)
             
-            # Step 2: Mount essential filesystems in chroot.
-            self._mount_chroot_filesystems()
+            # Step 2: Mount essential filesystems in chroot (only if not using arch-chroot).
+            # arch-chroot handles mounting automatically, so we skip if it's available
+            if subprocess.run(["which", "arch-chroot"], capture_output=True).returncode != 0:
+                self._mount_chroot_filesystems()
+            else:
+                self.logger.info("Skipping filesystem mounting - arch-chroot will handle it automatically")
             
             # Step 3: Configure the basic system settings within the chroot.
             self._configure_system(debian_release)
@@ -131,11 +135,12 @@ class Debootstrap:
             
         except subprocess.CalledProcessError as e:
             self.logger.error(f"A command failed during debootstrap: {e.cmd}, Return Code: {e.returncode}, Output: {e.output}, Stderr: {e.stderr}")
-            # Try to unmount filesystems if they were mounted
-            try:
-                self._unmount_chroot_filesystems()
-            except:
-                pass  # Best effort cleanup
+            # Try to unmount filesystems if they were mounted (only if not using arch-chroot)
+            if subprocess.run(["which", "arch-chroot"], capture_output=True).returncode != 0:
+                try:
+                    self._unmount_chroot_filesystems()
+                except:
+                    pass  # Best effort cleanup
             return {
                 'status': 'error',
                 'error': f"Command failed: {' '.join(e.cmd)} - {e.stderr or e.output or str(e)}",
@@ -143,11 +148,12 @@ class Debootstrap:
             }
         except Exception as e:
             self.logger.error(f"Debootstrap process failed: {e}", exc_info=True)
-            # Try to unmount filesystems if they were mounted
-            try:
-                self._unmount_chroot_filesystems()
-            except:
-                pass  # Best effort cleanup
+            # Try to unmount filesystems if they were mounted (only if not using arch-chroot)
+            if subprocess.run(["which", "arch-chroot"], capture_output=True).returncode != 0:
+                try:
+                    self._unmount_chroot_filesystems()
+                except:
+                    pass  # Best effort cleanup
             return {
                 'status': 'error',
                 'error': str(e),
@@ -643,8 +649,11 @@ early_microcode="no"
                 if subcommand_idx < len(command) and command[subcommand_idx] in ["install", "remove", "upgrade", "dist-upgrade", "autoremove"]:
                     command.insert(subcommand_idx + 1, "-y")
         
-        # Prepend "chroot" and the chroot path to the command.
-        full_cmd: List[str] = ["sudo", "chroot", str(self.chroot_path)] + command
+        # Use arch-chroot if available (handles /dev mounts properly), otherwise fallback to regular chroot
+        if subprocess.run(["which", "arch-chroot"], capture_output=True).returncode == 0:
+            full_cmd: List[str] = ["sudo", "arch-chroot", str(self.chroot_path)] + command
+        else:
+            full_cmd: List[str] = ["sudo", "chroot", str(self.chroot_path)] + command
         self.logger.info(f"Executing in chroot: {' '.join(command)}")
         
         try:
