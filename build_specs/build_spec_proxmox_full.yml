@@ -6,7 +6,7 @@ builder_config:
   kernel_version: 6.14.8-2  # Use Proxmox kernel version for compatibility
   output_iso_name: zforge-proxmox-ultimate-3.0-amd64.iso
   enable_debug: false
-  workspace_path: /tmp/zforge-workspace-proxmox  # RAM build for 3-5x performance
+  workspace_path: /dev/shm/zforge-workspace-proxmox  # RAM build for 3-5x performance
   cache_packages: true
   auto_detect_hardware: true
   iso_version: '3.0'

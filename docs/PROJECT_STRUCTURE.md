@@ -179,7 +179,7 @@ The entire project structure has been validated:
 
 ### For New Users
 1. Start with `README.md`
-2. Follow `QUICKSTART.md` (if available)
+2. Browse `docu/` folder for quick reference guides
 3. Use `BUILD_SPECIFICATIONS.md` to choose build type
 4. Reference `VALIDATION_GUIDE.md` for health checks
 

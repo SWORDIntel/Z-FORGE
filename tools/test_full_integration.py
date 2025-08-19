@@ -135,7 +135,7 @@ class ZForgeFullIntegrationTests(unittest.TestCase):
         print("\n[TEST 5] Testing GUI module...")
         
         # Check GUI file exists
-        gui_path = self.project_root / "zforge_gui.py"
+        gui_path = self.project_root / "scripts/legacy-gui/zforge_gui.py"
         self.assertTrue(gui_path.exists(), "zforge_gui.py not found")
         print("  ✅ GUI module exists")
         
@@ -446,7 +446,7 @@ def run_tests():
         print("\n🎉 ALL INTEGRATION TESTS PASSED!")
         print("✅ System is ready for production use")
         print("\nNext steps:")
-        print("1. Run GUI: python3 zforge_gui.py")
+        print("1. Run GUI: python3 scripts/legacy-gui/zforge_gui.py")
         print("2. Or build directly: sudo python3 build.py --spec build_specs/build_spec_stable.yml")
         return 0
     else:

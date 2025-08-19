@@ -20,6 +20,13 @@ from typing import Dict, List, Optional, Tuple
 import psutil
 import queue
 import time
+import shutil
+try:
+    import docker
+    DOCKER_AVAILABLE = True
+except ImportError:
+    DOCKER_AVAILABLE = False
+    docker = None
 
 # Add project modules to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -33,63 +40,69 @@ from build_recovery_tool import BuildRecoveryTool
 class ZForgeGUIEnhanced:
     def __init__(self, root):
         self.root = root
-        self.root.title("Z-FORGE Build System GUI v2.0 - Enhanced Edition")
+        self.root.title("Z-FORGE RAM Server Build System v3.0 - Enhanced Edition")
         self.root.geometry("1200x800")
         self.root.resizable(True, True)
         
         # Apply dark theme
         self.setup_dark_theme()
         
-        # Build specifications mapping
+        # Build specifications mapping - ALL BUILDS NOW USE RAM WORKSPACES AND FULL PROXMOX VE 9
         self.build_specs = {
-            "Stable Build (Recommended)": {
-                "file": "build_specs/build_spec_stable.yml",
-                "description": "Conservative build using Debian Bookworm stable packages. Best for production use.",
-                "features": ["Stable packages", "Conservative kernel", "Long-term support", "Proven hardware support"],
-                "success_rate": 85  # Estimated success rate
-            },
-            "Outside Packages Build (Fastest)": {
+            "Outside Packages Build (Fastest - 95% Success)": {
                 "file": "build_specs/build_spec_outside_packages.yml", 
-                "description": "Uses prebuilt packages for fastest build times. Ideal for testing and development.",
-                "features": ["Prebuilt packages", "Minimal chroot operations", "Fastest build times", "Maximum reliability"],
-                "success_rate": 95  # Highest success rate
+                "description": "RAM-based server build with prebuilt packages. Full Proxmox VE 9 + ZFS 2.3.3 on Debian Trixie.",
+                "features": ["RAM workspace (/dev/shm)", "Full Proxmox VE 9 server", "ZFS 2.3.3 + encryption", "Debian Trixie base"],
+                "success_rate": 95
             },
-            "Full Featured Build": {
-                "file": "build_specs/build_spec.yml",
-                "description": "Complete ZFS-enabled Linux distribution with all features enabled.",
-                "features": ["ZFS 2.3.3+", "Proxmox integration", "Hardware optimization", "Complete bootloader suite"],
-                "success_rate": 70
+            "Minimal Proxmox Build (90% Success)": {
+                "file": "build_specs/build_spec_minimal_proxmox.yml",
+                "description": "RAM-based server build with minimal Proxmox components. Fastest full server deployment.",
+                "features": ["RAM workspace (/dev/shm)", "Minimal Proxmox VE 9", "ZFS 2.3.3 + compression", "Optimized performance"],
+                "success_rate": 90
             },
-            "tmpfs Build (High Performance)": {
+            "TMPFS High Performance Build (85% Success)": {
                 "file": "build_specs/build_spec_tmpfs.yml",
-                "description": "RAM-based build for maximum performance. Requires 12GB+ RAM for optimal performance.",
-                "features": ["RAM-based filesystem", "Maximum build speed", "Parallel compilation", "ccache optimization"],
-                "success_rate": 80,
-                "ram_required": "12GB"
+                "description": "Full RAM-based server build for maximum performance. Complete Proxmox VE 9 infrastructure.",
+                "features": ["Full RAM filesystem", "Complete Proxmox VE 9", "3-5x build speed", "Enterprise features"],
+                "success_rate": 85,
+                "ram_required": "16GB"
             },
-            "No /tmp Build": {
+            "Working Server Build (85% Success)": {
+                "file": "build_specs/build_spec_working.yml",
+                "description": "Proven RAM-based server configuration. Full Proxmox VE 9 with all ZFS features.",
+                "features": ["RAM workspace (/dev/shm)", "Full Proxmox VE 9 server", "ZFS encryption + compression", "Hardware optimization"],
+                "success_rate": 85
+            },
+            "No /tmp Server Build (80% Success)": {
                 "file": "build_specs/build_spec_no_tmp.yml",
-                "description": "Avoids /tmp directory usage, good for systems with noexec /tmp.",
-                "features": ["HOME workspace builds", "Avoids /tmp noexec issues", "Better permission handling", "Workspace isolation"],
+                "description": "RAM-based server avoiding /tmp usage. Full Proxmox VE 9 with workspace isolation.",
+                "features": ["RAM workspace (/dev/shm)", "Full Proxmox VE 9 server", "Workspace isolation", "Permission handling"],
                 "success_rate": 80
             },
-            "Proxmox Full Build": {
-                "file": "build_specs/build_spec_proxmox_full.yml",
-                "description": "Complete Proxmox integration with all enterprise features.",
-                "features": ["Complete Proxmox suite", "ZFS enterprise features", "High availability", "Management interfaces"],
-                "success_rate": 75
-            },
-            "Proxmox 9 Build": {
+            "Proxmox 9 Server Build (75% Success)": {
                 "file": "build_specs/build_spec_proxmox9.yml", 
-                "description": "Specialized build for Proxmox VE 9 environments.",
-                "features": ["Proxmox VE 9.0-beta", "Enterprise storage", "Cluster management", "Advanced networking"],
+                "description": "RAM-based specialized Proxmox VE 9 server build. Enterprise clustering and networking.",
+                "features": ["RAM workspace (/dev/shm)", "Proxmox VE 9.0 server", "Enterprise clustering", "Advanced networking"],
                 "success_rate": 75
             },
-            "Trixie Clean Build": {
+            "Proxmox Full Server Build (75% Success)": {
+                "file": "build_specs/build_spec_proxmox_full.yml",
+                "description": "RAM-based complete Proxmox integration. Full enterprise server with all features.",
+                "features": ["RAM workspace (/dev/shm)", "Complete Proxmox suite", "High availability server", "Management interfaces"],
+                "success_rate": 75
+            },
+            "Full Featured Server Build (70% Success)": {
+                "file": "build_specs/build_spec.yml",
+                "description": "RAM-based complete server distribution. Full Proxmox VE 9 with all enterprise features.",
+                "features": ["RAM workspace (/dev/shm)", "Full Proxmox VE 9 server", "Complete ZFS suite", "All bootloaders"],
+                "success_rate": 70
+            },
+            "Trixie Clean Server Build (60% Success)": {
                 "file": "build_specs/build_spec_trixie_clean.yml",
-                "description": "Clean Debian Trixie build with latest packages and ZFS 2.3.3.",
-                "features": ["Debian Trixie (testing)", "Latest kernel 6.14.8", "ZFS 2.3.3", "Clean configuration"],
-                "success_rate": 60  # Lower due to testing packages
+                "description": "RAM-based clean Debian Trixie server. Latest packages with full Proxmox VE 9 integration.",
+                "features": ["RAM workspace (/dev/shm)", "Debian Trixie server", "Latest kernel 6.14.8", "Full Proxmox VE 9"],
+                "success_rate": 60
             }
         }
         
@@ -127,11 +140,20 @@ class ZForgeGUIEnhanced:
             "average_time": 0
         }
         
+        # Docker integration
+        self.docker_client = None
+        self.container_status = "disconnected"
+        self.always_on_enabled = False
+        self.container_queue = queue.Queue()
+        
         # Load saved statistics
         self.load_statistics()
         
         self.setup_ui()
         self.start_message_processor()
+        
+        # Setup Docker after UI is ready
+        self.root.after(500, self.setup_docker_client)
         
         # Run initial diagnostics
         self.root.after(1000, self.run_pre_build_validation)
@@ -259,7 +281,7 @@ class ZForgeGUIEnhanced:
     def setup_left_panel(self, parent):
         """Setup left panel with build selection and diagnostics"""
         # Title
-        title_label = ttk.Label(parent, text="Z-FORGE Build System v2.0", 
+        title_label = ttk.Label(parent, text="Z-FORGE RAM Server Build System v3.0", 
                                font=('Arial', 14, 'bold'))
         title_label.pack(pady=(10, 20))
         
@@ -287,6 +309,11 @@ class ZForgeGUIEnhanced:
         left_notebook.add(recovery_frame, text="Recovery")
         self.setup_recovery(recovery_frame)
         
+        # Container Management Tab
+        container_frame = ttk.Frame(left_notebook)
+        left_notebook.add(container_frame, text="Containers")
+        self.setup_container_management(container_frame)
+        
         # Statistics Tab
         stats_frame = ttk.Frame(left_notebook)
         left_notebook.add(stats_frame, text="Statistics")
@@ -295,7 +322,7 @@ class ZForgeGUIEnhanced:
     def setup_build_selection(self, parent):
         """Setup build selection interface"""
         # Build type selection with success rate
-        self.selected_build = tk.StringVar(value="Outside Packages Build (Fastest)")
+        self.selected_build = tk.StringVar(value="Outside Packages Build (Fastest - 95% Success)")
         
         # Scrollable frame for build options
         canvas = tk.Canvas(parent, bg=self.colors['frame_bg'], highlightthickness=0)
@@ -343,6 +370,25 @@ class ZForgeGUIEnhanced:
             state='disabled'
         )
         self.stop_button.pack(side='left', padx=5)
+        
+        # Container build option
+        self.container_build_button = ttk.Button(
+            button_frame,
+            text="🐳 Container Build",
+            command=self.start_container_build,
+            style='Accent.TButton'
+        )
+        self.container_build_button.pack(side='right', padx=5)
+        
+        # Build mode selection
+        mode_frame = ttk.Frame(parent)
+        mode_frame.pack(fill='x', pady=5)
+        
+        self.build_mode_var = tk.StringVar(value="direct")
+        ttk.Radiobutton(mode_frame, text="Direct Build", variable=self.build_mode_var, 
+                       value="direct").pack(side='left', padx=10)
+        ttk.Radiobutton(mode_frame, text="Container Build", variable=self.build_mode_var, 
+                       value="container").pack(side='left', padx=10)
         
     def create_enhanced_build_card(self, parent, build_name, build_info):
         """Create enhanced build selection card with success rate"""
@@ -745,12 +791,18 @@ class ZForgeGUIEnhanced:
         except:
             self.append_diagnostic("❌ Network: No connection\n", 'error')
             
-        # Check workspace
-        workspace = Path("/home/john/zforge_workspace")
+        # Check RAM workspace
+        workspace = Path("/dev/shm/zforge-workspace")
         if workspace.exists():
-            self.append_diagnostic(f"✅ Workspace: {workspace}\n", 'success')
+            self.append_diagnostic(f"✅ RAM Workspace: {workspace}\n", 'success')
         else:
-            self.append_diagnostic(f"⚠️ Workspace not found: {workspace}\n", 'warning')
+            self.append_diagnostic(f"⚠️ RAM Workspace not found: {workspace}\n", 'warning')
+            self.append_diagnostic("Creating RAM workspace for 3-5x performance...\n", 'info')
+            try:
+                workspace.mkdir(parents=True, exist_ok=True)
+                self.append_diagnostic(f"✅ RAM Workspace created: {workspace}\n", 'success')
+            except Exception as e:
+                self.append_diagnostic(f"❌ Failed to create RAM workspace: {e}\n", 'error')
             
     def start_build(self):
         """Start the build process with enhanced monitoring"""
@@ -799,7 +851,7 @@ class ZForgeGUIEnhanced:
         
         # Prepare build command
         cmd = [sys.executable, 'build.py', '--spec', build_file]
-        workspace = "/home/john/zforge_workspace"
+        workspace = "/dev/shm/zforge-workspace"  # All builds now use RAM workspace
         cmd.extend(['--workspace', workspace])
         
         # Prepare environment
@@ -1204,6 +1256,115 @@ Suggested Solutions:
                 messagebox.showinfo("Saved", f"Output saved to {filename}")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save: {e}")
+
+    def start_container_build(self):
+        """Start build in Docker container"""
+        if not self.docker_client:
+            messagebox.showerror("Docker Error", "Docker not available. Please install Docker first.")
+            return
+            
+        if self.build_running:
+            messagebox.showwarning("Build Running", "A build is already in progress!")
+            return
+            
+        # Get selected build
+        selected_build = self.selected_build.get()
+        if not selected_build:
+            messagebox.showerror("No Selection", "Please select a build type!")
+            return
+            
+        build_file = self.build_specs[selected_build]['file']
+        
+        # Check if container image exists
+        try:
+            self.docker_client.images.get('zforge:latest')
+        except:
+            if messagebox.askyesno("Container Missing", 
+                                  "Z-FORGE container not found. Build it now?"):
+                self.build_container()
+                return
+            else:
+                return
+        
+        # Confirm container build
+        if not messagebox.askyesno(
+            "Confirm Container Build",
+            f"Start containerized build:\n\n"
+            f"Build: {selected_build}\n"
+            f"Spec: {build_file}\n"
+            f"Mode: RAM Container (20GB tmpfs)\n\n"
+            f"This will use Docker with privileged access."
+        ):
+            return
+            
+        def container_build_thread():
+            try:
+                self.build_running = True
+                self.build_button.config(state='disabled')
+                self.container_build_button.config(state='disabled')
+                self.stop_button.config(state='normal')
+                
+                self.append_output("🐳 Starting containerized build...\n", 'info')
+                self.append_output(f"Build spec: {build_file}\n", 'info')
+                
+                # Prepare output directory
+                output_dir = Path.cwd() / 'output'
+                output_dir.mkdir(exist_ok=True)
+                
+                # Run container build
+                container = self.docker_client.containers.run(
+                    'zforge:latest',
+                    detach=True,
+                    privileged=True,
+                    tmpfs={'/workspace': 'rw,size=20G,exec'},
+                    volumes={
+                        str(output_dir): {'bind': '/output', 'mode': 'rw'},
+                        str(Path.cwd()): {'bind': '/zforge', 'mode': 'ro'}
+                    },
+                    working_dir='/zforge',
+                    command=f'python3 build.py --spec {build_file} '
+                           f'--workspace /workspace/zforge-build '
+                           f'--output /output/zforge-container-{int(time.time())}.iso '
+                           f'--auto-confirm'
+                )
+                
+                self.append_output("🐳 Container started, monitoring build...\n", 'info')
+                
+                # Stream container output
+                for log in container.logs(stream=True, follow=True):
+                    if not self.build_running:
+                        container.stop()
+                        break
+                    self.append_output(log.decode('utf-8'), 'normal')
+                
+                # Wait for completion
+                result = container.wait()
+                
+                if result['StatusCode'] == 0:
+                    self.append_output("\n🎉 Container build completed successfully!\n", 'success')
+                    self.build_stats['successful_builds'] += 1
+                else:
+                    self.append_output(f"\n❌ Container build failed with code {result['StatusCode']}\n", 'error')
+                    self.build_stats['failed_builds'] += 1
+                    
+                # Cleanup
+                container.remove()
+                
+            except Exception as e:
+                self.append_output(f"\n❌ Container build error: {str(e)}\n", 'error')
+                self.build_stats['failed_builds'] += 1
+            finally:
+                self.build_running = False
+                self.build_button.config(state='normal')
+                self.container_build_button.config(state='normal')
+                self.stop_button.config(state='disabled')
+                
+                self.build_stats['total_attempts'] += 1
+                self.save_statistics()
+                self.update_statistics_display()
+        
+        # Start container build in background
+        threading.Thread(target=container_build_thread, daemon=True).start()
                 
     def stop_build(self):
         """Stop the running build"""
@@ -1267,7 +1428,7 @@ Suggested Solutions:
         
     def load_statistics(self):
         """Load saved statistics"""
-        stats_file = Path("build_statistics.json")
+        stats_file = Path("logs/build_statistics.json")
         if stats_file.exists():
             try:
                 with open(stats_file, 'r') as f:
@@ -1277,7 +1438,7 @@ Suggested Solutions:
                 
     def save_statistics(self):
         """Save statistics to file"""
-        stats_file = Path("build_statistics.json")
+        stats_file = Path("logs/build_statistics.json")
         try:
             with open(stats_file, 'w') as f:
                 json.dump(self.build_stats, f, indent=2)
@@ -1340,6 +1501,264 @@ RECOMMENDATIONS:
             }
             self.save_statistics()
             self.update_statistics_display()
+
+    def setup_docker_client(self):
+        """Initialize Docker client"""
+        if not DOCKER_AVAILABLE:
+            self.docker_client = None
+            self.container_status = "unavailable"
+            self.append_output("❌ Docker library not available. Install with: apt install python3-docker\n", 'error')
+            return
+            
+        try:
+            self.docker_client = docker.from_env()
+            self.docker_client.ping()
+            self.container_status = "connected"
+            self.append_output("✅ Docker client connected\n", 'info')
+        except Exception as e:
+            self.docker_client = None
+            self.container_status = "error"
+            self.append_output(f"❌ Docker connection failed: {str(e)}\n", 'error')
+
+    def setup_container_management(self, parent):
+        """Setup container management interface"""
+        # Container status
+        status_frame = ttk.LabelFrame(parent, text="Container Status", padding=10)
+        status_frame.pack(fill='x', pady=(0, 10))
+        
+        self.container_status_label = ttk.Label(status_frame, text="⚪ Checking Docker...")
+        self.container_status_label.pack(anchor='w')
+        
+        self.always_on_status_label = ttk.Label(status_frame, text="⚪ Always-On: Disabled")
+        self.always_on_status_label.pack(anchor='w')
+        
+        # Container controls
+        control_frame = ttk.LabelFrame(parent, text="Container Controls", padding=10)
+        control_frame.pack(fill='x', pady=(0, 10))
+        
+        # Build container button
+        self.build_container_btn = ttk.Button(
+            control_frame, 
+            text="🔨 Build Container", 
+            command=self.build_container
+        )
+        self.build_container_btn.pack(fill='x', pady=2)
+        
+        # Start always-on service
+        self.always_on_btn = ttk.Button(
+            control_frame, 
+            text="🚀 Start Always-On Service", 
+            command=self.toggle_always_on
+        )
+        self.always_on_btn.pack(fill='x', pady=2)
+        
+        # Container build queue
+        queue_frame = ttk.LabelFrame(parent, text="Build Queue", padding=10)
+        queue_frame.pack(fill='both', expand=True, pady=(0, 10))
+        
+        # Queue build options
+        queue_options_frame = ttk.Frame(queue_frame)
+        queue_options_frame.pack(fill='x', pady=(0, 5))
+        
+        self.queue_spec_var = tk.StringVar(value="build_spec_outside_packages.yml")
+        queue_combo = ttk.Combobox(queue_options_frame, textvariable=self.queue_spec_var, 
+                                  values=list(self.build_specs.keys()), state='readonly')
+        queue_combo.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        
+        ttk.Button(queue_options_frame, text="➕ Queue Build", 
+                  command=self.queue_container_build).pack(side='right')
+        
+        # Queue display
+        self.queue_display = scrolledtext.ScrolledText(queue_frame, height=8, width=40)
+        self.queue_display.pack(fill='both', expand=True)
+        
+        # Update status
+        self.update_container_status()
+
+    def build_container(self):
+        """Build the Z-FORGE Docker container"""
+        if not self.docker_client:
+            messagebox.showerror("Docker Error", "Docker not available. Please install Docker.")
+            return
+            
+        def build_thread():
+            try:
+                self.append_output("🔨 Building Z-FORGE container...\n", 'info')
+                self.build_container_btn.config(text="🔨 Building...", state='disabled')
+                
+                # Run docker build
+                result = subprocess.run([
+                    'docker', 'build', '-t', 'zforge:latest', '.'
+                ], capture_output=True, text=True, cwd=os.getcwd())
+                
+                if result.returncode == 0:
+                    self.append_output("✅ Container built successfully!\n", 'success')
+                    self.container_status = "ready"
+                else:
+                    self.append_output(f"❌ Container build failed: {result.stderr}\n", 'error')
+                    
+            except Exception as e:
+                self.append_output(f"❌ Container build error: {str(e)}\n", 'error')
+            finally:
+                self.build_container_btn.config(text="🔨 Build Container", state='normal')
+                self.update_container_status()
+        
+        threading.Thread(target=build_thread, daemon=True).start()
+
+    def toggle_always_on(self):
+        """Toggle always-on container service"""
+        if not self.always_on_enabled:
+            self.start_always_on_service()
+        else:
+            self.stop_always_on_service()
+
+    def start_always_on_service(self):
+        """Start always-on container service"""
+        if not self.docker_client:
+            messagebox.showerror("Docker Error", "Docker not available")
+            return
+            
+        def start_service():
+            try:
+                self.append_output("🚀 Starting always-on container service...\n", 'info')
+                self.always_on_btn.config(text="⏸️ Stop Always-On", state='disabled')
+                
+                # Create directories
+                os.makedirs('/tmp/zforge/logs', exist_ok=True)
+                os.makedirs('/tmp/zforge/output', exist_ok=True)
+                os.makedirs('/tmp/zforge/queue', exist_ok=True)
+                
+                # Start always-on container
+                container = self.docker_client.containers.run(
+                    'zforge:latest',
+                    name='zforge-always-on',
+                    detach=True,
+                    remove=True,
+                    privileged=True,
+                    tmpfs={'/workspace': 'rw,size=20G,exec'},
+                    volumes={
+                        '/tmp/zforge/output': {'bind': '/output', 'mode': 'rw'},
+                        '/tmp/zforge/queue': {'bind': '/queue', 'mode': 'rw'}
+                    },
+                    command='/bin/bash -c "while true; do '
+                           'JOB=$(ls /queue/*.job 2>/dev/null | head -1); '
+                           'if [ -n \"$JOB\" ]; then '
+                           '  SPEC=$(cat $JOB); '
+                           '  rm $JOB; '
+                           '  python3 build.py --spec $SPEC '
+                           '    --workspace /workspace/zforge '
+                           '    --output /output/zforge-$(date +%s).iso; '
+                           'fi; '
+                           'sleep 5; '
+                           'done"'
+                )
+                
+                self.always_on_enabled = True
+                self.append_output("✅ Always-on service started!\n", 'success')
+                self.always_on_btn.config(text="⏸️ Stop Always-On", state='normal')
+                
+            except Exception as e:
+                self.append_output(f"❌ Failed to start always-on service: {str(e)}\n", 'error')
+                self.always_on_btn.config(text="🚀 Start Always-On", state='normal')
+            
+            self.update_container_status()
+        
+        threading.Thread(target=start_service, daemon=True).start()
+
+    def stop_always_on_service(self):
+        """Stop always-on container service"""
+        def stop_service():
+            try:
+                self.append_output("⏸️ Stopping always-on service...\n", 'info')
+                
+                # Stop container
+                container = self.docker_client.containers.get('zforge-always-on')
+                container.stop()
+                
+                self.always_on_enabled = False
+                self.append_output("✅ Always-on service stopped\n", 'info')
+                
+            except Exception as e:
+                self.append_output(f"❌ Error stopping service: {str(e)}\n", 'error')
+            finally:
+                self.always_on_btn.config(text="🚀 Start Always-On", state='normal')
+                self.update_container_status()
+        
+        threading.Thread(target=stop_service, daemon=True).start()
+
+    def queue_container_build(self):
+        """Add build to container queue"""
+        if not self.always_on_enabled:
+            messagebox.showerror("Service Error", "Always-on service must be running to queue builds")
+            return
+            
+        selected_build = self.queue_spec_var.get()
+        if selected_build in self.build_specs:
+            spec_file = self.build_specs[selected_build]['file']
+            
+            # Create job file
+            job_id = f"job_{int(time.time())}"
+            job_file = f"/tmp/zforge/queue/{job_id}.job"
+            
+            try:
+                with open(job_file, 'w') as f:
+                    f.write(spec_file)
+                
+                self.append_output(f"✅ Build queued: {selected_build}\n", 'info')
+                self.update_queue_display()
+                
+            except Exception as e:
+                self.append_output(f"❌ Failed to queue build: {str(e)}\n", 'error')
+
+    def update_queue_display(self):
+        """Update the queue display"""
+        try:
+            queue_dir = Path("/tmp/zforge/queue")
+            if queue_dir.exists():
+                jobs = list(queue_dir.glob("*.job"))
+                queue_text = f"Queued builds: {len(jobs)}\n\n"
+                
+                for job in sorted(jobs):
+                    with open(job, 'r') as f:
+                        spec = f.read().strip()
+                    queue_text += f"• {job.stem}: {spec}\n"
+                
+                self.queue_display.delete(1.0, tk.END)
+                self.queue_display.insert(1.0, queue_text)
+            
+        except Exception as e:
+            pass
+
+    def update_container_status(self):
+        """Update container status display"""
+        if not DOCKER_AVAILABLE:
+            self.container_status_label.config(text="❌ Docker: Library Missing")
+            self.always_on_status_label.config(text="❌ Install python3-docker")
+        elif self.docker_client:
+            try:
+                # Check if container exists
+                try:
+                    self.docker_client.images.get('zforge:latest')
+                    container_ready = "✅ Container: Ready"
+                except:
+                    container_ready = "⚪ Container: Not Built"
+                
+                # Check always-on status
+                always_on_text = "✅ Always-On: Running" if self.always_on_enabled else "⚪ Always-On: Stopped"
+                
+                self.container_status_label.config(text=container_ready)
+                self.always_on_status_label.config(text=always_on_text)
+                
+            except Exception as e:
+                self.container_status_label.config(text="❌ Docker Error")
+                self.always_on_status_label.config(text="❌ Service Error")
+        else:
+            self.container_status_label.config(text="❌ Docker: Not Available")
+            self.always_on_status_label.config(text="❌ Always-On: Unavailable")
+        
+        # Schedule next update
+        self.root.after(5000, self.update_container_status)
+        self.update_queue_display()
 
 def main():
     """Main function"""

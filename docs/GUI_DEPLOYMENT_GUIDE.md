@@ -1,8 +1,8 @@
-# Z-FORGE GUI Deployment Guide
+# Z-FORGE RAM Server Build System GUI Deployment Guide v3.0
 
 ## Overview
 
-This guide provides comprehensive instructions for deploying the Z-FORGE GUI application in various environments, from development systems to production deployments.
+This guide provides comprehensive instructions for deploying the Z-FORGE RAM Server Build System GUI application in various environments. All builds now use RAM workspaces (/dev/shm) for 3-5x performance and include full Proxmox VE 9 with ZFS 2.3.3 on Debian Trixie base.
 
 ## Pre-Deployment Validation
 
@@ -38,7 +38,7 @@ cd /opt/github/Z-FORGE
 python3 test_gui.py
 
 # 3. Launch GUI directly
-python3 zforge_gui.py
+python3 scripts/legacy-gui/zforge_gui.py
 ```
 
 #### Enhanced Setup with Launcher
@@ -59,7 +59,7 @@ cp zforge-gui.desktop ~/Desktop/
 ```bash
 # 1. Copy GUI files to system location
 sudo mkdir -p /opt/zforge-gui
-sudo cp zforge_gui.py /opt/zforge-gui/
+sudo cp scripts/legacy-gui/zforge_gui.py /opt/zforge-gui/
 sudo cp launch-enhanced-gui.sh /opt/zforge-gui/
 sudo cp GUI_GUIDE.md /opt/zforge-gui/
 
@@ -67,7 +67,7 @@ sudo cp GUI_GUIDE.md /opt/zforge-gui/
 sudo cat > /usr/local/bin/zforge-gui << 'EOF'
 #!/bin/bash
 cd /opt/github/Z-FORGE
-exec python3 zforge_gui.py "$@"
+exec python3 scripts/legacy-gui/zforge_gui.py "$@"
 EOF
 
 sudo chmod +x /usr/local/bin/zforge-gui
@@ -104,7 +104,7 @@ sudo usermod -a -G zforge $USER
 cat > ~/bin/zforge-gui << 'EOF'
 #!/bin/bash
 cd /opt/zforge
-exec python3 zforge_gui.py "$@"
+exec python3 scripts/legacy-gui/zforge_gui.py "$@"
 EOF
 
 chmod +x ~/bin/zforge-gui
@@ -201,7 +201,7 @@ Requires=graphical-session.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/github/Z-FORGE
-ExecStart=/usr/bin/python3 zforge_gui.py
+ExecStart=/usr/bin/python3 scripts/legacy-gui/zforge_gui.py
 Restart=on-failure
 
 [Install]
@@ -235,7 +235,7 @@ brew install python-tk
 pip3 install pyyaml psutil
 
 # Launch GUI
-python3 zforge_gui.py
+python3 scripts/legacy-gui/zforge_gui.py
 ```
 
 ### Windows Systems (WSL)
@@ -253,7 +253,7 @@ sudo apt install python3-tk python3-yaml python3-psutil
 export DISPLAY=$(ip route list default | awk '{print $3}'):0
 
 # Launch GUI
-python3 zforge_gui.py
+python3 scripts/legacy-gui/zforge_gui.py
 ```
 
 ## Configuration Management

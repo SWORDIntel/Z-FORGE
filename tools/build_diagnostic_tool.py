@@ -22,7 +22,7 @@ class BuildDiagnosticTool:
         # Detect actual project root dynamically
         current_file = Path(__file__).resolve()
         self.project_root = current_file.parent.parent
-        self.workspace = self.project_root / "workspace"
+        self.workspace = Path("/dev/shm")
         self.checks_passed = 0
         self.checks_failed = 0
         self.critical_issues = []
@@ -56,18 +56,22 @@ class BuildDiagnosticTool:
         return results
     
     def check_system_requirements(self) -> Dict:
-        """Check system requirements"""
-        print("\n[1/10] Checking System Requirements...")
+        """Check system requirements for RAM builds"""
+        print("\n[1/10] Checking System Requirements (RAM Build Mode)...")
+        
+        # Updated requirements for RAM builds using /dev/shm
         requirements = {
             "cpu_cores": 2,
-            "memory_gb": 4,
-            "disk_gb": 50
+            "memory_gb": 8,  # Increased for RAM builds
+            "disk_gb": 10,   # Reduced since we use RAM workspaces
+            "ram_workspace_gb": 15  # /dev/shm needs 10-20GB
         }
         
         actual = {
             "cpu_cores": psutil.cpu_count(),
             "memory_gb": round(psutil.virtual_memory().total / (1024**3)),
-            "disk_gb": round(psutil.disk_usage('/').free / (1024**3))
+            "disk_gb": round(psutil.disk_usage('/').free / (1024**3)),
+            "ram_workspace_gb": round(psutil.disk_usage('/dev/shm').free / (1024**3))
         }
         
         results = {
@@ -81,19 +85,23 @@ class BuildDiagnosticTool:
         if actual["cpu_cores"] < requirements["cpu_cores"]:
             issues.append(f"Insufficient CPU cores: {actual['cpu_cores']} < {requirements['cpu_cores']}")
         if actual["memory_gb"] < requirements["memory_gb"]:
-            issues.append(f"Insufficient memory: {actual['memory_gb']}GB < {requirements['memory_gb']}GB")
+            issues.append(f"Insufficient RAM: {actual['memory_gb']}GB < {requirements['memory_gb']}GB (needed for RAM builds)")
         if actual["disk_gb"] < requirements["disk_gb"]:
             issues.append(f"Insufficient disk space: {actual['disk_gb']}GB < {requirements['disk_gb']}GB")
+        if actual["ram_workspace_gb"] < requirements["ram_workspace_gb"]:
+            issues.append(f"Insufficient /dev/shm space: {actual['ram_workspace_gb']}GB < {requirements['ram_workspace_gb']}GB")
             
         if issues:
             results["status"] = "FAIL"
             results["issues"] = issues
             self.critical_issues.extend(issues)
             self.checks_failed += 1
-            print(f"  ❌ FAILED: {', '.join(issues)}")
+            for issue in issues:
+                print(f"  ❌ FAILED: {issue}")
         else:
             self.checks_passed += 1
-            print(f"  ✅ PASS: {actual['cpu_cores']} CPUs, {actual['memory_gb']}GB RAM, {actual['disk_gb']}GB free")
+            print(f"  ✅ PASS: {actual['cpu_cores']} CPUs, {actual['memory_gb']}GB RAM, {actual['disk_gb']}GB disk")
+            print(f"  ✅ PASS: {actual['ram_workspace_gb']}GB available in /dev/shm for RAM builds")
             
         return results
     
@@ -153,8 +161,8 @@ class BuildDiagnosticTool:
         return results
     
     def check_workspace(self) -> Dict:
-        """Check workspace configuration"""
-        print("\n[3/10] Checking Workspace...")
+        """Check RAM workspace configuration (/dev/shm)"""
+        print("\n[3/10] Checking RAM Workspace (/dev/shm)...")
         
         results = {
             "path": str(self.workspace),
@@ -166,45 +174,38 @@ class BuildDiagnosticTool:
         
         if results["exists"]:
             # Check if writable
-            test_file = self.workspace / ".write_test"
+            test_file = self.workspace / ".zforge_write_test"
             try:
                 test_file.touch()
                 test_file.unlink()
                 results["writable"] = True
-                print(f"  ✅ Workspace exists and is writable")
             except:
                 results["writable"] = False
                 results["status"] = "FAIL"
-                self.critical_issues.append(f"Workspace not writable: {self.workspace}")
-                print(f"  ❌ Workspace not writable")
+                self.critical_issues.append(f"RAM workspace not writable: {self.workspace}")
+                print(f"  ❌ RAM workspace not writable")
+                return results
             
             # Check space
             try:
                 stat = os.statvfs(self.workspace)
                 results["space_gb"] = round((stat.f_bavail * stat.f_frsize) / (1024**3))
-                if results["space_gb"] < 30:
-                    self.warnings.append(f"Low workspace space: {results['space_gb']}GB")
-                    print(f"  ⚠️  Low space: {results['space_gb']}GB (recommend 50GB+)")
+                
+                if results["space_gb"] >= 15:
+                    print(f"  ✅ RAM workspace ready: {results['space_gb']}GB available")
+                    self.checks_passed += 1
                 else:
-                    print(f"  ✅ Workspace has {results['space_gb']}GB free")
-            except:
-                pass
-        else:
-            # Try to create workspace
-            try:
-                self.workspace.mkdir(parents=True, exist_ok=True)
-                results["exists"] = True
-                results["writable"] = True
-                self.fixes_applied.append(f"Created workspace: {self.workspace}")
-                print(f"  ✅ Created workspace directory")
-            except:
+                    print(f"  ⚠️  Low RAM workspace space: {results['space_gb']}GB (recommend 15GB+)")
+                    self.warnings.append(f"Low /dev/shm space: {results['space_gb']}GB")
+            except Exception as e:
                 results["status"] = "FAIL"
-                self.critical_issues.append(f"Cannot create workspace: {self.workspace}")
-                print(f"  ❌ Cannot create workspace")
-        
-        if results["status"] == "PASS":
-            self.checks_passed += 1
+                self.critical_issues.append(f"Cannot check /dev/shm space: {e}")
+                print(f"  ❌ Cannot check RAM workspace space")
+                self.checks_failed += 1
         else:
+            results["status"] = "FAIL" 
+            self.critical_issues.append("/dev/shm not available (RAM workspace required)")
+            print(f"  ❌ /dev/shm not available - RAM builds require tmpfs")
             self.checks_failed += 1
             
         return results
@@ -518,17 +519,20 @@ class BuildDiagnosticTool:
         return results
     
     def check_build_specifications(self) -> Dict:
-        """Check build specification files"""
+        """Check build specification files (all RAM builds with Full Proxmox VE 9)"""
         print("\n[10/10] Checking Build Specifications...")
         
+        # Updated build specs - all use RAM workspaces with Full Proxmox VE 9
         build_specs = [
-            "build_specs/build_spec.yml",
-            "build_specs/build_spec_stable.yml",
-            "build_specs/build_spec_no_tmp.yml",
-            "build_specs/build_spec_outside_packages.yml",
-            "build_specs/build_spec_proxmox9.yml",
-            "build_specs/build_spec_proxmox_full.yml",
-            "build_specs/build_spec_trixie_clean.yml"
+            "build_specs/build_spec_outside_packages.yml",  # 95% success - RECOMMENDED
+            "build_specs/build_spec_minimal_proxmox.yml",   # 90% success
+            "build_specs/build_spec_tmpfs.yml",             # 85% success
+            "build_specs/build_spec_working.yml",           # 85% success
+            "build_specs/build_spec_no_tmp.yml",            # 80% success (converted to RAM)
+            "build_specs/build_spec_proxmox9.yml",          # 75% success
+            "build_specs/build_spec_proxmox_full.yml",      # 75% success
+            "build_specs/build_spec.yml",                   # 70% success
+            "build_specs/build_spec_trixie_clean.yml"       # 60% success
         ]
         
         results = {
@@ -597,11 +601,12 @@ class BuildDiagnosticTool:
                 recommendations.append(f"  • {warning}")
         
         if not self.critical_issues:
-            recommendations.append("\n✅ SYSTEM READY FOR BUILD")
-            recommendations.append("\nRECOMMENDED BUILD COMMANDS:")
+            recommendations.append("\n✅ SYSTEM READY FOR RAM BUILD")
+            recommendations.append("\nRECOMMENDED BUILD COMMANDS (All use /dev/shm RAM workspaces):")
             recommendations.append("  • GUI: ./launch-enhanced-gui.sh")
-            recommendations.append("  • Stable: sudo python3 build.py --spec build_specs/build_spec_stable.yml")
-            recommendations.append("  • Fast: sudo python3 build.py --spec build_specs/build_spec_outside_packages.yml")
+            recommendations.append("  • Best: sudo python3 build.py --spec build_specs/build_spec_outside_packages.yml --workspace /dev/shm/zforge-workspace-outside")
+            recommendations.append("  • Minimal: sudo python3 build.py --spec build_specs/build_spec_minimal_proxmox.yml --workspace /dev/shm/zforge-workspace-noprox")
+            recommendations.append("  • All builds include: Full Proxmox VE 9 + ZFS 2.3.3 + Debian Trixie")
         
         summary["recommendations"] = recommendations
         
@@ -661,7 +666,7 @@ def main():
     tool.print_summary(results)
     
     # Save results
-    results_file = tool.project_root / "diagnostic_results.json"
+    results_file = tool.project_root / "logs/diagnostic_results.json"
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=2, default=str)
     

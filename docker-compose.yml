@@ -1,0 +1,110 @@
+# Z-FORGE Docker Compose Configuration
+# Production-ready container orchestration for RAM builds
+
+version: '3.8'
+
+services:
+  zforge-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ZFORGE_VERSION: "3.0"
+    
+    image: zforge:latest
+    container_name: zforge-builder
+    
+    # Security and privileges
+    privileged: true  # Required for debootstrap and mount operations
+    
+    # Resource limits
+    mem_limit: 32G
+    memswap_limit: 32G
+    cpus: 8
+    
+    # Environment variables
+    environment:
+      - ZFORGE_CONTAINER=true
+      - WORKSPACE=/workspace
+      - PYTHONPATH=/zforge
+      - BUILD_SPEC=build_specs/build_spec_outside_packages.yml
+      - DEBIAN_FRONTEND=noninteractive
+    
+    # Volumes and mounts
+    volumes:
+      - ./logs:/zforge/logs:rw
+      - ./output:/zforge/output:rw
+    
+    # RAM workspace (20GB tmpfs for optimal performance)
+    tmpfs:
+      - /workspace:rw,size=20G,exec,uid=1000,gid=1000
+    
+    # Networks
+    networks:
+      - zforge-net
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python3", "/zforge/tools/build_diagnostic_tool.py", "--quick"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # Interactive mode
+    stdin_open: true
+    tty: true
+    
+    # Working directory
+    working_dir: /zforge
+    
+    # Command override for different modes
+    command: >
+      /bin/bash -c "
+        echo '🚀 Z-FORGE RAM Server Build Container v3.0';
+        echo 'Full Proxmox VE 9 + ZFS 2.3.3 + Debian Trixie';
+        echo 'RAM Workspace: /workspace (20GB)';
+        echo;
+        echo 'Available Commands:';
+        echo '  • Diagnostic: python3 tools/build_diagnostic_tool.py';
+        echo '  • Build: sudo python3 build.py --spec build_specs/build_spec_outside_packages.yml --workspace /workspace/zforge-build';
+        echo '  • GUI: ./launch-enhanced-gui.sh';
+        echo;
+        /bin/bash
+      "
+
+  # Optional: Build automation service
+  zforge-auto:
+    extends: zforge-builder
+    container_name: zforge-auto
+    environment:
+      - ZFORGE_CONTAINER=true
+      - WORKSPACE=/workspace
+      - PYTHONPATH=/zforge
+      - BUILD_SPEC=build_specs/build_spec_outside_packages.yml
+      - DEBIAN_FRONTEND=noninteractive
+      - AUTO_BUILD=true
+    
+    command: >
+      /bin/bash -c "
+        echo '🤖 Z-FORGE Automated Build Starting...';
+        python3 tools/build_diagnostic_tool.py;
+        sudo python3 build.py --spec build_specs/build_spec_outside_packages.yml --workspace /workspace/zforge-build --auto-confirm
+      "
+    
+    # Don't start by default
+    profiles:
+      - automation
+
+networks:
+  zforge-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  zforge-cache:
+    driver: local
+  zforge-logs:
+    driver: local

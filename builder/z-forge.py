@@ -81,7 +81,7 @@ Examples:
                        help='Path to build specification YAML file (default: build_spec.yml)')
     parser.add_argument('--resume', action='store_true',
                        help='Resume a previously interrupted build')
-    parser.add_argument('--lockfile', type=str, default='build_spec.lock',
+    parser.add_argument('--lockfile', type=str, default='logs/build_spec.lock',
                        help='Path to lockfile for resuming builds (default: build_spec.lock)')
     parser.add_argument('--interactive', action='store_true',
                        help='Use interactive terminal UI mode (not recommended)')

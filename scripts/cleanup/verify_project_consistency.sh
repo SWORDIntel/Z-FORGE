@@ -112,7 +112,7 @@ echo "6. Configuration Tests"
 echo "===================="
 
 run_test "build_spec_no_tmp.yml exists" "[ -f '$PROJECT_ROOT/build_spec_no_tmp.yml' ]"
-run_test "build_spec.lock exists" "[ -f '$PROJECT_ROOT/build_spec.lock' ]"
+run_test "build_spec.lock exists" "[ -f '$PROJECT_ROOT/logs/build_spec.lock' ]"
 run_test "Valid YAML in build_spec_no_tmp.yml" "python3 -c 'import yaml; yaml.safe_load(open(\"$PROJECT_ROOT/build_spec_no_tmp.yml\"))'"
 
 echo ""
@@ -127,7 +127,7 @@ echo ""
 echo "8. Documentation Tests"
 echo "===================="
 
-run_test "QUICKSTART.md exists" "[ -f '$PROJECT_ROOT/QUICKSTART.md' ]"
+run_test "docu directory exists" "[ -d '$PROJECT_ROOT/docu' ]"
 run_test "TROUBLESHOOTING.md exists" "[ -f '$PROJECT_ROOT/TROUBLESHOOTING.md' ]"
 run_test "Docs README exists" "[ -f '$PROJECT_ROOT/docs/README.md' ]"
 

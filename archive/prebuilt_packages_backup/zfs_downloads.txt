@@ -1,0 +1,11 @@
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/zfsutils-linux_2.2.2-4~bpo12+1_amd64.deb
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/zfs-zed_2.2.2-4~bpo12+1_amd64.deb
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/zfs-test_2.2.2-4~bpo12+1_amd64.deb
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/zfs-initramfs_2.2.2-4~bpo12+1_all.deb
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/zfs-dracut_2.2.2-4~bpo12+1_all.deb
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/zfs-dkms_2.2.2-4~bpo12+1_all.deb
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/libnvpair3linux_2.2.2-4~bpo12+1_amd64.deb
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/libuutil3linux_2.2.2-4~bpo12+1_amd64.deb
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/libzfs4linux_2.2.2-4~bpo12+1_amd64.deb
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/libzpool5linux_2.2.2-4~bpo12+1_amd64.deb
+http://deb.debian.org/debian/pool/contrib/z/zfs-linux/python3-pyzfs_2.2.2-4~bpo12+1_amd64.deb

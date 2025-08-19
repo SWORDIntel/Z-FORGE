@@ -9,7 +9,7 @@ builder_config:
   kernel_version: 6.14.0-15-generic
   output_iso_name: zforge-3.0-working-amd64.iso
   enable_debug: false
-  workspace_path: /tmp/zforge-workspace-working  # RAM build for 3-5x performance
+  workspace_path: /dev/shm/zforge-workspace-working  # RAM build for 3-5x performance
   ram_build: true  # Enable full RAM builds
   cache_packages: true
   auto_detect_hardware: true

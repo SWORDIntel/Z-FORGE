@@ -220,7 +220,7 @@ def main():
     if passed == total:
         print("\\n🎉 ALL TESTS PASSED - GUI should work correctly!")
         print("\\n💡 To run the GUI:")
-        print("   python3 zforge_gui.py")
+        print("   python3 scripts/legacy-gui/zforge_gui.py")
         return 0
     else:
         print(f"\\n⚠️  {total - passed} tests failed - GUI may not work properly")

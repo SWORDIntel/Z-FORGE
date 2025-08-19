@@ -1,0 +1,68 @@
+# Z-FORGE Docker Build Exclusions
+# Optimize container build by excluding unnecessary files
+
+# Large build artifacts
+linux-6.14.5/
+zfs-builds/build/
+*.iso
+*.img
+
+# Logs and temporary files
+logs/
+*.log
+*.tmp
+temp/
+tmp/
+.cache/
+**/cache/
+
+# Archive and backup directories
+archive/
+backup*/
+deprecated/
+**/deprecated/
+
+# Git and version control
+.git/
+.gitignore
+*.patch
+
+# Documentation (included selectively)
+docu/analysis/
+docu/reports/
+docu/checkpoints/
+
+# Build outputs
+output/
+prebuilt_packages/*.deb
+prebuilt_packages/*.tar.*
+
+# System files
+**/.DS_Store
+**/Thumbs.db
+**/*~
+**/*.swp
+**/*.bak
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+
+# Editor files
+**/.vscode/
+**/.idea/
+**/*.sublime-*
+
+# Large test files
+tests/samples/
+tests/fixtures/large/
+
+# Container runtime files
+docker-data/
+.dockerignore
+
+# Specific large directories that shouldn't be in container
+checkpoint/full_system_backup/
+tools/test_results/

@@ -23,11 +23,13 @@ cd "$SCRIPT_DIR"
 if [ "$EUID" -ne 0 ]; then
     echo -e "${RED}❌ Z-FORGE TUI Launcher must be run with sudo${NC}"
     echo ""
-    echo -e "${YELLOW}Reason: Z-FORGE requires root permissions for:${NC}"
-    echo -e "  ${CYAN}•${NC} Chroot operations and package installations"
-    echo -e "  ${CYAN}•${NC} tmpfs mounting for high-performance builds"
+    echo -e "${YELLOW}Reason: Z-FORGE RAM Server Build requires root permissions for:${NC}"
+    echo -e "  ${CYAN}•${NC} RAM workspace creation in /dev/shm"
+    echo -e "  ${CYAN}•${NC} Chroot operations and server package installations"
+    echo -e "  ${CYAN}•${NC} Proxmox VE 9 server component installations"
+    echo -e "  ${CYAN}•${NC} ZFS 2.3.3 module building and configuration"
     echo -e "  ${CYAN}•${NC} APT operations and repository management"
-    echo -e "  ${CYAN}•${NC} System-level hardware detection"
+    echo -e "  ${CYAN}•${NC} System-level hardware detection for server optimization"
     echo ""
     echo -e "${GREEN}Please run: sudo ./zforge-launcher.sh${NC}"
     echo ""
@@ -49,8 +51,8 @@ check_sudo() {
 show_header() {
     clear
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC}                    ${BOLD}${WHITE}Z-FORGE BUILD SYSTEM${NC}                        ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC}                      ${YELLOW}TUI Launcher v1.0${NC}                          ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}              ${BOLD}${WHITE}Z-FORGE RAM SERVER BUILD SYSTEM${NC}                  ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}                    ${YELLOW}TUI Launcher v3.0${NC}                            ${CYAN}║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -60,12 +62,14 @@ show_status() {
     echo -e "${BOLD}${BLUE}=== System Status ===${NC}"
     echo ""
     
-    # Check workspace
-    WORKSPACE="${ZFORGE_WORKSPACE:-$HOME/zforge_workspace}"
+    # Check RAM workspace
+    WORKSPACE="${ZFORGE_WORKSPACE:-/dev/shm/zforge-workspace}"
     if [ -d "$WORKSPACE" ]; then
-        echo -e "Workspace: ${GREEN}$WORKSPACE ✓${NC}"
+        echo -e "RAM Workspace: ${GREEN}$WORKSPACE ✓${NC}"
+        echo -e "Build Mode: ${CYAN}RAM-based (3-5x performance)${NC}"
     else
-        echo -e "Workspace: ${RED}Not created${NC}"
+        echo -e "RAM Workspace: ${RED}Not created${NC}"
+        echo -e "Build Mode: ${YELLOW}Standard (will create RAM workspace)${NC}"
     fi
     
     # Check chroot

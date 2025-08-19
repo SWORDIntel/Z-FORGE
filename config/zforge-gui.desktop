@@ -1,10 +1,10 @@
 [Desktop Entry]
-Name=Z-FORGE Build System
-Comment=Graphical interface for Z-FORGE Linux distribution builder
-Exec=python3 /opt/github/Z-FORGE/zforge_gui.py
+Name=Z-FORGE RAM Server Build System
+Comment=Graphical interface for Z-FORGE RAM-based server distribution builder with full Proxmox VE 9
+Exec=python3 /opt/github/Z-FORGE/zforge_gui_enhanced.py
 Icon=applications-development
 Terminal=false
 Type=Application
-Categories=Development;System;
+Categories=Development;System;Server;
 StartupNotify=true
 Path=/opt/github/Z-FORGE

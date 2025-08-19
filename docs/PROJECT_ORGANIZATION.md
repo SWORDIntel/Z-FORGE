@@ -17,7 +17,7 @@ Z-FORGE/
 ├── build.py                           # 🚀 Main build script
 ├── launch-enhanced-gui.sh            # 🎯 PRIMARY GUI launcher (recommended)
 ├── zforge_gui_enhanced.py            # Enhanced GUI with auto-recovery
-├── zforge_gui.py                     # Legacy GUI (compatibility)
+├── scripts/legacy-gui/zforge_gui.py  # Legacy GUI (moved for organization)
 ├── zforge-launcher.sh                # TUI text-based launcher
 ├── README.md                         # 📖 Project overview and quick start
 ├── TROUBLESHOOTING_GUIDE.md          # 🔧 Main troubleshooting resource
@@ -98,7 +98,7 @@ Runtime data and temporary files:
 ```
 temp/
 ├── build_failure_data.json          # 📊 Build failure analysis
-├── diagnostic_results.json          # 🔍 System diagnostic data
+├── logs/diagnostic_results.json          # 🔍 System diagnostic data
 ├── validation_report.json           # ✅ Pipeline validation data
 ├── build_spec.lock                  # 🔒 Build specification locks
 ├── wget-log*                        # 📥 Download logs (multiple)

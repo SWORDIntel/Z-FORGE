@@ -6,21 +6,21 @@ builder_config:
   kernel_version: 6.14.0-15-generic
   output_iso_name: zforge-3.0-notmp-amd64.iso
   enable_debug: false
-  # Use home directory workspace (intentionally avoiding /tmp for this spec)
-  workspace_path: /root/zforge_workspace_notmp  # Non-RAM build for compatibility
-  ram_build: false  # Disable RAM builds for this spec
+  # RAM workspace as per user instruction "all builds are to also use RAM"
+  workspace_path: /dev/shm/zforge-workspace-notmp  # RAM build for 3-5x performance
+  ram_build: true  # Enable RAM builds as requested
   cache_packages: true
   auto_detect_hardware: true
   iso_version: '3.0'
-  # Environment vars to avoid /tmp
+  # Environment vars for RAM builds
   environment:
-    TMPDIR: /root/zforge_workspace/temp
-    TEMP: /root/zforge_workspace/temp
-    TMP: /root/zforge_workspace/temp
+    TMPDIR: /dev/shm/zforge-workspace-notmp/temp
+    TEMP: /dev/shm/zforge-workspace-notmp/temp
+    TMP: /dev/shm/zforge-workspace-notmp/temp
 
 proxmox_config:
   version: latest
-  minimal_install: true
+  minimal_install: false
   build_from_source: false
   include_packages: []
 
@@ -52,8 +52,8 @@ modules:
 - name: workspace_setup
   enabled: true
   config:
-    # Avoid /tmp completely
-    temp_dir: /root/zforge_workspace/temp
+    # Use RAM workspace
+    temp_dir: /dev/shm/zforge-workspace-notmp/temp
 - name: gpg_bypass
   enabled: true
 - name: universal_hardware_detect
@@ -63,8 +63,8 @@ modules:
   config:
     mirror: http://deb.debian.org/debian
     components: ["main", "contrib", "non-free-firmware"]
-    # Use our workspace cache
-    cache_dir: /root/zforge_workspace/cache/debootstrap
+    # Use RAM workspace cache
+    cache_dir: /dev/shm/zforge-workspace-notmp/cache/debootstrap
 - name: kernel_acquisition
   enabled: true
 - name: zfs_build
@@ -99,7 +99,7 @@ modules:
 - name: iso_generation
   enabled: true
   config:
-    output_dir: /root/zforge_workspace/output
+    output_dir: /dev/shm/zforge-workspace-notmp/output
     compression: xz
 
 name: Z-FORGE

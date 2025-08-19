@@ -6,7 +6,7 @@ version: 3.0
 
 builder_config:
   # Base configuration
-  workspace_path: /tmp/zforge-workspace-pve9  # RAM build for 3-5x performance
+  workspace_path: /dev/shm/zforge-workspace-pve9  # RAM build for 3-5x performance
   ram_build: true  # Enable full RAM builds
   debian_release: trixie  # Required for Proxmox VE 9
   debian_mirror: http://deb.debian.org/debian

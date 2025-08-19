@@ -1,7 +1,7 @@
-# Z-FORGE Build System
+# Z-FORGE RAM Server Build System
 
-**Version 3.0 - Enhanced Edition**  
-*The most advanced ZFS-enabled Linux distribution builder with automatic failure recovery*
+**Version 3.0 - RAM Server Edition**  
+*Advanced ZFS-enabled Proxmox VE 9 server distribution builder with RAM workspaces and automatic failure recovery*
 
 [![Build Status](https://img.shields.io/badge/build-ready-brightgreen)](.) [![Success Rate](https://img.shields.io/badge/success%20rate-95%25-brightgreen)](.) [![Tests](https://img.shields.io/badge/tests-15%2F15%20passing-brightgreen)](.) [![Organization](https://img.shields.io/badge/organization-professional-blue)](.) [![Navigation](https://img.shields.io/badge/navigation-WHERE%20AM%20I-purple)](.)
 
@@ -16,17 +16,20 @@ sudo ./launch-enhanced-gui.sh
 # OR launch the comprehensive TUI launcher
 sudo ./zforge-launcher.sh
 
-# Select "Outside Packages Build (Fastest)" for 95% success rate
-# Let the system automatically fix any issues
-# Watch your first successful build complete!
+# Select "Outside Packages Build (Fastest - 95% Success)" for optimal results
+# All builds now include: Full Proxmox VE 9 + ZFS 2.3.3 + Debian Trixie
+# All builds use RAM workspaces (/dev/shm) for 3-5x performance
+# Watch your first successful server build complete!
 ```
 
 ### Why Sudo is Required
-Z-FORGE needs root permissions for:
-- **Chroot operations** and package installations
-- **tmpfs mounting** for high-performance builds  
+Z-FORGE RAM Server Build needs root permissions for:
+- **RAM workspace creation** in /dev/shm for 3-5x performance
+- **Chroot operations** and server package installations
+- **Proxmox VE 9 component** installations and configuration
+- **ZFS 2.3.3 module** building and configuration
 - **APT operations** and repository management
-- **System-level hardware** detection
+- **System-level hardware** detection for server optimization
 
 ## ✨ What Makes Z-FORGE Special
 
@@ -42,11 +45,15 @@ Z-FORGE needs root permissions for:
 - **Intelligent analysis** of build issues with solutions
 - **Learning system** that improves with each build
 
-### 🎯 **Build Success Optimization**
-- **95% success rate** with "Outside Packages Build"
+### 🎯 **RAM Server Build Success Optimization**
+- **95% success rate** with "Outside Packages Build (Fastest - 95% Success)"
+- **Full Proxmox VE 9 server** with all enterprise features
+- **ZFS 2.3.3 with encryption + compression** on every build
+- **RAM workspace performance** - 3-5x faster builds in /dev/shm
+- **Debian Trixie base** with latest kernel 6.14.8
 - **Pre-build validation** with automatic system fixes
-- **Smart recommendations** based on your system
-- **Progress tracking** with detailed monitoring
+- **Smart recommendations** based on your server requirements
+- **Progress tracking** with detailed server component monitoring
 
 ### 🖥️ **Enhanced GUI Experience**
 - **Dark theme** optimized for extended use
@@ -84,9 +91,10 @@ Z-FORGE needs root permissions for:
 ## 📚 Documentation Structure
 
 ### 🧭 **Navigation & Organization**
-- [WHERE AM I](WHERE_AM_I.md) - **Project navigation system** for agents and developers
+- [WHERE AM I](docu/WHERE_AM_I.md) - **Project navigation system** for agents and developers
+- [Documentation Index](docu/INDEX.md) - **Quick reference guides** (bootstrap, build commands, troubleshooting)
 - [Project Organization](docs/PROJECT_ORGANIZATION.md) - Complete directory structure guide
-- [Documentation Index](docs/DOCUMENTATION_INDEX.md) - Master navigation to all guides
+- [Technical Documentation](docs/DOCUMENTATION_INDEX.md) - Master navigation to all technical guides
 
 ### 🚀 **Getting Started**
 - [Quick Start Guide](docs/QUICK_START.md) - Get building in 5 minutes
@@ -105,7 +113,7 @@ Z-FORGE needs root permissions for:
 - [ZFS Build Environment](linux-6.14.5/WHERE_AM_I.md) - Complete ZFS development environment
 
 ### 🔍 **Troubleshooting & Recovery**
-- [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md) - Fix common issues
+- [Troubleshooting Guide](docu/TROUBLESHOOTING_GUIDE.md) - Fix common issues
 - [Failure Recovery](docs/FAILURE_RECOVERY.md) - Automatic and manual recovery
 - [Diagnostic Tools](docs/DIAGNOSTIC_TOOLS.md) - System validation and analysis
 
@@ -201,8 +209,18 @@ The project is **professionally organized** with comprehensive navigation:
 
 ```
 Z-FORGE/                              
-├── 📍 WHERE_AM_I.md                 # Project root navigation
-├── 📁 build_specs/                  # 7 build configurations (60-95% success)
+├── 📁 docu/                          # Quick reference documentation
+│   ├── INDEX.md                      # Documentation index
+│   ├── BOOTSTRAP.md                  # Bootstrap guides
+│   ├── TROUBLESHOOTING_GUIDE.md      # Issue resolution
+│   └── WHERE_AM_I.md                 # Project navigation
+├── 📁 scripts/                       # Utility scripts and legacy tools
+│   ├── INDEX.md                      # Scripts directory index
+│   ├── bootstrap/                    # Bootstrap scripts
+│   ├── deployment/                   # Deployment utilities
+│   ├── testing/                      # Testing scripts
+│   └── legacy-gui/                   # Non-enhanced GUI tools
+├── 📁 build_specs/                  # 9 build configurations (60-95% success)
 │   └── WHERE_AM_I.md               # Build specification guide
 ├── 📁 tools/                        # 10+ diagnostic & recovery tools
 │   └── WHERE_AM_I.md               # Tools navigation

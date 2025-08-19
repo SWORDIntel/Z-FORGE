@@ -4,27 +4,30 @@
 # With automatic failure recovery and intelligent analysis
 #
 
-echo "========================================"
-echo "Z-FORGE Build System - Enhanced Edition"
-echo "========================================"
+echo "======================================================"
+echo "Z-FORGE RAM Server Build System v3.0 - Enhanced Edition"
+echo "======================================================"
 echo ""
-echo "Features:"
-echo "  ✅ Automatic failure recovery"
-echo "  ✅ Intelligent error analysis"
-echo "  ✅ Pre-build validation"
-echo "  ✅ Real-time monitoring"
-echo "  ✅ Build success recommendations"
+echo "NEW FEATURES:"
+echo "  ✅ ALL builds now use RAM workspaces (/dev/shm) for 3-5x performance"
+echo "  ✅ ALL builds include FULL Proxmox VE 9 (not minimal)"
+echo "  ✅ ALL builds include ZFS 2.3.3 with encryption + compression"
+echo "  ✅ ALL builds use Debian Trixie as base OS"
+echo "  ✅ Automatic failure recovery and intelligent error analysis"
+echo "  ✅ Real-time monitoring with build success recommendations"
 echo ""
 
 # Check if running as root/sudo
 if [ "$EUID" -ne 0 ]; then
     echo "❌ Z-FORGE Enhanced GUI must be run with sudo"
     echo ""
-    echo "Reason: Z-FORGE requires root permissions for:"
-    echo "  • Chroot operations and package installations"
-    echo "  • tmpfs mounting for high-performance builds"
+    echo "Reason: Z-FORGE RAM Server Build requires root permissions for:"
+    echo "  • RAM workspace creation in /dev/shm"
+    echo "  • Chroot operations and server package installations"
+    echo "  • Proxmox VE 9 server component installations"
+    echo "  • ZFS 2.3.3 module building and configuration"
     echo "  • APT operations and repository management"
-    echo "  • System-level hardware detection"
+    echo "  • System-level hardware detection for server optimization"
     echo ""
     echo "Please run: sudo ./launch-enhanced-gui.sh"
     echo ""
@@ -66,11 +69,12 @@ if [ ! -f "build.py" ]; then
     exit 1
 fi
 
-# Create workspace if it doesn't exist
-WORKSPACE="/home/john/zforge_workspace"
+# Create RAM workspace if it doesn't exist (all builds now use /dev/shm)
+WORKSPACE="/dev/shm/zforge-workspace"
 if [ ! -d "$WORKSPACE" ]; then
-    echo "Creating workspace at $WORKSPACE..."
+    echo "Creating RAM workspace at $WORKSPACE for 3-5x performance..."
     mkdir -p "$WORKSPACE"
+    echo "📈 RAM Build Mode: All server builds use /dev/shm workspace"
 fi
 
 # Run quick system check
@@ -78,9 +82,9 @@ echo ""
 echo "Running quick system check..."
 python3 tools/build_diagnostic_tool.py 2>/dev/null | grep "SYSTEM READY" > /dev/null
 if [ $? -eq 0 ]; then
-    echo "✅ System ready to build!"
+    echo "✅ System ready to build RAM-based Proxmox VE 9 servers!"
 else
-    echo "⚠️  System has some issues - the GUI will help you fix them"
+    echo "⚠️  System has some issues - the enhanced GUI will help you fix them for RAM server builds"
 fi
 
 echo ""

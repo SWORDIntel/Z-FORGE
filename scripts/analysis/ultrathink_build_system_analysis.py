@@ -936,7 +936,7 @@ class UserExperienceAgent(BaseAgent):
         findings = []
         
         # Check for main documentation files
-        doc_files = ["README.md", "QUICKSTART.md", "TROUBLESHOOTING.md"]
+        doc_files = ["README.md", "docu/INDEX.md", "docu/TROUBLESHOOTING_GUIDE.md"]
         for doc in doc_files:
             doc_path = self.project_root / doc
             if doc_path.exists():

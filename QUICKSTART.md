@@ -1,1 +1,0 @@
-docs/guides/QUICK_START.md

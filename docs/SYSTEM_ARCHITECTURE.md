@@ -259,7 +259,7 @@ logs/
 ### Statistics & Learning
 
 #### Build Statistics Tracking
-**File**: `build_statistics.json`
+**File**: `logs/build_statistics.json`
 ```json
 {
   "total_attempts": 10,

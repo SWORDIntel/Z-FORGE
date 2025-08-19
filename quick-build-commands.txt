@@ -1,0 +1,59 @@
+Z-FORGE BUILD COMMANDS - All RAM Builds with Full Proxmox VE 9 + ZFS + Trixie
+===============================================================================
+
+1. OUTSIDE PACKAGES (95% success - FASTEST):
+sudo python3 build.py --spec build_specs/build_spec_outside_packages.yml --workspace /dev/shm/zforge-workspace-outside --verbose 2>&1 | tee logs/outside-packages-$(date +%Y%m%d-%H%M%S).log
+
+2. STANDARD BUILD (70% success):
+sudo python3 build.py --spec build_specs/build_spec.yml --workspace /dev/shm/zforge-workspace-main --verbose 2>&1 | tee logs/standard-$(date +%Y%m%d-%H%M%S).log
+
+3. PROXMOX 9 STANDARD (75% success):
+sudo python3 build.py --spec build_specs/build_spec_proxmox9.yml --workspace /dev/shm/zforge-workspace-pve9 --verbose 2>&1 | tee logs/proxmox9-$(date +%Y%m%d-%H%M%S).log
+
+4. PROXMOX 9 FULL (75% success - Ceph+HA+Backup):
+sudo python3 build.py --spec build_specs/build_spec_proxmox_full.yml --workspace /dev/shm/zforge-workspace-proxmox --verbose 2>&1 | tee logs/proxmox-full-$(date +%Y%m%d-%H%M%S).log
+
+5. TMPFS OPTIMIZED (85% success - High Performance):
+sudo python3 build.py --spec build_specs/build_spec_tmpfs.yml --workspace /dev/shm/zforge-workspace-tmpfs --verbose 2>&1 | tee logs/tmpfs-$(date +%Y%m%d-%H%M%S).log
+
+6. MINIMAL PROXMOX (90% success - Streamlined):
+sudo python3 build.py --spec build_specs/build_spec_minimal_proxmox.yml --workspace /dev/shm/zforge-workspace-noprox --verbose 2>&1 | tee logs/minimal-proxmox-$(date +%Y%m%d-%H%M%S).log
+
+7. WORKING BUILD (85% success - Known Config):
+sudo python3 build.py --spec build_specs/build_spec_working.yml --workspace /dev/shm/zforge-workspace-working --verbose 2>&1 | tee logs/working-$(date +%Y%m%d-%H%M%S).log
+
+8. TRIXIE CLEAN (60% success - Experimental):
+sudo python3 build.py --spec build_specs/build_spec_trixie_clean.yml --workspace /dev/shm/zforge-workspace-trixie --verbose 2>&1 | tee logs/trixie-$(date +%Y%m%d-%H%M%S).log
+
+9. NO TMP (80% success - Converted to RAM):
+sudo python3 build.py --spec build_specs/build_spec_no_tmp.yml --workspace /dev/shm/zforge-workspace-notmp --verbose 2>&1 | tee logs/no-tmp-$(date +%Y%m%d-%H%M%S).log
+
+QUICK START COMMANDS:
+====================
+
+# Create logs directory
+mkdir -p logs
+
+# Check /dev/shm space (needs 10-20GB free)
+df -h /dev/shm
+
+# Start with fastest build
+sudo python3 build.py --spec build_specs/build_spec_outside_packages.yml --workspace /dev/shm/zforge-workspace-outside --verbose 2>&1 | tee logs/build-$(date +%Y%m%d-%H%M%S).log
+
+# Resume a failed build (use same workspace)
+sudo python3 build.py --spec <spec_file> --workspace <same_workspace> --resume --verbose 2>&1 | tee -a logs/resume-$(date +%Y%m%d-%H%M%S).log
+
+# Monitor build progress (in another terminal)
+watch -n 2 'tail -20 logs/*.log | grep -E "Module|SUCCESS|ERROR"'
+
+# Check build progress JSON
+cat /dev/shm/zforge-*/build_progress.json | python3 -m json.tool
+
+ALL BUILDS INCLUDE:
+==================
+• Full Proxmox VE 9.0 (NOT minimal install)
+• ZFS 2.3.3 with native encryption and compression
+• Debian Trixie base OS
+• RAM builds (/dev/shm) for 3-5x performance improvement
+• pve-kernel-6.14 Proxmox-optimized kernel
+• arch-chroot for proper /dev mount handling

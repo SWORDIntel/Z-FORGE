@@ -66,7 +66,7 @@ Root directory now contains only essential files:
 ├── Makefile              # Standard build configuration
 ├── Makefile.no_tmp       # Non-/tmp build configuration
 ├── build_spec*.yml       # Build specifications
-├── zforge-build.service  # Systemd service
+├── config/zforge-build.service  # Systemd service
 ├── README.md             # Project README
 ├── DIRECTORY_STRUCTURE.md # Directory guide
 └── checkpoint/           # This checkpoint

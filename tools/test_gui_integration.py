@@ -28,7 +28,7 @@ class GUIIntegrationTest:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             
             # Import without creating GUI
-            with open('zforge_gui.py', 'r') as f:
+            with open('scripts/legacy-gui/zforge_gui.py', 'r') as f:
                 gui_content = f.read()
                 
             # Check for required classes and methods

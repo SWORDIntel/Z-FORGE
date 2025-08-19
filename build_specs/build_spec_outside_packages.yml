@@ -9,7 +9,7 @@ builder_config:
   kernel_version: 6.14.0-15-generic
   output_iso_name: zforge-3.0-outside-build-amd64.iso
   enable_debug: false
-  workspace_path: "/tmp/zforge-workspace-outside"  # RAM build for 3-5x performance
+  workspace_path: "/dev/shm/zforge-workspace-outside"  # RAM build for 3-5x performance
   ram_build: true  # Enable full RAM builds
   cache_packages: true
   auto_detect_hardware: true
@@ -36,7 +36,7 @@ prebuilt_packages:
 
 proxmox_config:
   version: "9.0-beta"
-  minimal_install: true
+  minimal_install: false
   build_from_source: false  # Use prebuilt
   install_method: prebuilt_packages
   package_dir: "/home/ubuntu/Documents/Z-FORGE/prebuilt_packages/proxmox"

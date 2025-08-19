@@ -1,0 +1,18 @@
+[Unit]
+Description=Z-FORGE Automated ISO Build
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/github/Z-FORGE
+Environment="ZFORGE_WORKSPACE=/var/tmp/zforge_workspace"
+ExecStartPre=/opt/github/Z-FORGE/scripts/check_build_env.sh
+ExecStart=/usr/bin/python3 /opt/github/Z-FORGE/build-auto.py
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=7200
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
