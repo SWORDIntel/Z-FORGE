@@ -18,7 +18,8 @@ builder_config:
   tmpfs_mount_options: "noatime,size=20G,nr_inodes=2M"
   
   # Primary workspace in RAM
-  workspace_path: /tmp/zforge_tmpfs_workspace
+  workspace_path: /tmp/zforge-workspace-tmpfs  # RAM build for 3-5x performance
+  ram_build: true  # Enable full RAM builds
   
   # Backup workspace on disk for final output
   backup_workspace_path: /root/zforge_workspace

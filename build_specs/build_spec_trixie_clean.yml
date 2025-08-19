@@ -20,7 +20,8 @@ builder_config:
   iso_version: '3.0'
   
   # Workspace
-  workspace_path: /root/zforge_workspace
+  workspace_path: /tmp/zforge-workspace-trixie  # RAM build for 3-5x performance
+  ram_build: true  # Enable full RAM builds
   
   # Build options
   enable_cache: true

@@ -6,7 +6,8 @@ version: 3.0
 
 builder_config:
   # Base configuration
-  workspace_path: /root/zforge_workspace
+  workspace_path: /tmp/zforge-workspace-stable  # RAM build for 3-5x performance
+  ram_build: true  # Enable full RAM builds
   debian_release: bookworm  # STABLE instead of trixie
   debian_mirror: http://deb.debian.org/debian
   fallback_mirrors:

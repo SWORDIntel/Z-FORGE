@@ -6,10 +6,9 @@ builder_config:
   kernel_version: 6.14.0-15-generic
   output_iso_name: zforge-3.0-notmp-amd64.iso
   enable_debug: false
-  # Use home directory workspace instead of /tmp
-  workspace_path: /root/zforge_workspace
-  # Alternative: use /var/lib for system-wide builds
-  # workspace_path: /var/lib/zforge_workspace
+  # Use home directory workspace (intentionally avoiding /tmp for this spec)
+  workspace_path: /root/zforge_workspace_notmp  # Non-RAM build for compatibility
+  ram_build: false  # Disable RAM builds for this spec
   cache_packages: true
   auto_detect_hardware: true
   iso_version: '3.0'
