@@ -15,6 +15,7 @@ NC='\033[0m'
 
 echo -e "${CYAN}Z-FORGE Build Specification Commands${NC}"
 echo "====================================="
+echo -e "${YELLOW}ALL builds include: Proxmox VE 9 + ZFS + Debian Trixie${NC}"
 echo ""
 
 # Function to display build command
@@ -75,14 +76,14 @@ show_build \
     --workspace /tmp/zforge-standard \\
     --verbose 2>&1 | tee logs/standard-\$(date +%Y%m%d-%H%M%S).log"
 
-# 6. NO PROXMOX BUILD
+# 6. MINIMAL PROXMOX BUILD
 show_build \
-    "6. NO PROXMOX - build_spec_no_proxmox.yml" \
-    "   80% success rate - ZFS system without Proxmox" \
+    "6. MINIMAL PROXMOX - build_spec_minimal_proxmox.yml" \
+    "   90% success rate - Minimal Proxmox VE 9 with core features only" \
     "sudo python3 build.py \\
-    --spec build_specs/build_spec_no_proxmox.yml \\
-    --workspace /tmp/zforge-no-proxmox \\
-    --verbose 2>&1 | tee logs/no-proxmox-\$(date +%Y%m%d-%H%M%S).log"
+    --spec build_specs/build_spec_minimal_proxmox.yml \\
+    --workspace /tmp/zforge-minimal-proxmox \\
+    --verbose 2>&1 | tee logs/minimal-proxmox-\$(date +%Y%m%d-%H%M%S).log"
 
 # 7. NO TMP BUILD (for systems with limited RAM)
 show_build \
@@ -114,7 +115,7 @@ show_build \
 # 10. WORKING BUILD
 show_build \
     "10. WORKING BUILD - build_spec_working.yml" \
-    "    Known working configuration for development" \
+    "    85% success rate - Known working Proxmox VE 9 for development" \
     "sudo python3 build.py \\
     --spec build_specs/build_spec_working.yml \\
     --workspace /tmp/zforge-working \\
@@ -141,14 +142,21 @@ echo -e "${YELLOW}cat /tmp/zforge-*/build_progress.json | python3 -m json.tool${
 echo ""
 
 echo "====================================="
-echo -e "${GREEN}Recommended Build Order:${NC}"
+echo -e "${GREEN}Recommended Build Order (All include Proxmox VE 9 + ZFS):${NC}"
 echo "1. Start with: build_spec_outside_packages.yml (95% success, fastest)"
-echo "2. Then try: build_spec_stable.yml (85% success, production)"
-echo "3. For Proxmox: build_spec_proxmox_full.yml (75% success, full features)"
+echo "2. Then try: build_spec_minimal_proxmox.yml (90% success, basic Proxmox)"
+echo "3. Production: build_spec_stable.yml (85% success, stable Proxmox)"
+echo "4. Full features: build_spec_proxmox_full.yml (75% success, Ceph+HA+Backup)"
+echo ""
+echo -e "${GREEN}Key Features (ALL builds include):${NC}"
+echo "• Proxmox VE 9.0 - Full virtualization platform"
+echo "• ZFS 2.3.3 - Native encryption, compression, snapshots"
+echo "• Debian Trixie - Latest stable base OS"
+echo "• pve-kernel-6.14 - Proxmox-optimized kernel"
+echo "• RAM builds (/tmp) - 3-5x faster than disk builds"
 echo ""
 echo -e "${GREEN}Tips:${NC}"
-echo "• All builds use RAM (/tmp) by default for 3-5x speed improvement"
-echo "• Monitor /tmp usage with: df -h /tmp"
-echo "• Each build needs ~10-20GB free space in /tmp"
-echo "• Use --resume if a build fails to save time"
-echo "• Logs are saved with timestamps for troubleshooting"
+echo "• Monitor /tmp usage: df -h /tmp (needs ~10-20GB free)"
+echo "• Use --resume if build fails to save hours"
+echo "• All ISOs include live boot + installation capabilities"
+echo "• ZFS streaming deployment available for mass server rollouts"

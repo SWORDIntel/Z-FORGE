@@ -1,7 +1,7 @@
-# Z-FORGE Build Specification - No Proxmox
-# Clean ZFS-focused build without Proxmox complications
+# Z-FORGE Build Specification - Minimal Proxmox VE 9
+# Minimal Proxmox VE 9 build with ZFS on Debian Trixie
 
-name: Z-FORGE No Proxmox Build
+name: Z-FORGE Minimal Proxmox VE 9 Build
 version: 3.0
 
 builder_config:
@@ -55,6 +55,17 @@ modules:
   enabled: true
   
 - name: zfs_build
+  enabled: true
+
+- name: proxmox_integration
+  enabled: true
+  config:
+    minimal_install: false
+
+- name: proxmox_package_install
+  enabled: true
+
+- name: proxmox_repo_setup
   enabled: true
   
 - name: live_environment

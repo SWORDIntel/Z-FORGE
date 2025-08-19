@@ -57,6 +57,17 @@ modules:
   
 - name: zfs_build
   enabled: true
+
+- name: proxmox_integration
+  enabled: true
+  config:
+    minimal_install: false
+
+- name: proxmox_package_install
+  enabled: true
+
+- name: proxmox_repo_setup
+  enabled: true
   
 - name: live_environment
   enabled: true
