@@ -351,7 +351,9 @@ class KernelAcquisition:
         # Base packages first
         base_packages = ["linux-base"]
         # Install kernel headers FIRST (required for module compilation)
-        kernel_packages = ["linux-headers-amd64", "linux-image-amd64"]
+        # Try Proxmox kernel first (6.14.8-2), fallback to standard Debian kernel
+        kernel_packages = ["pve-kernel-6.14", "pve-headers-6.14"]
+        kernel_fallback = ["linux-headers-amd64", "linux-image-amd64"]
         # Then build tools and DKMS
         build_packages = ["build-essential", "linux-headers-generic"]
         dkms_packages = ["dkms"]
@@ -364,7 +366,23 @@ class KernelAcquisition:
         # ZFSBootMenu dependencies (zfsbootmenu itself will be installed separately)
         zfsbootmenu_packages = ["perl", "fzf", "mbuffer", "efibootmgr", "kexec-tools"]
         
-        package_groups_to_install = [base_packages, kernel_packages, build_packages, dkms_packages, dracut_packages, zfs_packages, zfsbootmenu_packages]
+        # Note: kernel_packages will be handled specially with fallback
+        package_groups_to_install = [base_packages, build_packages, dkms_packages, dracut_packages, zfs_packages, zfsbootmenu_packages]
+        
+        # Try to install Proxmox kernel first, fallback to standard Debian kernel
+        self.logger.info("Attempting to install Proxmox kernel 6.14...")
+        try:
+            self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends"] + kernel_packages)
+            self.logger.info("Successfully installed Proxmox kernel 6.14")
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Proxmox kernel not available: {e.stderr if e.stderr else 'Package not found'}")
+            self.logger.info("Falling back to standard Debian kernel...")
+            try:
+                self._run_chroot_command(["apt-get", "install", "-y", "--no-install-recommends"] + kernel_fallback)
+                self.logger.info("Successfully installed standard Debian kernel")
+            except subprocess.CalledProcessError as e2:
+                self.logger.error(f"Failed to install any kernel: {e2.stderr if e2.stderr else e2.stdout}")
+                raise
 
         if zfs_encryption_enabled:
             crypt_packages = ["cryptsetup", "cryptsetup-initramfs", "keyutils", "libpam-zfs"]

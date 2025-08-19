@@ -300,6 +300,10 @@ class Debootstrap:
             sources_list_content: str = f"""# Main Debian repositories
 deb http://deb.debian.org/debian {debian_release} main contrib non-free non-free-firmware
 deb http://deb.debian.org/debian-security {debian_release}-security main contrib non-free non-free-firmware
+
+# Proxmox VE 9 repositories (for pve-kernel-6.14.8-2-pve)
+deb http://download.proxmox.com/debian/pve trixie pve-no-subscription
+deb http://download.proxmox.com/debian/pve trixie pvetest
 """
         else:
             sources_list_content: str = f"""# Main Debian repositories
@@ -315,6 +319,19 @@ deb http://deb.debian.org/debian {debian_release}-backports main contrib non-fre
         with open(sources_path, 'w') as f:
             f.write(sources_list_content)
         self.logger.debug(f"Configured {sources_path}")
+        
+        # Add Proxmox GPG key if using Trixie
+        if debian_release == "trixie":
+            self.logger.info("Adding Proxmox repository GPG key...")
+            try:
+                # Download and add Proxmox release key
+                self._run_chroot_command([
+                    "wget", "-q", "-O", "/etc/apt/trusted.gpg.d/proxmox-release-trixie.gpg",
+                    "http://download.proxmox.com/debian/proxmox-release-trixie.gpg"
+                ])
+                self.logger.debug("Added Proxmox GPG key")
+            except subprocess.CalledProcessError as e:
+                self.logger.warning(f"Failed to add Proxmox GPG key: {e}")
         
         # Configure /etc/hostname.
         hostname_path: Path = self.chroot_path / "etc/hostname"
