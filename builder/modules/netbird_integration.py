@@ -10,9 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Optional
 
-from builder.modules.base_module import BaseModule
-from builder.utils.logger import Logger
-from builder.utils.command_runner import CommandRunner
+from builder.core.module import BaseModule
 
 
 class NetBirdIntegration(BaseModule):
@@ -21,11 +19,9 @@ class NetBirdIntegration(BaseModule):
     Provides peer-to-peer encrypted connections with centralized management
     """
     
-    def __init__(self, config: Dict, logger: Logger, chroot_path: Path):
-        super().__init__(config, logger, chroot_path)
+    def __init__(self, config: Dict, chroot_path: Path = None):
+        super().__init__(config, chroot_path)
         self.module_name = "netbird_integration"
-        self.logger = logger
-        self.cmd_runner = CommandRunner(logger, chroot_path)
         
         # NetBird configuration
         self.enable_netbird = config.get('services', {}).get('netbird', {}).get('enable', True)
@@ -110,7 +106,7 @@ class NetBirdIntegration(BaseModule):
             ]
             
             cmd = f"apt-get update && apt-get install -y {' '.join(dependencies)}"
-            return self.cmd_runner.run_in_chroot(cmd)
+            return self._run_in_chroot(cmd)
             
         except Exception as e:
             self.logger.error(f"Dependency installation failed: {e}")
@@ -172,7 +168,7 @@ fi
             script_path.write_text(install_script)
             script_path.chmod(0o755)
             
-            return self.cmd_runner.run_in_chroot("/tmp/install-netbird.sh")
+            return self._run_in_chroot("/tmp/install-netbird.sh")
             
         except Exception as e:
             self.logger.error(f"NetBird installation failed: {e}")
@@ -314,7 +310,7 @@ echo "Firewall configured for NetBird"
             script_path.write_text(firewall_script)
             script_path.chmod(0o755)
             
-            return self.cmd_runner.run_in_chroot("/usr/local/bin/netbird-firewall")
+            return self._run_in_chroot("/usr/local/bin/netbird-firewall")
             
         except Exception as e:
             self.logger.error(f"Firewall setup failed: {e}")
@@ -569,8 +565,8 @@ WantedBy=multi-user.target
             service_path.write_text(service_content)
             
             # Enable service
-            self.cmd_runner.run_in_chroot("systemctl daemon-reload")
-            self.cmd_runner.run_in_chroot("systemctl enable netbird.service")
+            self._run_in_chroot("systemctl daemon-reload")
+            self._run_in_chroot("systemctl enable netbird.service")
             
             # Create first-boot registration service if setup key is provided
             if self.setup_key:
@@ -593,7 +589,7 @@ WantedBy=multi-user.target
                 
                 firstboot_path = self.chroot_path / 'etc/systemd/system/netbird-firstboot.service'
                 firstboot_path.write_text(firstboot_service)
-                self.cmd_runner.run_in_chroot("systemctl enable netbird-firstboot.service")
+                self._run_in_chroot("systemctl enable netbird-firstboot.service")
                 
             return True
             

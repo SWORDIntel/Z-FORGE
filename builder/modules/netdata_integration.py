@@ -11,9 +11,7 @@ import tarfile
 from pathlib import Path
 from typing import Dict, Optional
 
-from builder.modules.base_module import BaseModule
-from builder.utils.logger import Logger
-from builder.utils.command_runner import CommandRunner
+from builder.core.module import BaseModule
 
 
 class NetdataIntegration(BaseModule):
@@ -21,11 +19,9 @@ class NetdataIntegration(BaseModule):
     Installs Netdata monitoring system with optimized configuration for ZFS systems
     """
     
-    def __init__(self, config: Dict, logger: Logger, chroot_path: Path):
-        super().__init__(config, logger, chroot_path)
+    def __init__(self, config: Dict, chroot_path: Path = None):
+        super().__init__(config, chroot_path)
         self.module_name = "netdata_integration"
-        self.logger = logger
-        self.cmd_runner = CommandRunner(logger, chroot_path)
         
         # Netdata configuration
         self.netdata_version = "latest"
@@ -104,7 +100,7 @@ class NetdataIntegration(BaseModule):
             ]
             
             cmd = f"apt-get update && apt-get install -y {' '.join(dependencies)}"
-            return self.cmd_runner.run_in_chroot(cmd)
+            return self._run_in_chroot(cmd)
             
         except Exception as e:
             self.logger.error(f"Dependency installation failed: {e}")
@@ -143,10 +139,10 @@ echo "Netdata installed successfully"
             script_path.chmod(0o755)
             
             # Run installation
-            if not self.cmd_runner.run_in_chroot("/tmp/install-netdata.sh"):
+            if not self._run_in_chroot("/tmp/install-netdata.sh"):
                 # Fallback: Install from package repository
                 self.logger.info("Trying package repository installation")
-                return self.cmd_runner.run_in_chroot("apt-get install -y netdata netdata-plugins-bash")
+                return self._run_in_chroot("apt-get install -y netdata netdata-plugins-bash")
                 
             return True
             
@@ -409,7 +405,7 @@ echo "Firewall configured for Netdata on port {self.netdata_port}"
             script_path.chmod(0o755)
             
             # Run firewall configuration
-            self.cmd_runner.run_in_chroot("/usr/local/bin/netdata-firewall")
+            self._run_in_chroot("/usr/local/bin/netdata-firewall")
             
             return True
             
@@ -540,15 +536,15 @@ WantedBy=multi-user.target
             service_path.write_text(service_content)
             
             # Enable service
-            self.cmd_runner.run_in_chroot("systemctl daemon-reload")
-            self.cmd_runner.run_in_chroot("systemctl enable netdata.service")
+            self._run_in_chroot("systemctl daemon-reload")
+            self._run_in_chroot("systemctl enable netdata.service")
             
             # Create Netdata user if not exists
-            self.cmd_runner.run_in_chroot("useradd -r -g netdata -s /usr/sbin/nologin netdata 2>/dev/null || true")
-            self.cmd_runner.run_in_chroot("groupadd -r netdata 2>/dev/null || true")
+            self._run_in_chroot("useradd -r -g netdata -s /usr/sbin/nologin netdata 2>/dev/null || true")
+            self._run_in_chroot("groupadd -r netdata 2>/dev/null || true")
             
             # Set permissions
-            self.cmd_runner.run_in_chroot("chown -R netdata:netdata /etc/netdata /var/lib/netdata /var/cache/netdata /var/log/netdata 2>/dev/null || true")
+            self._run_in_chroot("chown -R netdata:netdata /etc/netdata /var/lib/netdata /var/cache/netdata /var/log/netdata 2>/dev/null || true")
             
             self.logger.success(f"Netdata service configured and enabled on port {self.netdata_port}")
             return True

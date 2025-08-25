@@ -10,9 +10,7 @@ import subprocess
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
-from builder.modules.base_module import BaseModule
-from builder.utils.logger import Logger
-from builder.utils.command_runner import CommandRunner
+from builder.core.module import BaseModule
 
 
 class ServiceOrchestrator(BaseModule):
@@ -21,11 +19,9 @@ class ServiceOrchestrator(BaseModule):
     Manages Netdata, Docker/Portainer, and optional KDE desktop environment
     """
     
-    def __init__(self, config: Dict, logger: Logger, chroot_path: Path):
-        super().__init__(config, logger, chroot_path)
+    def __init__(self, config: Dict, chroot_path: Path = None):
+        super().__init__(config, chroot_path)
         self.module_name = "service_orchestrator"
-        self.logger = logger
-        self.cmd_runner = CommandRunner(logger, chroot_path)
         
         # Service tiers define startup order and dependencies
         self.service_tiers = {
@@ -127,7 +123,8 @@ class ServiceOrchestrator(BaseModule):
                 full_path.mkdir(parents=True, exist_ok=True)
                 
             # Setup systemd for services
-            self._setup_systemd_environment()
+            if not self._setup_systemd_environment():
+                self.logger.warning("Systemd setup incomplete")
             
             return True
             
@@ -186,22 +183,22 @@ class ServiceOrchestrator(BaseModule):
             # Install package(s)
             if 'package' in config:
                 cmd = f"apt-get install -y {config['package']}"
-                if not self.cmd_runner.run_in_chroot(cmd):
+                if not self._run_in_chroot(cmd):
                     return False
             elif 'packages' in config:
                 packages = ' '.join(config['packages'])
                 cmd = f"apt-get install -y {packages}"
-                if not self.cmd_runner.run_in_chroot(cmd):
+                if not self._run_in_chroot(cmd):
                     return False
                     
             # Configure service
             if 'service_name' in config:
                 if config.get('autostart', True):
                     # Enable service for autostart
-                    self.cmd_runner.run_in_chroot(f"systemctl enable {config['service_name']}")
+                    self._run_in_chroot(f"systemctl enable {config['service_name']}")
                 else:
                     # Disable service autostart
-                    self.cmd_runner.run_in_chroot(f"systemctl disable {config['service_name']}")
+                    self._run_in_chroot(f"systemctl disable {config['service_name']}")
                     
             # Service-specific configuration
             if service_name == 'netdata':
@@ -361,7 +358,7 @@ WantedBy=multi-user.target
             service_path.write_text(portainer_service)
             
             # Enable Portainer service
-            self.cmd_runner.run_in_chroot("systemctl enable portainer.service")
+            self._run_in_chroot("systemctl enable portainer.service")
             
             return True
             
@@ -388,12 +385,12 @@ WantedBy=multi-user.target
             ]
             
             cmd = f"apt-get install -y {' '.join(kde_packages)}"
-            if not self.cmd_runner.run_in_chroot(cmd):
+            if not self._run_in_chroot(cmd):
                 return False
                 
             # CRITICAL: Disable SDDM autostart
-            self.cmd_runner.run_in_chroot("systemctl disable sddm")
-            self.cmd_runner.run_in_chroot("systemctl mask sddm")
+            self._run_in_chroot("systemctl disable sddm")
+            self._run_in_chroot("systemctl mask sddm")
             
             # Create startx wrapper for KDE
             startx_script = """#!/bin/bash

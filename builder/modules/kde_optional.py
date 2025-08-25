@@ -8,9 +8,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from builder.modules.base_module import BaseModule
-from builder.utils.logger import Logger
-from builder.utils.command_runner import CommandRunner
+from builder.core.module import BaseModule
 
 
 class KDEOptional(BaseModule):
@@ -19,11 +17,9 @@ class KDEOptional(BaseModule):
     System boots to TTY by default, user can launch KDE with startx
     """
     
-    def __init__(self, config: Dict, logger: Logger, chroot_path: Path):
-        super().__init__(config, logger, chroot_path)
+    def __init__(self, config: Dict, chroot_path: Path = None):
+        super().__init__(config, chroot_path)
         self.module_name = "kde_optional"
-        self.logger = logger
-        self.cmd_runner = CommandRunner(logger, chroot_path)
         
         # KDE configuration
         self.enable_kde = config.get('services', {}).get('kde', {}).get('enable', False)
@@ -140,7 +136,7 @@ class KDEOptional(BaseModule):
             ]
             
             cmd = f"apt-get update && apt-get install -y {' '.join(x11_packages)}"
-            return self.cmd_runner.run_in_chroot(cmd)
+            return self._run_in_chroot(cmd)
             
         except Exception as e:
             self.logger.error(f"X11 installation failed: {e}")
@@ -174,7 +170,7 @@ class KDEOptional(BaseModule):
             for i in range(0, len(all_packages), chunk_size):
                 chunk = all_packages[i:i+chunk_size]
                 cmd = f"apt-get install -y {' '.join(chunk)}"
-                if not self.cmd_runner.run_in_chroot(cmd):
+                if not self._run_in_chroot(cmd):
                     self.logger.warning(f"Some packages in chunk {i//chunk_size + 1} failed to install")
                     
             return True
@@ -193,12 +189,12 @@ class KDEOptional(BaseModule):
             
             for dm in display_managers:
                 # Disable service
-                self.cmd_runner.run_in_chroot(f"systemctl disable {dm} 2>/dev/null || true")
+                self._run_in_chroot(f"systemctl disable {dm} 2>/dev/null || true")
                 # Mask service to prevent any activation
-                self.cmd_runner.run_in_chroot(f"systemctl mask {dm} 2>/dev/null || true")
+                self._run_in_chroot(f"systemctl mask {dm} 2>/dev/null || true")
                 
             # Set default target to multi-user (text mode)
-            self.cmd_runner.run_in_chroot("systemctl set-default multi-user.target")
+            self._run_in_chroot("systemctl set-default multi-user.target")
             
             # Configure SDDM for manual use (when started)
             sddm_config = """
@@ -683,10 +679,10 @@ on-demand. This reduces resource usage when GUI is not needed.
                     self.logger.warning(f"Startup script missing: {script}")
                     
             # Verify display manager is disabled
-            result = self.cmd_runner.run_in_chroot("systemctl is-enabled sddm 2>/dev/null || echo disabled")
+            result = self._run_in_chroot("systemctl is-enabled sddm 2>/dev/null || echo disabled")
             if result and "disabled" not in str(result):
                 self.logger.warning("SDDM may be enabled - verifying mask status")
-                self.cmd_runner.run_in_chroot("systemctl mask sddm")
+                self._run_in_chroot("systemctl mask sddm")
                 
             self.logger.success(f"""
 KDE Plasma Installation Summary:

@@ -10,9 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from builder.modules.base_module import BaseModule
-from builder.utils.logger import Logger
-from builder.utils.command_runner import CommandRunner
+from builder.core.module import BaseModule
 
 
 class DockerStack(BaseModule):
@@ -21,11 +19,9 @@ class DockerStack(BaseModule):
     Optimized for ZFS storage backend
     """
     
-    def __init__(self, config: Dict, logger: Logger, chroot_path: Path):
-        super().__init__(config, logger, chroot_path)
+    def __init__(self, config: Dict, chroot_path: Path = None):
+        super().__init__(config, chroot_path)
         self.module_name = "docker_stack"
-        self.logger = logger
-        self.cmd_runner = CommandRunner(logger, chroot_path)
         
         # Docker configuration
         self.storage_driver = config.get('services', {}).get('docker', {}).get('storage_driver', 'zfs')
@@ -106,7 +102,7 @@ class DockerStack(BaseModule):
             ]
             
             cmd = f"apt-get update && apt-get install -y {' '.join(prerequisites)}"
-            return self.cmd_runner.run_in_chroot(cmd)
+            return self._run_in_chroot(cmd)
             
         except Exception as e:
             self.logger.error(f"Prerequisites installation failed: {e}")
@@ -139,7 +135,7 @@ apt-get update
             script_path.write_text(gpg_setup)
             script_path.chmod(0o755)
             
-            return self.cmd_runner.run_in_chroot("/tmp/setup-docker-repo.sh")
+            return self._run_in_chroot("/tmp/setup-docker-repo.sh")
             
         except Exception as e:
             self.logger.error(f"Repository setup failed: {e}")
@@ -160,7 +156,7 @@ apt-get update
             
             # Try official Docker CE first
             cmd = f"apt-get install -y {' '.join(docker_packages)}"
-            if not self.cmd_runner.run_in_chroot(cmd):
+            if not self._run_in_chroot(cmd):
                 # Fallback to distribution Docker
                 self.logger.info("Falling back to distribution Docker package")
                 fallback_packages = [
@@ -169,11 +165,11 @@ apt-get update
                     'containerd'
                 ]
                 cmd = f"apt-get install -y {' '.join(fallback_packages)}"
-                if not self.cmd_runner.run_in_chroot(cmd):
+                if not self._run_in_chroot(cmd):
                     return False
                     
             # Create docker group
-            self.cmd_runner.run_in_chroot("groupadd docker 2>/dev/null || true")
+            self._run_in_chroot("groupadd docker 2>/dev/null || true")
             
             return True
             
@@ -336,7 +332,7 @@ echo "Docker Compose installed successfully"
             script_path.write_text(compose_install)
             script_path.chmod(0o755)
             
-            return self.cmd_runner.run_in_chroot("/tmp/install-compose.sh")
+            return self._run_in_chroot("/tmp/install-compose.sh")
             
         except Exception as e:
             self.logger.error(f"Docker Compose installation failed: {e}")
@@ -451,12 +447,12 @@ fi
             self.logger.info("Configuring systemd services")
             
             # Enable Docker service
-            self.cmd_runner.run_in_chroot("systemctl enable docker.service")
-            self.cmd_runner.run_in_chroot("systemctl enable containerd.service")
+            self._run_in_chroot("systemctl enable docker.service")
+            self._run_in_chroot("systemctl enable containerd.service")
             
             # Enable Portainer if configured
             if self.enable_portainer:
-                self.cmd_runner.run_in_chroot("systemctl enable portainer.service")
+                self._run_in_chroot("systemctl enable portainer.service")
             
             # Create Docker startup verification script
             verify_script = """#!/bin/bash
