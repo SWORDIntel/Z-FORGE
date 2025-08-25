@@ -218,20 +218,25 @@ class Debootstrap:
         )
         self.logger.info(f"Using Debian mirror: {debian_mirror}")
         
+        # Use mmdebstrap for better performance and reliability
         cmd: List[str] = [
             "sudo",
-            "debootstrap",
+            "mmdebstrap",
+            "--mode=sudo",
+            "--variant=important",
             "--verbose",      # Add verbose flag for more detailed output
             "--arch=amd64",
             "--components=main,contrib,non-free,non-free-firmware",  # Include all components
             f"--include={','.join(include_packages)}",
+            "--format=directory",
+            f"--cache-dir=/var/cache/mmdebstrap",
             debian_release,
             str(self.chroot_path),
             debian_mirror
         ]
         
-        self.logger.info(f"Executing debootstrap command: {' '.join(cmd)}")
-        self.logger.info("This process downloads many packages and may take 10-30 minutes...")
+        self.logger.info(f"Executing mmdebstrap command: {' '.join(cmd)}")
+        self.logger.info("This process downloads many packages and may take 8-15 minutes with mmdebstrap...")
         self.logger.info("Verbose output will be displayed in real-time...")
         
         # Execute the command with real-time output streaming
@@ -253,15 +258,15 @@ class Debootstrap:
                 line = line.rstrip()
                 if line:
                     # Always log the line
-                    self.logger.info(f"[debootstrap] {line}")
+                    self.logger.info(f"[mmdebstrap] {line}")
                     
                     # Also print to console for immediate visibility
-                    print(f"[debootstrap] {line}", flush=True)
+                    print(f"[mmdebstrap] {line}", flush=True)
                     
                     # Show periodic progress indicators
                     current_time = time.time()
                     if current_time - last_progress_time > 30:  # Every 30 seconds
-                        self.logger.info("[debootstrap] Still running... (this is normal)")
+                        self.logger.info("[mmdebstrap] Still running... (this is normal)")
                         last_progress_time = current_time
             
             # Wait for process to complete
@@ -270,13 +275,13 @@ class Debootstrap:
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(process.returncode, cmd)
                 
-            self.logger.info("Debootstrap command completed successfully.")
+            self.logger.info("mmdebstrap command completed successfully.")
             
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Debootstrap failed with exit code {e.returncode}")
+            self.logger.error(f"mmdebstrap failed with exit code {e.returncode}")
             raise
         except Exception as e:
-            self.logger.error(f"Unexpected error during debootstrap: {e}")
+            self.logger.error(f"Unexpected error during mmdebstrap: {e}")
             raise
     
     def _configure_system(self, debian_release: str) -> None:

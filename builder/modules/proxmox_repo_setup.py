@@ -22,7 +22,7 @@ class ProxmoxRepoSetup:
         self.pve_version = "9.0"
         self.debian_version = "trixie"
         
-    def execute(self, resume_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def execute(self, resume_data: Optional[Dict[str, Any]] = None, lockfile: Optional[Any] = None) -> Dict[str, Any]:
         """Execute Proxmox VE 9 repository setup for Trixie."""
         self.logger.info("Setting up Proxmox VE 9 repositories for Debian Trixie...")
         

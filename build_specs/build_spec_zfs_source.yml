@@ -1,0 +1,158 @@
+# Z-FORGE Build Specification - ZFS 2.3.3 Source Build
+# Builds ZFS 2.3.3 from source with hardware optimizations
+
+name: Z-FORGE ZFS Source Build
+version: 3.1
+
+builder_config:
+  debian_release: bookworm  # Changed from trixie to bookworm for better Proxmox compatibility
+  kernel_version: 6.5.13-5-pve
+  output_iso_name: zforge-3.1-zfs-source-amd64.iso
+  enable_debug: false
+  workspace_path: "/dev/shm/zforge-workspace-zfs"  # RAM build for performance
+  ram_build: true
+  cache_packages: true
+  auto_detect_hardware: true
+  iso_version: '3.1-zfs-source'
+  environment:
+    TMPDIR: "/root/zforge_workspace/temp"
+    TEMP: "/root/zforge_workspace/temp"
+    TMP: "/root/zforge_workspace/temp"
+    WORKSPACE_PATH: "/root/zforge_workspace"
+
+# ZFS Source Build Configuration
+zfs_config:
+  version: 2.3.3
+  build_from_source: true  # Enable source build
+  build_type: release  # release, debug, production
+  parallel_jobs: 0  # Auto-detect CPU cores
+  hardware_optimizations: true
+  enable_encryption: true
+  compression:
+    default: lz4
+    algorithm: auto
+  features:
+    - raid_z_expansion
+    - block_cloning
+    - improved_performance
+    - avx512_support
+    - meteor_lake_optimizations
+
+proxmox_config:
+  version: "9.0"
+  base_distribution: bookworm  # Match Proxmox VE 9 base
+  minimal_install: false
+  kernel_version: 6.5.13-5-pve
+
+bootloader_config:
+  primary: grub
+  enable_zfsbootmenu: true
+  encryption_support: true
+
+hardware_detection:
+  enabled: true
+  enforce_zfs_mode: true
+
+calamares_config:
+  enabled: true
+  zfs_integration: true
+
+modules:
+- name: workspace_setup
+  enabled: true
+  config:
+    temp_dir: "/root/zforge_workspace/temp"
+
+- name: debootstrap
+  enabled: true
+  config:
+    tool: mmdebstrap  # Use mmdebstrap instead of debootstrap
+    mirror: "http://deb.debian.org/debian"
+    components: ["main", "contrib", "non-free", "non-free-firmware"]
+    cache_dir: "/var/cache/mmdebstrap"
+    variant: important
+    format: directory
+
+- name: gpg_bypass
+  enabled: true
+  
+- name: universal_hardware_detect
+  enabled: true
+
+# NEW: ZFS Source Build Module
+- name: zfs_source_build
+  enabled: true
+  config:
+    build_type: release
+    parallel_jobs: 0  # Auto-detect
+    cleanup_artifacts: true
+    hardware_optimizations: true
+    enable_dkms: true
+    systemd_integration: true
+    
+- name: kernel_acquisition
+  enabled: true
+  config:
+    kernel_version: 6.5.13-5-pve
+    install_headers: true
+    build_essential_first: true
+    
+- name: proxmox_repo_setup
+  enabled: true
+  config:
+    version: 9
+    base_distribution: bookworm
+    
+- name: live_environment
+  enabled: true
+  config:
+    autologin: true
+    user: zforge
+    
+- name: dracut_config
+  enabled: true
+  config:
+    zfs_support: true
+    compression: zstd
+    
+- name: security_hardening
+  enabled: true
+  
+- name: zfs_encryption
+  enabled: true
+  config:
+    default_algorithm: aes-256-gcm
+    
+- name: cleanup_handler
+  enabled: true
+  
+- name: iso_generation
+  enabled: true
+  config:
+    compression: xz
+    compression_level: 9
+    label: "Z-FORGE-ZFS-SRC"
+
+# Repository configuration for better compatibility
+repositories:
+  debian_bookworm:
+    url: "http://deb.debian.org/debian"
+    suite: "bookworm"
+    components: ["main", "contrib", "non-free", "non-free-firmware"]
+    priority: 500
+  debian_security:
+    url: "http://security.debian.org/debian-security"
+    suite: "bookworm-security"
+    components: ["main", "contrib", "non-free", "non-free-firmware"]
+    priority: 500
+  proxmox_ve:
+    url: "http://download.proxmox.com/debian/pve"
+    suite: "bookworm"
+    components: ["pve-no-subscription"]
+    priority: 600  # Higher priority for Proxmox packages
+
+# Mirror overrides for better reliability
+mirror_overrides:
+  debian: "http://deb.debian.org/debian"
+  security: "http://security.debian.org/debian-security"
+  proxmox: "http://download.proxmox.com/debian/pve"
