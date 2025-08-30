@@ -1,0 +1,23 @@
+# Calamares HPC Compilation UI Module
+# Handles extended compilation sessions during installation
+---
+type:       "python"
+name:       "hpc_compilation_ui"
+interface:  "python"
+requires:   []
+script:     "main.py"
+weight:     60
+
+# Module configuration
+emergency:  false
+noconfig:   false
+
+# UI configuration
+ui:
+  type: "qt"
+  fullscreen: false
+  canCancel: true
+  canGoBack: false
+  
+# Time estimate (in minutes)
+estimatedDuration: 180  # 3 hours max for full HPC compilation
