@@ -35,14 +35,17 @@ prebuilt_packages:
   install_script: install_in_chroot.sh
 
 proxmox_config:
-  version: "9.0-beta"
+  version: "9.0"
   minimal_install: false
-  build_from_source: false  # Use prebuilt
-  install_method: prebuilt_packages
-  package_dir: "/home/ubuntu/Documents/Z-FORGE/prebuilt_packages/proxmox"
+  build_from_source: true  # Enable source building
+  native_compilation: true  # Compile with native CPU optimizations
+  install_method: dkms_packages
+  package_dir: "/home/ubuntu/Documents/Z-FORGE/prebuilt_packages/proxmox-9.0"
+  source_dir: "/home/ubuntu/Documents/Z-FORGE/proxmox-sources"
+  dkms_package: "zforge-zfs-proxmox-dkms"
 
 zfs_config:
-  version: 2.3.3
+  version: 2.3.4
   build_from_source: false  # Use prebuilt from Proxmox source
   install_method: prebuilt_packages
   package_dir: "/home/ubuntu/Documents/Z-FORGE/prebuilt_packages/zfs"
@@ -109,10 +112,13 @@ modules:
     packages_dir: "/root/zforge_workspace/prebuilt_packages/zfs"
     install_script: "/root/zforge_workspace/prebuilt_packages/install_in_chroot.sh"
     
-- name: proxmox_install_prebuilt
+- name: proxmox_dkms_install
   enabled: true
   config:
-    packages_dir: "/root/zforge_workspace/prebuilt_packages/proxmox"
+    dkms_package: "zforge-zfs-proxmox-dkms"
+    packages_dir: "/root/zforge_workspace/prebuilt_packages/zfs-proxmox-2.3.4-dkms"
+    compile_at_install: true
+    native_optimization: true
     
 - name: bootloader_install_prebuilt
   enabled: true

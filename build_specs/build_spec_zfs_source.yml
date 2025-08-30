@@ -22,7 +22,7 @@ builder_config:
 
 # ZFS Source Build Configuration
 zfs_config:
-  version: 2.3.3
+  version: 2.3.4
   build_from_source: true  # Enable source build
   build_type: release  # release, debug, production
   parallel_jobs: 0  # Auto-detect CPU cores

@@ -74,7 +74,7 @@ proxmox_config:
   build_location: /tmp/zforge_tmpfs_workspace/proxmox_build
 
 zfs_config:
-  version: 2.3.3
+  version: 2.3.4
   build_from_source: true  # Build from source in RAM
   build_location: /tmp/zforge_tmpfs_workspace/zfs_build
   enable_encryption: true

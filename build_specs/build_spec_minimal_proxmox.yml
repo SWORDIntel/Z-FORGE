@@ -16,7 +16,7 @@ builder_config:
   iso_version: '3.0-no-proxmox'
 
 zfs_config:
-  version: 2.3.3
+  version: 2.3.4
   build_from_source: false
   enable_encryption: true
   compression:

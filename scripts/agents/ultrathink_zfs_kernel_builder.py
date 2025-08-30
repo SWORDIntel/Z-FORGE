@@ -2,7 +2,7 @@
 """
 UltraThink ZFS Kernel Builder Agent
 
-Builds ZFS 2.3.3 from within the Linux kernel source directory
+Builds ZFS 2.3.4 from within the Linux kernel source directory
 to ensure proper kernel module support.
 """
 
@@ -32,7 +32,7 @@ class ZFSKernelBuilder:
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.zfs_version = "2.3.3"
+        self.zfs_version = "2.3.4"
         self.zfs_url = f"https://github.com/openzfs/zfs/releases/download/zfs-{self.zfs_version}/zfs-{self.zfs_version}.tar.gz"
         self.work_dir = Path("/tmp/zfs_kernel_build")
         self.output_dir = Path("/opt/github/Z-FORGE/prebuilt_packages")

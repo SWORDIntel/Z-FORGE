@@ -224,9 +224,10 @@ Pin-Priority: 100
         
         prebuilt_dir = Path("/opt/github/Z-FORGE/prebuilt_packages")
         
-        # Look for installer scripts (prefer ZFS 2.3.3)
+        # Look for installer scripts (prefer ZFS 2.3.4)
         installers = [
-            prebuilt_dir / "install_zfs_2_3_3.sh",  # ZFS 2.3.3 preferred
+            prebuilt_dir / "install_zfs_2_3_4.sh",  # ZFS 2.3.4 preferred
+            prebuilt_dir / "install_zfs_2_3_3.sh",  # ZFS 2.3.3 fallback
             prebuilt_dir / "install_zfs_userspace.sh",
             prebuilt_dir / "install_zfs_downloaded.sh",
             prebuilt_dir / "install_zfs_kernel_built.sh",
@@ -306,8 +307,8 @@ Pin-Priority: 100
         version_result = self._run_chroot_command(["zfs", "version"], check=False)
         if version_result.returncode == 0:
             version_line = version_result.stdout.strip().split('\n')[0]
-            return version_line.split()[-1] if version_line else "2.3.3"
-        return "2.3.3"
+            return version_line.split()[-1] if version_line else "2.3.4"
+        return "2.3.4"
     
     def execute(self, resume_data: Optional[Dict[str, Any]] = None, lockfile: Optional[BuildLockfile] = None) -> Dict[str, Any]:
         """
@@ -381,8 +382,8 @@ Pin-Priority: 100
                 target_zfs_version = self._get_latest_zfs_release_tag()
                 self.logger.info(f"Latest ZFS release tag: {target_zfs_version}")
             else:
-                # Default to ZFS 2.3.3 for Z-FORGE builds
-                target_zfs_version = zfs_config.get('version', 'zfs-2.3.3') # Updated default
+                # Default to ZFS 2.3.4 for Z-FORGE builds
+                target_zfs_version = zfs_config.get('version', 'zfs-2.3.4') # Updated default
                 if not target_zfs_version.startswith("zfs-"): # Basic validation for tag format
                     target_zfs_version = f"zfs-{target_zfs_version}"
 
@@ -1109,7 +1110,7 @@ install_items+=" /usr/sbin/zfs /usr/sbin/zpool "
             if "zfs-" in version_output:
                 version = version_output.split("zfs-")[1].split()[0]
             else:
-                version = "2.3.3"  # Default assumption
+                version = "2.3.4"  # Default assumption
                 
             return version
         else:

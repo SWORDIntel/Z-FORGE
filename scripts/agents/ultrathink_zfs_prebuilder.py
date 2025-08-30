@@ -2,7 +2,7 @@
 """
 UltraThink ZFS Pre-Builder System
 
-Multi-agent system to build ZFS 2.3.3 from source BEFORE the main build,
+Multi-agent system to build ZFS 2.3.4 from source BEFORE the main build,
 creating .deb packages that can be imported directly into the chroot.
 This eliminates repository dependency issues entirely.
 """
@@ -35,8 +35,8 @@ logging.basicConfig(
 @dataclass
 class ZFSBuildConfig:
     """ZFS build configuration"""
-    version: str = "2.3.3"
-    source_url: str = "https://github.com/openzfs/zfs/releases/download/zfs-2.3.3/zfs-2.3.3.tar.gz"
+    version: str = "2.3.4"
+    source_url: str = "https://github.com/openzfs/zfs/releases/download/zfs-2.3.4/zfs-2.3.4.tar.gz"
     build_dir: Path = Path("/tmp/zfs_prebuild")
     output_dir: Path = Path("/opt/github/Z-FORGE/prebuilt_packages")
     kernel_version: str = "6.12.38+deb13-amd64"
@@ -661,8 +661,8 @@ class ZFSIntegratorAgent(BaseZFSAgent):
         version_result = self._run_chroot_command(["zfs", "version"], check=False)
         if version_result.returncode == 0:
             version_line = version_result.stdout.strip().split('\\n')[0]
-            return version_line.split()[-1] if version_line else "2.3.3"
-        return "2.3.3"
+            return version_line.split()[-1] if version_line else "2.3.4"
+        return "2.3.4"
 '''
         
         # Insert the method into the module
@@ -685,7 +685,7 @@ class ZFSIntegratorAgent(BaseZFSAgent):
         """Update Z-FORGE configurations to use pre-built ZFS"""
         config_updates = {
             'zfs_config': {
-                'version': '2.3.3',
+                'version': '2.3.4',
                 'build_from_source': False,
                 'use_prebuilt': True,
                 'prebuilt_path': str(self.config.output_dir)
@@ -710,7 +710,7 @@ class ZFSIntegratorAgent(BaseZFSAgent):
 
 echo "🔨 Z-FORGE ZFS Pre-builder"
 echo "=========================="
-echo "Building ZFS 2.3.3 from source for faster installation"
+echo "Building ZFS 2.3.4 from source for faster installation"
 echo ""
 
 # Check if already built
@@ -766,7 +766,7 @@ class ZFSPreBuilderCoordinator(BaseZFSAgent):
         
     def execute(self) -> Dict[str, Any]:
         """Coordinate the ZFS pre-build process"""
-        self.logger.info("Starting ZFS 2.3.3 pre-build process")
+        self.logger.info("Starting ZFS 2.3.4 pre-build process")
         
         project_results = {
             'start_time': datetime.now().isoformat(),
@@ -837,7 +837,7 @@ def main():
     """Main entry point"""
     print("╔═══════════════════════════════════════════════════════════════════╗")
     print("║              UltraThink ZFS Pre-Builder System                    ║")
-    print("║          Build ZFS 2.3.3 from source for Z-FORGE                 ║")
+    print("║          Build ZFS 2.3.4 from source for Z-FORGE                 ║")
     print("╚═══════════════════════════════════════════════════════════════════╝")
     print()
     
@@ -866,7 +866,7 @@ def main():
     coordinator.assemble_team()
     
     # Execute project
-    print("🚀 Starting ZFS 2.3.3 pre-build process...")
+    print("🚀 Starting ZFS 2.3.4 pre-build process...")
     print("=" * 70)
     
     results = coordinator.execute()
