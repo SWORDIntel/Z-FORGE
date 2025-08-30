@@ -1,0 +1,132 @@
+# Z-FORGE HPC Build Specification - Intel Xeon Phi Optimized
+# Optimized for Knights Landing/Knights Corner architectures
+
+name: "hpc_xeon_phi_optimized"
+description: "HPC build optimized for Intel Xeon Phi co-processors"
+version: "1.0.0"
+
+# Base system configuration
+base:
+  distribution: "debian"
+  codename: "bookworm"
+  architecture: "amd64"
+  kernel: "6.1.0"
+
+# HPC-specific configuration
+hpc:
+  target_hardware: "xeon_phi"
+  architecture: "knights_landing"
+  optimization_profile: "many_core"
+  memory_profile: "mcdram_hybrid"
+  avx512_optimization: true
+
+# Module execution order
+modules:
+  # Foundation
+  - name: "workspace_setup"
+    config:
+      tmpfs_size: "24G"
+      hpc_mode: true
+
+  # HPC hardware detection
+  - name: "hpc_hardware_detector"
+    config:
+      detect_xeon_phi: true
+      mcdram_detection: true
+      avx512_validation: true
+
+  # Base system
+  - name: "debootstrap"
+    config:
+      include_dev_packages: true
+      intel_repositories: true
+
+  # HPC compilation orchestrator
+  - name: "hpc_compilation_orchestrator"
+    config:
+      intel_tools_enabled: true
+      parallel_studio_xe: true
+      xeon_phi_support: true
+      avx512_optimization: true
+      zones:
+        intel_tools: "6GB"
+        hpc_libraries: "4GB"
+        phi_runtime: "2GB"
+        scientific_python: "3GB"
+
+  # Memory optimization for MCDRAM
+  - name: "hpc_memory_optimizer"
+    config:
+      mcdram_management: true
+      high_bandwidth_memory: true
+      numa_phi_optimization: true
+
+  # Xeon Phi runtime preparation
+  - name: "hpc_driver_bundle_orchestrator"
+    config:
+      intel_mpss: true
+      xeon_phi_sdk: true
+      coi_libraries: true
+
+  # Performance projector
+  - name: "hpc_performance_projector"
+    config:
+      phi_benchmarks: true
+      mcdram_bandwidth_tests: true
+      many_core_scaling: true
+
+  # System integration
+  - name: "hpc_system_integrator"
+    config:
+      intel_tools_integration: true
+      phi_runtime_integration: true
+      avx512_libraries: true
+
+  # Final system
+  - name: "iso_generation"
+    config:
+      name: "Z-FORGE-HPC-XeonPhi"
+      size_limit: "32GB"
+
+# Xeon Phi specific optimizations
+optimizations:
+  compiler_flags:
+    - "-march=knl"
+    - "-mavx512f"
+    - "-mavx512cd"
+    - "-mavx512er"
+    - "-mavx512pf"
+    - "-O3"
+    - "-ffast-math"
+
+  intel_flags:
+    - "-mmic"
+    - "-qopt-streaming-stores always"
+    - "-qopenmp"
+    - "-qopt-threads-per-core=4"
+
+  memory_flags:
+    - "-qopt-mem-layout-trans=3"
+    - "-qopt-prefetch=4"
+
+# Performance targets
+performance:
+  mcdram_bandwidth: "490 GB/s"
+  ddr4_bandwidth: "100 GB/s"
+  thread_scaling: "256 threads"
+  avx512_efficiency: "> 90%"
+
+# Validation tests
+validation:
+  - name: "xeon_phi_detection"
+    command: "lspci | grep -i phi"
+    expected_output: "Xeon Phi"
+
+  - name: "mcdram_test"
+    command: "numactl --hardware | grep -i mcdram"
+
+  - name: "avx512_test"
+    command: "grep avx512 /proc/cpuinfo"
+
+  - name: "intel_tools_test"
+    command: "which icc"

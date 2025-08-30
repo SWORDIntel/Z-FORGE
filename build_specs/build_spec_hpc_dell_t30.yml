@@ -1,0 +1,125 @@
+# Z-FORGE HPC Build Specification - Dell PowerEdge T30 Optimized
+# Optimized for Dell T30 tower server (entry-level HPC)
+
+name: "hpc_dell_t30_optimized"
+description: "HPC build optimized for Dell PowerEdge T30 server"
+version: "1.0.0"
+
+# Base system configuration
+base:
+  distribution: "debian"
+  codename: "bookworm"
+  architecture: "amd64"
+  kernel: "6.1.0"
+
+# HPC-specific configuration
+hpc:
+  target_hardware: "dell_poweredge_t30"
+  cpu_family: "xeon_e3"
+  optimization_profile: "entry_level_hpc"
+  memory_profile: "standard_ecc"
+  expansion_slots: "limited_pcie"
+
+# Module execution order
+modules:
+  # Foundation
+  - name: "workspace_setup"
+    config:
+      tmpfs_size: "8G"
+      hpc_mode: true
+
+  # Dell T30 specific optimization
+  - name: "dell_t30_optimize"
+    config:
+      idrac_integration: true
+      thermal_management: true
+      power_efficiency: true
+
+  # HPC hardware detection
+  - name: "hpc_hardware_detector"
+    config:
+      dell_t30_profile: true
+      storage_controller_detect: true
+      expansion_analysis: true
+
+  # Base system optimized for T30
+  - name: "debootstrap"
+    config:
+      dell_hardware_support: true
+      enterprise_packages: true
+
+  # HPC compilation (moderate resources)
+  - name: "hpc_compilation_orchestrator"
+    config:
+      resource_constrained: true
+      essential_hpc_only: true
+      zones:
+        essential_hpc: "6GB"
+        development_tools: "3GB"
+        monitoring: "2GB"
+        scientific_basics: "2GB"
+
+  # Memory optimization for T30
+  - name: "hpc_memory_optimizer"
+    config:
+      moderate_memory: true
+      ecc_optimization: true
+      thermal_awareness: true
+
+  # Performance optimization for entry-level HPC
+  - name: "hpc_performance_projector"
+    config:
+      entry_level_benchmarks: true
+      t30_specific_tests: true
+      power_efficiency_tests: true
+
+  # System integration
+  - name: "hpc_system_integrator"
+    config:
+      dell_tools_integration: true
+      basic_hpc_stack: true
+      educational_focus: true
+
+  # Final system
+  - name: "iso_generation"
+    config:
+      name: "Z-FORGE-HPC-DellT30"
+      size_limit: "16GB"  # Smaller for entry-level
+
+# Dell T30 optimizations
+optimizations:
+  compiler_flags:
+    - "-march=broadwell"
+    - "-mtune=broadwell"
+    - "-O2"  # Conservative optimization
+    - "-fPIC"
+
+  thermal_management:
+    - cpu_frequency_scaling: "ondemand"
+    - thermal_throttling: "enabled"
+
+  power_efficiency:
+    - idle_power_management: "enabled"
+    - storage_power_saving: "enabled"
+
+# Performance targets (conservative for T30)
+performance:
+  memory_bandwidth: "25-50 GB/s"
+  compute_efficiency: "> 70%"
+  power_consumption: "< 200W average"
+  thermal_stability: "< 80°C sustained"
+
+# Dell T30 specific validation
+validation:
+  - name: "dell_hardware_detection"
+    command: "dmidecode -s system-product-name"
+    expected_output: "PowerEdge T30"
+
+  - name: "ecc_memory_test"
+    command: "dmidecode -t memory | grep -i ecc"
+
+  - name: "thermal_sensors"
+    command: "sensors | head -20"
+
+  - name: "idrac_status"
+    command: "systemctl status dell-idrac || echo 'iDRAC not configured'"

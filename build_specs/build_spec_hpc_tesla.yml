@@ -1,0 +1,156 @@
+# Z-FORGE HPC Build Specification - NVIDIA Tesla K40/K80 Optimized
+# Optimized for Kepler architecture with CUDA 11.8 support
+
+name: "hpc_tesla_optimized"
+description: "HPC build optimized for NVIDIA Tesla K40/K80 GPUs"
+version: "1.0.0"
+
+# Base system configuration
+base:
+  distribution: "debian"
+  codename: "bookworm"
+  architecture: "amd64"
+  kernel: "6.1.0"
+
+# HPC-specific configuration
+hpc:
+  target_hardware: "tesla_k40_k80"
+  cuda_version: "11.8"
+  driver_series: "470.x"
+  optimization_profile: "kepler_legacy"
+  memory_profile: "large_gpu_memory"
+
+# Module execution order
+modules:
+  # Foundation
+  - name: "workspace_setup"
+    config:
+      tmpfs_size: "16G"
+      hpc_mode: true
+
+  - name: "system_prerequisites"
+    config:
+      hpc_packages: true
+      development_tools: true
+
+  # HPC hardware detection
+  - name: "hpc_hardware_detector"
+    config:
+      target_gpus: ["Tesla K40", "Tesla K80"]
+      detect_xeon_phi: false
+      dell_t30_optimization: true
+
+  # Base system
+  - name: "debootstrap"
+    config:
+      include_dev_packages: true
+      hpc_repositories: true
+
+  # HPC compilation orchestrator
+  - name: "hpc_compilation_orchestrator"
+    config:
+      cuda_enabled: true
+      cuda_version: "11.8"
+      tesla_optimization: true
+      compile_scientific_libs: true
+      zones:
+        cuda_toolkit: "8GB"
+        hpc_libraries: "4GB"
+        scientific_python: "3GB"
+        tesla_drivers: "3GB"
+
+  # Kernel with GPU support
+  - name: "kernel_acquisition"
+    config:
+      version: "6.1.0"
+      gpu_drivers: true
+      custom_config: "hpc_tesla"
+
+  # ZFS with HPC optimizations
+  - name: "zfs_build"
+    config:
+      version: "2.3.4"
+      hpc_optimizations: true
+      large_arc: true
+
+  # HPC driver bundle
+  - name: "hpc_driver_bundle_orchestrator"
+    config:
+      nvidia_driver: "470.199.02"
+      cuda_toolkit: "11.8.0"
+      scientific_libraries: true
+
+  # Memory optimization
+  - name: "hpc_memory_optimizer"
+    config:
+      large_pages: true
+      numa_optimization: true
+      gpu_memory_management: true
+
+  # Performance projector
+  - name: "hpc_performance_projector"
+    config:
+      tesla_benchmarks: true
+      cuda_profiling: true
+      scientific_workloads: true
+
+  # System integration
+  - name: "hpc_system_integrator"
+    config:
+      cuda_integration: true
+      scientific_python: true
+      monitoring_tools: true
+
+  # Final system
+  - name: "live_environment"
+    config:
+      hpc_desktop: true
+      cuda_samples: true
+
+  - name: "iso_generation"
+    config:
+      name: "Z-FORGE-HPC-Tesla"
+      size_limit: "32GB"
+      bootloader: "grub_hpc"
+
+# Hardware-specific optimizations
+optimizations:
+  compiler_flags:
+    - "-march=haswell"
+    - "-mtune=haswell"
+    - "-O3"
+    - "-ffast-math"
+    - "-funroll-loops"
+
+  cuda_flags:
+    - "-gencode arch=compute_35,code=sm_35"
+    - "-gencode arch=compute_37,code=sm_37"
+    - "-Xptxas -O3"
+
+  environmental:
+    - "CUDA_CACHE_PATH=/tmp/cuda-cache"
+    - "NVIDIA_DRIVER_CAPABILITIES=all"
+
+# Performance targets
+performance:
+  cuda_memory_bandwidth: "288-480 GB/s"
+  host_memory_bandwidth: "50-100 GB/s"
+  compile_time_target: "< 45 minutes"
+  tesla_compute_efficiency: "> 85%"
+
+# Validation tests
+validation:
+  - name: "nvidia_smi_test"
+    command: "nvidia-smi"
+    expected_output: "Tesla K"
+
+  - name: "cuda_devicequery"
+    command: "/usr/local/cuda/samples/bin/deviceQuery"
+    expected_output: "Result = PASS"
+
+  - name: "scientific_libs_test"
+    command: "python3 -c 'import numpy, scipy, matplotlib; print(\"Scientific stack OK\")'"
+
+  - name: "mpi_test"
+    command: "mpirun --version"
+    expected_output: "Open MPI"
