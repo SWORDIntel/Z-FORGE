@@ -71,12 +71,12 @@ modules:
   enabled: true
   config:
     install_method: prebuilt_packages
-    package_dir: /home/ubuntu/Documents/Z-FORGE/prebuilt_packages
+    package_dir: "prebuilt_packages"
 - name: proxmox_integration
   enabled: true
   config:
     install_method: prebuilt_packages
-    package_dir: /home/ubuntu/Documents/Z-FORGE/prebuilt_packages
+    package_dir: "prebuilt_packages"
 - name: live_environment
   enabled: true
   config:

@@ -21,9 +21,15 @@ class PrebuiltPackageCopy:
         self.chroot_path = workspace / "chroot"
         
         # Handle different config structures
-        source_path = config.get('source', '/home/ubuntu/Documents/Z-FORGE/prebuilt_packages')
-        if isinstance(source_path, dict):
-            source_path = '/home/ubuntu/Documents/Z-FORGE/prebuilt_packages'
+        if 'modules' in config:
+            module_config = next((m for m in config['modules'] if m['name'] == 'prebuilt_package_copy'), None)
+            if module_config:
+                source_path = module_config.get('config', {}).get('source', 'prebuilt_packages')
+            else:
+                source_path = 'prebuilt_packages'
+        else:
+            source_path = config.get('source', 'prebuilt_packages')
+
         self.source_dir = Path(str(source_path))
         
         destination_path = config.get('destination', 'prebuilt_packages')  

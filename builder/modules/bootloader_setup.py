@@ -88,7 +88,12 @@ class BootloaderSetup:
                 }
 
             # Build kernel options for native ZFS encryption unlock
-            kernel_opts = []
+            kernel_opts = [
+                "slab_nomerge",
+                "init_on_alloc=1",
+                "lockdown=confidentiality",
+                "mce=off"
+            ]
             if framebuffer:
                 kernel_opts.append(framebuffer)
             # zfsbootmenu handles dataset passphrase prompts natively

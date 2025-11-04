@@ -23,7 +23,7 @@ import logging
 import os
 from builder.core.lockfile import BuildLockfile
 
-class ZfsBuild:
+class ZFSBuild:
     """
     Handles the compilation and installation of OpenZFS from source.
 
@@ -121,8 +121,8 @@ Pin-Priority: 100
         
         # First ensure dracut is installed (not initramfs-tools)
         self.logger.info("Ensuring dracut is installed...")
-        self._run_chroot_command(["apt-get", "remove", "-y", "initramfs-tools", "initramfs-tools-core"], check=False)
-        self._run_chroot_command(["apt-get", "install", "-y", "dracut", "dracut-core"], check=False)
+        self._run_chroot_command(["apt-get", "remove", "-y", "initramfs-tools", "initramfs-tools-core"], check=False, timeout=timeout)
+        self._run_chroot_command(["apt-get", "install", "-y", "dracut", "dracut-core"], check=False, timeout=timeout)
         
         # Install ZFS packages with proper error handling
         return self._install_zfs_packages_with_fallback()
@@ -258,7 +258,7 @@ Pin-Priority: 100
         self.logger.info("Pre-built ZFS packages installed successfully")
         
         # Get version
-        version_result = self._run_chroot_command(["zfs", "version"], check=False)
+        version_result = self._run_chroot_command(["zfs", "version"], check=False, timeout=timeout)
         if version_result.returncode == 0:
             version_line = version_result.stdout.strip().split('\n')[0]
             return version_line.split()[-1] if version_line else "2.2.2"
@@ -274,7 +274,7 @@ Pin-Priority: 100
             return "unknown"
         
         # Get installed version
-        version_result = self._run_chroot_command(["zfs", "version"], check=False)
+        version_result = self._run_chroot_command(["zfs", "version"], check=False, timeout=timeout)
         if version_result.returncode == 0:
             version_line = version_result.stdout.strip().split('\n')[0]
             return version_line.split()[-1] if version_line else "unknown"
@@ -304,13 +304,13 @@ Pin-Priority: 100
         self.logger.info("ZFS built successfully in chroot with kernel modules")
         
         # Verify installation
-        version_result = self._run_chroot_command(["zfs", "version"], check=False)
+        version_result = self._run_chroot_command(["zfs", "version"], check=False, timeout=timeout)
         if version_result.returncode == 0:
             version_line = version_result.stdout.strip().split('\n')[0]
             return version_line.split()[-1] if version_line else "2.3.4"
         return "2.3.4"
     
-    def execute(self, resume_data: Optional[Dict[str, Any]] = None, lockfile: Optional[BuildLockfile] = None) -> Dict[str, Any]:
+    def execute(self, resume_data: Optional[Dict[str, Any]] = None, lockfile: Optional[BuildLockfile] = None, timeout: int = 1800) -> Dict[str, Any]:
         """
         Execute the ZFS build and installation process.
 
@@ -499,7 +499,7 @@ Pin-Priority: 100
                 'module': self.__class__.__name__
             }
 
-    def _run_chroot_command(self, command: List[str], cwd: Optional[Path] = None, check: bool = True, env: Optional[Dict[str, str]] = None) -> subprocess.CompletedProcess:
+    def _run_chroot_command(self, command: List[str], cwd: Optional[Path] = None, check: bool = True, env: Optional[Dict[str, str]] = None, timeout: int = 1800) -> subprocess.CompletedProcess:
         """Helper to run commands inside the chroot."""
         # Use arch-chroot if available (handles /dev mounts properly), otherwise fallback to regular chroot
         if subprocess.run(["which", "arch-chroot"], capture_output=True).returncode == 0:

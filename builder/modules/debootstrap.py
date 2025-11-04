@@ -192,6 +192,11 @@ class Debootstrap:
             subprocess.run(["sudo", "chmod", "777", str(self.chroot_path)], check=True)
             subprocess.run(["sudo", "chown", f"{os.getuid()}:{os.getgid()}", str(self.chroot_path)], check=True)
 
+        # Clean the chroot directory
+        self.logger.info("Cleaning chroot directory...")
+        subprocess.run(["sudo", "rm", "-rf", str(self.chroot_path)], check=True)
+        self.chroot_path.mkdir(parents=True, exist_ok=True)
+
         # Define essential packages to include in the base system.
         include_packages: List[str] = [
             "locales",        # For locale generation
@@ -229,7 +234,6 @@ class Debootstrap:
             "--components=main,contrib,non-free,non-free-firmware",  # Include all components
             f"--include={','.join(include_packages)}",
             "--format=directory",
-            f"--cache-dir=/var/cache/mmdebstrap",
             debian_release,
             str(self.chroot_path),
             debian_mirror
@@ -308,7 +312,6 @@ deb http://deb.debian.org/debian-security {debian_release}-security main contrib
 
 # Proxmox VE 9 repositories (for pve-kernel-6.14.8-2-pve)
 deb http://download.proxmox.com/debian/pve trixie pve-no-subscription
-deb http://download.proxmox.com/debian/pve trixie pvetest
 """
         else:
             sources_list_content: str = f"""# Main Debian repositories
@@ -329,14 +332,17 @@ deb http://deb.debian.org/debian {debian_release}-backports main contrib non-fre
         if debian_release == "trixie":
             self.logger.info("Adding Proxmox repository GPG key...")
             try:
-                # Download and add Proxmox release key
+                # The error log indicates a missing key A7BCD1420BFE778E, which corresponds to an older Proxmox key.
+                # We will download this specific key to resolve the signature verification failure.
+                key_url = "http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg"
+                key_path = "/etc/apt/trusted.gpg.d/proxmox-ve-release-6.x.gpg"
+                self.logger.info(f"Downloading Proxmox GPG key from {key_url}...")
                 self._run_chroot_command([
-                    "wget", "-q", "-O", "/etc/apt/trusted.gpg.d/proxmox-release-trixie.gpg",
-                    "http://download.proxmox.com/debian/proxmox-release-trixie.gpg"
+                    "curl", "-L", "-o", key_path, key_url
                 ])
-                self.logger.debug("Added Proxmox GPG key")
+                self.logger.info(f"Successfully added Proxmox GPG key to {key_path}")
             except subprocess.CalledProcessError as e:
-                self.logger.warning(f"Failed to add Proxmox GPG key: {e}")
+                self.logger.error(f"Failed to add Proxmox GPG key: {e}")
         
         # Configure /etc/hostname.
         hostname_path: Path = self.chroot_path / "etc/hostname"
@@ -725,17 +731,22 @@ early_microcode="no"
                     stderr=''
                 )
                 
+                if result.stdout:
+                    self.logger.info(f"Chroot command stdout:\n{result.stdout.strip()}")
+                if result.stderr:
+                    self.logger.warning(f"Chroot command stderr:\n{result.stderr.strip()}")
+
                 if check and return_code != 0:
-                    raise subprocess.CalledProcessError(return_code, full_cmd, output=result.stdout)
+                    raise subprocess.CalledProcessError(return_code, full_cmd, output=result.stdout, stderr=result.stderr)
                     
                 return result
             else:
                 # For non-package commands, use normal execution
                 result = subprocess.run(full_cmd, check=check, capture_output=True, text=True, timeout=timeout)
                 if result.stdout:
-                    self.logger.debug(f"Chroot command stdout: {result.stdout.strip()}")
+                    self.logger.info(f"Chroot command stdout:\n{result.stdout.strip()}")
                 if result.stderr:
-                    self.logger.debug(f"Chroot command stderr: {result.stderr.strip()}")
+                    self.logger.warning(f"Chroot command stderr:\n{result.stderr.strip()}")
                 return result
                 
         except subprocess.TimeoutExpired as e:
@@ -749,9 +760,19 @@ early_microcode="no"
         self.logger.info("Configuring Dell OpenManage repositories...")
         
         # Create directory for keyrings if it doesn't exist
-        keyrings_dir = self.chroot_path / "etc" / "apt" / "keyrings"
+        keyrings_dir = self.chroot_path / "usr" / "share" / "keyrings"
         keyrings_dir.mkdir(parents=True, exist_ok=True)
         
+        # Download Dell GPG key
+        try:
+            self._run_chroot_command([
+                "curl", "-L", "-o", "/usr/share/keyrings/dell-trusted.gpg",
+                "https://linux.dell.com/repo/pgp_pubkeys/0x1285491434D8786F.asc"
+            ])
+            self.logger.info("Downloaded Dell GPG key")
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to download Dell GPG key: {e}")
+
         # Configure APT to ignore certificate issues
         apt_conf_dir = self.chroot_path / "etc" / "apt" / "apt.conf.d"
         apt_conf_dir.mkdir(parents=True, exist_ok=True)
@@ -768,7 +789,7 @@ Acquire::https::Verify-Host "false";
         
         # Add Dell repository with trusted=yes and arch specified
         dell_sources = """# Dell OpenManage Server Administrator
-deb [arch=amd64 trusted=yes check-valid-until=no signed-by=/usr/share/keyrings/dell-trusted.gpg] https://linux.dell.com/repo/community/openmanage/11100/jammy jammy main
+deb [arch=amd64 signed-by=/usr/share/keyrings/dell-trusted.gpg] https://linux.dell.com/repo/community/openmanage/11100/jammy jammy main
 """
         dell_sources_path = self.chroot_path / "etc" / "apt" / "sources.list.d" / "dell-omsa.list"
         with open(dell_sources_path, "w") as f:

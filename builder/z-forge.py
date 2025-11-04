@@ -11,6 +11,7 @@ import os
 import yaml
 import logging
 import argparse
+import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -91,6 +92,8 @@ Examples:
                        help='Enable debug logging')
     parser.add_argument('--auto-detect', action='store_true', default=True,
                        help='Enable automatic hardware detection (default: enabled)')
+    parser.add_argument('--timeout', type=int, default=3600,
+                          help='Timeout for the entire build process in seconds (default: 3600)')
     
     args = parser.parse_args()
     
@@ -190,7 +193,7 @@ def execute_new_build(options: Dict):
     lockfile = BuildLockfile(Path("build_spec.lock"))
     
     # Execute build pipeline
-    result = builder.execute_pipeline(lockfile=lockfile)
+    result = builder.execute_pipeline(lockfile=lockfile, timeout=options.get('timeout', 3600))
     
     if result['status'] == 'success':
         print(f"\n[+] Build completed successfully!")
@@ -553,4 +556,14 @@ def fix_workspace_issues(config_path: str) -> Dict:
         }
 
 if __name__ == "__main__":
+    # Relaunch with sudo if not running as root
+    if os.geteuid() != 0:
+        print("[+] Not running as root, relaunching with sudo...")
+        try:
+            subprocess.run(['sudo', sys.executable] + sys.argv, check=True)
+            sys.exit(0)
+        except subprocess.CalledProcessError:
+            print("[!] Failed to relaunch with sudo. Please run as root.")
+            sys.exit(1)
+
     main()
