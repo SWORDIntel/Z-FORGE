@@ -8,20 +8,11 @@ builder_config:
   cache_packages: true
   auto_detect_hardware: true
   iso_version: '3.0'
-  sysctl:
-    net.ipv4.tcp_syncookies: 1
-    net.ipv4.ip_forward: 0
-    net.ipv4.conf.all.accept_source_route: 0
-    net.ipv4.conf.all.accept_redirects: 0
-    net.ipv4.conf.all.secure_redirects: 0
-    net.ipv4.conf.all.log_martians: 1
-    net.ipv6.conf.all.disable_ipv6: 1
-    kernel.randomize_va_space: 2
-    fs.suid_dumpable: 0
-    vm.mmap_min_addr: 65536
-    kernel.kptr_restrict: 2
-    kernel.dmesg_restrict: 1
-    kernel.unprivileged_bpf_disabled: 1
+  hardening_profile: UNCLASS # UNCLASS, CLASSIFIED, or TS
+firewall_config:
+  enabled: true
+  allowed_tcp_ports: [22]
+  allowed_udp_ports: []
 proxmox_config:
   version: latest
   minimal_install: false
@@ -46,7 +37,7 @@ calamares_config:
 modules:
 - name: workspace_setup
   enabled: true
-- name: gpg_bypass
+- name: gpg_key_importer
   enabled: true
 - name: universal_hardware_detect
   enabled: true
@@ -67,6 +58,8 @@ modules:
 - name: bootloader_setup
   enabled: true
 - name: security_hardening
+  enabled: true
+- name: firewall_setup
   enabled: true
 - name: zfs_encryption
   enabled: true

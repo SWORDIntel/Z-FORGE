@@ -19,12 +19,12 @@ class SecurityHardening:
     """
     Applies system-level hardening:
       - SSH lockdown
-      - kernel sysctl tweaks
+      - kernel sysctl tweaks based on hardening profiles
       - unattended-upgrades
       - minimal services
     Config keys:
+      - hardening_profile: "UNCLASS", "CLASSIFIED", or "TS"
       - ssh_disable_root: bool
-      - sysctl: dict of key→value
       - services_disable: [ "avahi-daemon", ... ]
     """
 
@@ -33,7 +33,48 @@ class SecurityHardening:
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
         self.chroot_path = self.workspace / "chroot"
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+        self.profiles = {
+            "UNCLASS": {
+                "net.ipv4.tcp_syncookies": 1,
+                "net.ipv4.ip_forward": 0,
+                "net.ipv4.conf.all.accept_source_route": 0,
+                "net.ipv4.conf.all.accept_redirects": 0,
+                "net.ipv4.conf.all.secure_redirects": 0,
+                "net.ipv4.conf.all.log_martians": 1,
+                "kernel.randomize_va_space": 2,
+                "fs.suid_dumpable": 0,
+            },
+            "CLASSIFIED": {
+                "net.ipv4.tcp_syncookies": 1,
+                "net.ipv4.ip_forward": 0,
+                "net.ipv4.conf.all.accept_source_route": 0,
+                "net.ipv4.conf.all.accept_redirects": 0,
+                "net.ipv4.conf.all.secure_redirects": 0,
+                "net.ipv4.conf.all.log_martians": 1,
+                "net.ipv6.conf.all.disable_ipv6": 1,
+                "kernel.randomize_va_space": 2,
+                "fs.suid_dumpable": 0,
+                "vm.mmap_min_addr": 65536,
+                "kernel.kptr_restrict": 2,
+                "kernel.dmesg_restrict": 1,
+            },
+            "TS": {
+                "net.ipv4.tcp_syncookies": 1,
+                "net.ipv4.ip_forward": 0,
+                "net.ipv4.conf.all.accept_source_route": 0,
+                "net.ipv4.conf.all.accept_redirects": 0,
+                "net.ipv4.conf.all.secure_redirects": 0,
+                "net.ipv4.conf.all.log_martians": 1,
+                "net.ipv6.conf.all.disable_ipv6": 1,
+                "kernel.randomize_va_space": 2,
+                "fs.suid_dumpable": 0,
+                "vm.mmap_min_addr": 65536,
+                "kernel.kptr_restrict": 2,
+                "kernel.dmesg_restrict": 1,
+                "kernel.unprivileged_bpf_disabled": 1,
+                "kernel.yama.ptrace_scope": 2,
+            }
+        }
 
     def _run(self, cmd, check=True):
         try:
@@ -72,14 +113,16 @@ class SecurityHardening:
                 else:
                     self.logger.info("SSH not installed, skipping SSH hardening.")
             elif task == "apply_sysctl":
-                for key, val in self.config.get("sysctl", {}).items():
-                    self._run(["sysctl", "-w", f"{key}={val}"])
+                profile_name = self.config.get("hardening_profile", "UNCLASS").upper()
+                sysctl_settings = self.profiles.get(profile_name, self.profiles["UNCLASS"])
+
+                self.logger.info(f"Applying '{profile_name}' hardening profile.")
 
                 # Write to chroot path
                 sysctl_conf_path = self.chroot_path / "etc/sysctl.d/99-hardening.conf"
-                sysctl_conf_path.parent.mkdir(parents=True, exist_ok=True) # Ensure directory exists
+                sysctl_conf_path.parent.mkdir(parents=True, exist_ok=True)
                 sysctl_conf_path.write_text(
-                    "\n".join(f"{k} = {v}" for k,v in self.config.get("sysctl", {}).items())
+                    "\n".join(f"{k} = {v}" for k, v in sysctl_settings.items())
                 )
                 self._run(["sysctl", "--system"])
                 self.logger.info("Applied sysctl settings.")
