@@ -77,14 +77,14 @@ hardware_detection:
 modules:
 - name: WorkspaceSetup
   enabled: true
-- name: GPGBypass
+- name: GPGKeyImporter
   enabled: true
 - name: UniversalHardwareDetect
   enabled: true
 - name: Debootstrap
   enabled: true
 - name: KernelAcquisition
-  enabled: true
+  enabled: false
 - name: ZFSBuild
   enabled: true
 - name: LiveEnvironment

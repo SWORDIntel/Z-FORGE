@@ -16,7 +16,8 @@ from urllib.request import urlretrieve
 from urllib.error import URLError
 
 # Add builder modules to path
-sys.path.insert(0, '/home/ubuntu/Documents/Z-FORGE')
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 from builder.core.module import BaseModule
 
 import logging

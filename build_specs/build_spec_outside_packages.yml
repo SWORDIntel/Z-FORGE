@@ -24,7 +24,7 @@ builder_config:
 # All packages built outside chroot
 prebuilt_packages:
   enabled: true
-  source_dir: "/home/ubuntu/Documents/Z-FORGE/prebuilt_packages"
+  source_dir: "prebuilt_packages"
   categories:
     - zfs
     - kernel
@@ -40,15 +40,15 @@ proxmox_config:
   build_from_source: true  # Enable source building
   native_compilation: true  # Compile with native CPU optimizations
   install_method: dkms_packages
-  package_dir: "/home/ubuntu/Documents/Z-FORGE/prebuilt_packages/proxmox-9.0"
-  source_dir: "/home/ubuntu/Documents/Z-FORGE/proxmox-sources"
+  package_dir: "prebuilt_packages/proxmox-9.0"
+  source_dir: "proxmox-sources"
   dkms_package: "zforge-zfs-proxmox-dkms"
 
 zfs_config:
   version: 2.3.4
   build_from_source: false  # Use prebuilt from Proxmox source
   install_method: prebuilt_packages
-  package_dir: "/home/ubuntu/Documents/Z-FORGE/prebuilt_packages/zfs"
+  package_dir: "prebuilt_packages/zfs"
   enable_encryption: true
   compression:
     default: lz4
@@ -63,7 +63,7 @@ bootloader_config:
   enable_zfsbootmenu: true
   encryption_support: true
   install_method: prebuilt_packages
-  package_dir: "/home/ubuntu/Documents/Z-FORGE/prebuilt_packages/bootloaders"
+  package_dir: "prebuilt_packages/bootloaders"
 
 hardware_detection:
   enabled: true
@@ -72,7 +72,7 @@ hardware_detection:
 calamares_config:
   enabled: true
   install_method: prebuilt_packages
-  package_dir: "/home/ubuntu/Documents/Z-FORGE/prebuilt_packages/calamares"
+  package_dir: "prebuilt_packages/calamares"
 
 modules:
 - name: workspace_setup
@@ -83,7 +83,7 @@ modules:
 - name: prebuilt_package_copy
   enabled: true
   config:
-    source: "/home/ubuntu/Documents/Z-FORGE/prebuilt_packages"
+    source: "prebuilt_packages"
     destination: "/root/zforge_workspace/prebuilt_packages"
     
 - name: gpg_bypass

@@ -31,6 +31,7 @@ def _camel_to_snake(name: str) -> str:
     
     # Handle special cases for common acronyms
     acronym_replacements = {
+        'GPG': 'gpg',
         'ZFS': 'zfs',
         'ISO': 'iso',
         'KDE': 'kde',
@@ -133,7 +134,8 @@ class ZForgeBuilder:
         self,
         modules: Optional[List[str]] = None,
         resume: bool = False,
-        lockfile: Optional[BuildLockfile] = None
+        lockfile: Optional[BuildLockfile] = None,
+        timeout: int = 3600
     ) -> Dict:
         """
         Execute the complete build pipeline or specific modules

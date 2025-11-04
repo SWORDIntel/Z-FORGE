@@ -1,0 +1,31 @@
+════════════════════════════════════════════════════════════════
+                Z-FORGE V3  AUTOMATED BUILD
+════════════════════════════════════════════════════════════════
+
+[*] Using configuration: /app/build_specs/build_spec.yml
+[*] Workspace: /root/zforge_workspace
+
+[*] Starting automated build process...
+[*] This will take 30-60 minutes depending on your system
+
+2025-11-04 16:32:45,403 - ZForge - INFO - Starting Z-Forge build pipeline
+2025-11-04 16:32:45,404 - ZForge - INFO - Executing modules: workspace_setup, gpg_bypass, universal_hardware_detect, debootstrap, kernel_acquisition, zfs_build, proxmox_integration, live_environment, dracut_config, zfsbootmenu_install, bootloader_setup, security_hardening, zfs_encryption, calamares_integration, cleanup_handler, iso_generation
+2025-11-04 16:32:45,404 - ZForge - INFO - No specific resume data found for module workspace_setup, will be called with None.
+2025-11-04 16:32:45,404 - ZForge - INFO - Executing module: workspace_setup
+2025-11-04 16:32:45,427 - WorkspaceSetup - INFO - Setting up workspace with validation...
+2025-11-04 16:32:45,427 - WorkspaceSetup - INFO - Available disk space: 89.2GB
+2025-11-04 16:32:45,427 - WorkspaceSetup - INFO - Disk space validation passed: 89.2GB available
+2025-11-04 16:32:45,428 - WorkspaceSetup - INFO - Running as root - privileges verified
+2025-11-04 16:32:45,428 - WorkspaceSetup - INFO - Creating workspace directories...
+2025-11-04 16:32:45,428 - WorkspaceSetup - WARNING - Workspace /root/zforge_workspace already exists with content!
+2025-11-04 16:32:45,428 - WorkspaceSetup - INFO - Cleaning up existing workspace...
+2025-11-04 16:32:45,429 - WorkspaceSetup - INFO - Detected mounts inside chroot: ['/root/zforge_workspace/chroot/dev/pts', '/root/zforge_workspace/chroot/proc', '/root/zforge_workspace/chroot/dev', '/root/zforge_workspace/chroot/sys']
+2025-11-04 16:32:45,429 - WorkspaceSetup - INFO - Attempting to unmount /root/zforge_workspace/chroot/dev/pts (try 1/3)...
+2025-11-04 16:32:45,462 - WorkspaceSetup - INFO - Successfully unmounted /root/zforge_workspace/chroot/dev/pts
+2025-11-04 16:32:45,462 - WorkspaceSetup - INFO - Attempting to unmount /root/zforge_workspace/chroot/proc (try 1/3)...
+2025-11-04 16:32:45,488 - WorkspaceSetup - INFO - Successfully unmounted /root/zforge_workspace/chroot/proc
+2025-11-04 16:32:45,489 - WorkspaceSetup - INFO - Attempting to unmount /root/zforge_workspace/chroot/dev (try 1/3)...
+2025-11-04 16:32:45,512 - WorkspaceSetup - INFO - Successfully unmounted /root/zforge_workspace/chroot/dev
+2025-11-04 16:32:45,512 - WorkspaceSetup - INFO - Attempting to unmount /root/zforge_workspace/chroot/sys (try 1/3)...
+2025-11-04 16:32:45,533 - WorkspaceSetup - INFO - Successfully unmounted /root/zforge_workspace/chroot/sys
+2025-11-04 16:32:45,533 - WorkspaceSetup - INFO - Recursively removing entire workspace at /root/zforge_workspace...

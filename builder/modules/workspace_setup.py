@@ -180,44 +180,51 @@ class WorkspaceSetup:
         self.logger.info(f"Created {len(self.required_subdirs)} workspace directories")
     
     def _cleanup_existing_workspace(self):
-        """Clean up existing workspace safely"""
-        
+        """Clean up existing workspace safely by unmounting and removing everything."""
         self.logger.info("Cleaning up existing workspace...")
-        
+
         try:
-            # First unmount any filesystems that might be mounted
-            chroot_mounts = ["dev/pts", "dev", "proc", "sys", "run"]
-            for mount in chroot_mounts:
-                mount_path = self.workspace / "chroot" / mount
-                if mount_path.exists():
-                    try:
-                        subprocess.run(["sudo", "mountpoint", "-q", str(mount_path)], 
-                                     capture_output=True, check=True)
-                        # If mountpoint succeeds, it's mounted
-                        subprocess.run(["sudo", "umount", "-l", str(mount_path)], 
-                                     capture_output=True, check=False)
-                        self.logger.info(f"Unmounted {mount_path}")
-                    except subprocess.CalledProcessError:
-                        pass  # Not mounted or error, continue
+            # Get all mounts and filter for those inside the chroot path
+            with open('/proc/mounts', 'r') as f:
+                mounts = [line.split()[1] for line in f.readlines()]
             
-            # Remove the workspace contents but preserve the directory structure if possible
-            for item in self.workspace.iterdir():
-                if item.is_dir() and item.name in ["cache", "log", "tmp"]:
-                    # Preserve cache and log directories, just clean contents
-                    for subitem in item.iterdir():
-                        subprocess.run(["sudo", "rm", "-rf", str(subitem)], check=False)
-                else:
-                    subprocess.run(["sudo", "rm", "-rf", str(item)], check=False)
-                    
-            self.logger.info("Successfully cleaned existing workspace")
-            
-        except Exception as e:
-            self.logger.warning(f"Partial cleanup failure: {e}, attempting full removal")
-            try:
+            chroot_abs_path = str(self.chroot_path.resolve())
+            chroot_mounts = sorted([m for m in mounts if m.startswith(chroot_abs_path)], key=len, reverse=True)
+
+            # Unmount all detected filesystems within the chroot
+            if chroot_mounts:
+                self.logger.info(f"Detected mounts inside chroot: {chroot_mounts}")
+                for mount_point in chroot_mounts:
+                    for i in range(3): # Retry a few times
+                        self.logger.info(f"Attempting to unmount {mount_point} (try {i+1}/3)...")
+                        # Use -R for recursive, -f for force, -l for lazy
+                        result = subprocess.run(["sudo", "umount", "-R", "-f", "-l", mount_point], capture_output=True)
+                        if result.returncode == 0:
+                            self.logger.info(f"Successfully unmounted {mount_point}")
+                            break
+                        else:
+                            self.logger.warning(f"Failed to unmount {mount_point}: {result.stderr.decode().strip()}")
+                            import time
+                            time.sleep(1)
+            else:
+                self.logger.info("No active mounts detected inside chroot path.")
+
+            # After unmounting, remove the entire workspace directory
+            self.logger.info(f"Recursively removing entire workspace at {self.workspace}...")
+            if self.workspace.exists():
                 subprocess.run(["sudo", "rm", "-rf", str(self.workspace)], check=True)
-                self.logger.info("Full workspace removal successful")
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to clean existing workspace: {e}")
+            self.logger.info("Successfully cleaned and removed existing workspace.")
+
+        except Exception as e:
+            self.logger.error(f"An error occurred during workspace cleanup: {e}", exc_info=True)
+            # As a last resort, try a final rm -rf
+            try:
+                if self.workspace.exists():
+                    self.logger.warning("Attempting final, forceful removal of workspace...")
+                    subprocess.run(["sudo", "rm", "-rf", str(self.workspace)], check=True)
+                    self.logger.info("Final workspace removal successful.")
+            except subprocess.CalledProcessError as final_e:
+                raise RuntimeError(f"Failed to clean existing workspace even with final attempt: {final_e}")
     
     def _set_permissions(self):
         """Set correct permissions for workspace"""
