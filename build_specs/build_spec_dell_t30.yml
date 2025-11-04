@@ -1,0 +1,76 @@
+builder_config:
+  debian_release: trixie
+  kernel_version: 6.14.0-15-generic
+  output_iso_name: zforge-3.0-dell-t30-amd64.iso
+  enable_debug: false
+  workspace_path: /dev/shm/zforge-workspace-main
+  ram_build: true
+  cache_packages: true
+  auto_detect_hardware: true
+  iso_version: '3.0'
+  hardening_profile: CLASSIFIED
+firewall_config:
+  enabled: true
+  allowed_tcp_ports: [22]
+  allowed_udp_ports: []
+proxmox_config:
+  version: latest
+  minimal_install: false
+  build_from_source: false
+  include_packages:
+    - intel-microcode
+zfs_config:
+  version: 2.3.4
+  build_from_source: false
+  enable_encryption: true
+  compression:
+    default: lz4
+    algorithm: auto
+bootloader_config:
+  primary: grub
+  enable_zfsbootmenu: true
+  encryption_support: true
+hardware_detection:
+  enabled: true
+  enforce_zfs_mode: true
+calamares_config:
+  enabled: true
+modules:
+- name: workspace_setup
+  enabled: true
+- name: gpg_key_importer
+  enabled: true
+- name: universal_hardware_detect
+  enabled: true
+- name: debootstrap
+  enabled: true
+- name: kernel_acquisition
+  enabled: true
+- name: zfs_build
+  enabled: true
+- name: proxmox_integration
+  enabled: true
+- name: live_environment
+  enabled: true
+- name: dracut_config
+  enabled: true
+- name: zfsbootmenu_install
+  enabled: true
+- name: bootloader_setup
+  enabled: true
+- name: security_hardening
+  enabled: true
+- name: firewall_setup
+  enabled: true
+- name: zfs_encryption
+  enabled: true
+- name: calamares_integration
+  enabled: true
+- name: cleanup_handler
+  enabled: true
+- name: iso_generation
+  enabled: true
+name: Z-FORGE (Dell PowerEdge T30)
+version: '3.0'
+codename: proxmox9-beta
+architecture: amd64
