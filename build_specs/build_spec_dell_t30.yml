@@ -1,14 +1,14 @@
 builder_config:
   debian_release: trixie
   kernel_version: 6.14.0-15-generic
-  output_iso_name: zforge-3.0-amd64.iso
+  output_iso_name: zforge-3.0-dell-t30-amd64.iso
   enable_debug: false
-  workspace_path: /dev/shm/zforge-workspace-main  # RAM build for 3-5x performance
-  ram_build: true  # Enable full RAM builds
+  workspace_path: /dev/shm/zforge-workspace-main
+  ram_build: true
   cache_packages: true
   auto_detect_hardware: true
   iso_version: '3.0'
-  hardening_profile: UNCLASS # UNCLASS, CLASSIFIED, or TS
+  hardening_profile: CLASSIFIED
 firewall_config:
   enabled: true
   allowed_tcp_ports: [22]
@@ -17,7 +17,8 @@ proxmox_config:
   version: latest
   minimal_install: false
   build_from_source: false
-  include_packages: []
+  include_packages:
+    - intel-microcode
 zfs_config:
   version: 2.3.4
   build_from_source: false
@@ -69,7 +70,7 @@ modules:
   enabled: true
 - name: iso_generation
   enabled: true
-name: Z-FORGE
+name: Z-FORGE (Dell PowerEdge T30)
 version: '3.0'
 codename: proxmox9-beta
 architecture: amd64

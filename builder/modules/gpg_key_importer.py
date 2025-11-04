@@ -56,13 +56,14 @@ class GPGKeyImporter:
         """Import Proxmox GPG keys"""
         self.logger.info("Importing Proxmox GPG keys...")
 
-        key_url = "https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg"
-        key_path = self.chroot_path / "etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg"
+        key_url = "http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg"
+        key_path = self.chroot_path / "etc/apt/trusted.gpg.d/proxmox-ve-release-6.x.gpg"
         key_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
+            # Use chroot to run wget
             subprocess.run(
-                ["wget", "-O", str(key_path), key_url],
+                ["chroot", str(self.chroot_path), "wget", "-O", str(key_path).replace(str(self.chroot_path), ""), key_url],
                 check=True,
                 capture_output=True,
                 text=True,

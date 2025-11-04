@@ -30,10 +30,10 @@ class HardwareDatabase:
     
     # Dell PowerEdge Servers
     DELL_SERVERS = {
-        "PowerEdge R730": HardwareProfile(
-            name="Dell PowerEdge R730",
+        "PowerEdge R730xd": HardwareProfile(
+            name="Dell PowerEdge R730xd",
             vendor="Dell Inc.",
-            model="PowerEdge R730",
+            model="PowerEdge R730xd",
             type="server",
             optimal_settings={
                 "zfs": {
@@ -58,17 +58,51 @@ class HardwareDatabase:
                 }
             },
             known_issues=[
-                "PERC H730 needs IT mode for ZFS",
+                "PERC H330/H730/H730P needs IT mode for ZFS",
                 "iDRAC may need firmware update for Linux",
                 "Broadcom NIC may need driver update"
             ],
             special_features=[
                 "iDRAC remote management",
                 "Redundant power supplies",
-                "Hot-swap drives",
+                "Up to 24 x 2.5\" or 12 x 3.5\" hot-swap drives",
                 "IPMI support"
             ],
             tested=True
+        ),
+        "PowerEdge R320": HardwareProfile(
+            name="Dell PowerEdge R320",
+            vendor="Dell Inc.",
+            model="PowerEdge R320",
+            type="server",
+            optimal_settings={
+                "zfs": {
+                    "arc_max_percent": 50,
+                    "l2arc_write_max": "8M",
+                    "zfs_txg_timeout": 5
+                },
+                "kernel": {
+                    "vm_swappiness": 10,
+                    "transparent_hugepages": "never"
+                },
+                "cpu": {
+                    "governor": "performance"
+                },
+                "perc_controller": {
+                    "mode": "IT",
+                    "cache": "disabled"
+                }
+            },
+            known_issues=[
+                "PERC S110 is a software RAID controller and not recommended for ZFS.",
+                "PERC H310/H710 needs IT mode for ZFS.",
+                "Broadcom 5720 NIC may need firmware updates."
+            ],
+            special_features=[
+                "iDRAC7",
+                "Up to 8 x 2.5\" or 4 x 3.5\" hot-swap drives"
+            ],
+            tested=False
         ),
         "PowerEdge R740": HardwareProfile(
             name="Dell PowerEdge R740",
@@ -296,7 +330,7 @@ class HardwareDatabase:
         ),
         # Dell Precision Workstations
         "Precision G8": HardwareProfile(
-            name="Dell Precision Microstation G8",
+            name="Dell Precision Microstation G8 (Generic Workstation Profile)",
             vendor="Dell Inc.",
             model="Precision G8",
             type="workstation",

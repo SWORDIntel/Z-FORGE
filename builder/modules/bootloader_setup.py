@@ -88,12 +88,30 @@ class BootloaderSetup:
                 }
 
             # Build kernel options for native ZFS encryption unlock
-            kernel_opts = [
-                "slab_nomerge",
-                "init_on_alloc=1",
-                "lockdown=confidentiality",
-                "mce=off"
-            ]
+            profile_name = self.config.get("hardening_profile", "UNCLASS").upper()
+
+            profiles = {
+                "UNCLASS": [
+                    "slab_nomerge",
+                    "init_on_alloc=1",
+                ],
+                "CLASSIFIED": [
+                    "slab_nomerge",
+                    "init_on_alloc=1",
+                    "lockdown=confidentiality",
+                ],
+                "TS": [
+                    "slab_nomerge",
+                    "init_on_alloc=1",
+                    "lockdown=confidentiality",
+                    "mce=off",
+                    "page_alloc.shuffle=1",
+                ]
+            }
+
+            kernel_opts = profiles.get(profile_name, profiles["UNCLASS"])
+            self.logger.info(f"Applying '{profile_name}' kernel hardening profile.")
+
             if framebuffer:
                 kernel_opts.append(framebuffer)
             # zfsbootmenu handles dataset passphrase prompts natively

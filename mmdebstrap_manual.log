@@ -1,3 +1,0 @@
-I: chroot architecture amd64 is equal to the host's architecture
-I: automatically chosen format: directory
-E: /root/zforge_workspace/chroot is not empty

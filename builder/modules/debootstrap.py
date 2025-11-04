@@ -328,21 +328,7 @@ deb http://deb.debian.org/debian {debian_release}-backports main contrib non-fre
             f.write(sources_list_content)
         self.logger.debug(f"Configured {sources_path}")
         
-        # Add Proxmox GPG key if using Trixie
-        if debian_release == "trixie":
-            self.logger.info("Adding Proxmox repository GPG key...")
-            try:
-                # The error log indicates a missing key A7BCD1420BFE778E, which corresponds to an older Proxmox key.
-                # We will download this specific key to resolve the signature verification failure.
-                key_url = "http://download.proxmox.com/debian/proxmox-ve-release-6.x.gpg"
-                key_path = "/etc/apt/trusted.gpg.d/proxmox-ve-release-6.x.gpg"
-                self.logger.info(f"Downloading Proxmox GPG key from {key_url}...")
-                self._run_chroot_command([
-                    "curl", "-L", "-o", key_path, key_url
-                ])
-                self.logger.info(f"Successfully added Proxmox GPG key to {key_path}")
-            except subprocess.CalledProcessError as e:
-                self.logger.error(f"Failed to add Proxmox GPG key: {e}")
+        # GPG key management is now handled by the gpg_key_importer module.
         
         # Configure /etc/hostname.
         hostname_path: Path = self.chroot_path / "etc/hostname"

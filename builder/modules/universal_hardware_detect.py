@@ -497,7 +497,9 @@ WantedBy=multi-user.target
         # Try fuzzy matching for servers
         if 'dell' in vendor.lower():
             if 'r730' in model.lower():
-                self.detected_profile = self.hardware_db.DELL_SERVERS.get("PowerEdge R730")
+                self.detected_profile = self.hardware_db.DELL_SERVERS.get("PowerEdge R730xd")
+            elif 'r320' in model.lower():
+                self.detected_profile = self.hardware_db.DELL_SERVERS.get("PowerEdge R320")
             elif 'r740' in model.lower():
                 self.detected_profile = self.hardware_db.DELL_SERVERS.get("PowerEdge R740")
             elif 'r640' in model.lower():
