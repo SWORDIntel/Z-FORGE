@@ -407,3 +407,7 @@ The enhanced system will guide you to success! 🎉
 - ✅ **Comprehensive Documentation** for all skill levels
 
 **Z-FORGE: Professional Linux distribution builder with enterprise-grade organization and navigation.** 🚀
+
+## License
+
+This project is licensed under the **SWORD Restricted Source Licence v1.0 (SRSL-1.0)**. Personal and non-commercial use is permitted under its terms; commercial exploitation requires a separate written agreement. See [LICENSE](LICENSE).
